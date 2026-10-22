@@ -22,7 +22,7 @@ import { CampoStoreSelector } from '../../components/mobile/CampoStoreSelector';
 const AVAILABLE_PRODUCTS = Array.from(
   new Set([
     'Caraotas 400gr',
-    'Lentejas 400gr',
+    'Arvejas Vencampo 400gr',
     ...CODIZULCA_PRODUCTS.map((p) => p.name),
     'Arroz 900gr',
     'Mortadela Tapara Especial 1kg',

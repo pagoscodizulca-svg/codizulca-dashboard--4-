@@ -1134,6 +1134,13 @@ export const TradeMarketing: React.FC = () => {
     };
   }, []);
 
+  // Refrescar inmediatamente al cambiar al submódulo de Informes o cambiar entre Precios / Inventario / Visitas
+  useEffect(() => {
+    if (activeSubmodule === 'informes') {
+      loadCampoSynchronizedData(true);
+    }
+  }, [activeSubmodule, informesTab]);
+
   const handleDeleteMerchReport = async (id: string) => {
     await merchandisingService.delete(id);
     setDeleteConfirmMerchReport(null);
@@ -1923,6 +1930,13 @@ export const TradeMarketing: React.FC = () => {
       const matchesPromoter =
         promoterFilter === 'todos' || matchPromoterName(r.promoter, promoterFilter);
       if (!matchesPromoter) return false;
+
+      if (inventoryStatusFilter !== 'todos') {
+        const fin = Number(r.finalStock) || 0;
+        const status = fin === 0 ? 'quiebre' : fin < 10 ? 'bajo' : fin < 25 ? 'medio' : 'alto';
+        if (status !== inventoryStatusFilter) return false;
+      }
+
       const combinedTerm = (reportSearchTerm || searchTerm).trim().toLowerCase();
       if (!combinedTerm) return true;
       return (
@@ -1932,7 +1946,7 @@ export const TradeMarketing: React.FC = () => {
         r.promoterObservation.toLowerCase().includes(combinedTerm)
       );
     });
-  }, [inventoryReports, reportSearchTerm, searchTerm, promoterFilter]);
+  }, [inventoryReports, reportSearchTerm, searchTerm, promoterFilter, inventoryStatusFilter]);
 
   // Totales agregados de inventario y degustación
   const inventoryReportTotals = useMemo(() => {
@@ -3997,6 +4011,16 @@ export const TradeMarketing: React.FC = () => {
                     <span className="px-2.5 py-0.5 rounded-full bg-zinc-800 border border-white/10 text-zinc-300 font-mono text-xs">
                       {filteredInventoryReports.length} balances registrados
                     </span>
+                    <button
+                      type="button"
+                      onClick={handleManualSyncPrices}
+                      disabled={isSyncingPrices}
+                      className="px-2.5 py-1 rounded-xl bg-emerald-950/60 hover:bg-emerald-900/70 border border-emerald-500/40 text-emerald-400 font-mono font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+                      title="Sincronizar balances de inventario en vivo desde la App de Promotoras y Supabase"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${isSyncingPrices ? 'animate-spin' : ''}`} />
+                      <span>{isSyncingPrices ? 'Sincronizando...' : 'Sincronizar Inventarios'}</span>
+                    </button>
                   </div>
                 </div>
 
@@ -7823,6 +7847,8 @@ export const TradeMarketing: React.FC = () => {
                     onChange={(e) => setNewReportForm({ ...newReportForm, productName: e.target.value })}
                     className="w-full bg-zinc-900 border border-white/10 rounded-xl px-3 py-2 text-white font-medium focus:outline-none focus:border-red-500 text-xs cursor-pointer"
                   >
+                    <option value="Caraotas 400gr">Caraotas 400gr</option>
+                    <option value="Arvejas Vencampo 400gr">Arvejas Vencampo 400gr</option>
                     <option value="Arroz Vencampo 400gr">Arroz Vencampo 400gr</option>
                     <option value="Arroz Vencampo 500gr">Arroz Vencampo 500gr</option>
                     <option value="Arroz Vencampo 900gr">Arroz Vencampo 900gr</option>

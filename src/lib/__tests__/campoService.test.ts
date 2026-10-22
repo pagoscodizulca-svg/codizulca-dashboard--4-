@@ -230,11 +230,12 @@ describe('campoService - Offline-First & Sync Test Suite', () => {
       expect(FREQUENT_STORES).toContain('OLIMPICA SÚPER MARKET');
     });
 
-    it('contiene los productos de Asturias y las presentaciones de Vencampo (incluyendo Caraotas y Lentejas 400gr) en CODIZULCA_PRODUCTS', () => {
+    it('contiene los productos de Asturias y las presentaciones de Vencampo (incluyendo Caraotas y Arvejas Vencampo 400gr) en CODIZULCA_PRODUCTS', () => {
       expect(CODIZULCA_PRODUCTS.length).toBe(24);
       const names = CODIZULCA_PRODUCTS.map((p) => p.name);
       expect(names).toContain('Caraotas 400gr');
-      expect(names).toContain('Lentejas 400gr');
+      expect(names).toContain('Arvejas Vencampo 400gr');
+      expect(names).not.toContain('Lentejas 400gr');
       expect(names).not.toContain('Caraotas 500gr');
       expect(names).not.toContain('Caraotas 1kg');
       expect(names).not.toContain('Lentejas 500gr');
@@ -337,7 +338,7 @@ describe('campoService - Offline-First & Sync Test Suite', () => {
         store: 'OLIMPICA SÚPER MARKET',
         promoter: 'JAIVELIN FEREIRA',
         creatorId: 'jaivelinfereira20@gmail.com',
-        productName: 'Lentejas 400gr',
+        productName: 'Arvejas Vencampo 400gr',
         ownPriceUsd: 1.65,
         ownPriceBs: 60.8,
         bcvRate: 36.85,
@@ -353,10 +354,57 @@ describe('campoService - Offline-First & Sync Test Suite', () => {
 
       const allSurveys = await campoService.getPriceSurveys(true);
       expect(allSurveys.length).toBe(1);
-      expect(allSurveys[0].productName).toBe('Lentejas 400gr');
+      expect(allSurveys[0].productName).toBe('Arvejas Vencampo 400gr');
       expect(allSurveys[0].promoter).toBe('JAIVELIN FEREIRA');
       expect(allSurveys[0].competitors[0].name).toBe('Pantera');
       expect(allSurveys[0].id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+    });
+
+    it('sincroniza inventarios enviados por promotoras entre saveInventoryLog y getInventoryLogs', async () => {
+      let postedInv: any = null;
+      vi.stubGlobal('fetch', vi.fn().mockImplementation(async (url: string, init?: RequestInit) => {
+        if (init?.method === 'POST' && url.includes('/api/inventory-logs')) {
+          postedInv = JSON.parse(init.body as string);
+          return {
+            ok: true,
+            status: 201,
+            json: async () => postedInv
+          };
+        }
+        if (url.includes('/api/inventory-logs')) {
+          return {
+            ok: true,
+            status: 200,
+            headers: new Headers({ 'content-type': 'application/json' }),
+            json: async () => (postedInv ? [postedInv] : [])
+          };
+        }
+        return { ok: true, status: 200, json: async () => [] };
+      }));
+
+      const invRes = await campoService.saveInventoryLog({
+        id: 'INV-987654',
+        date: '2026-10-22T15:05:00.000Z',
+        store: 'ALKOSTO DONDE COMPRAR ES GANAR, C.A. (LA LIMPIA)',
+        promoter: 'NAIRELIS ANTUNEZ',
+        creatorId: 'antuneznairelis@gmail.com',
+        productName: 'Arvejas Vencampo 400gr',
+        initialStock: 50,
+        tastingsGiven: 2,
+        finalStock: 38,
+        netRotation: 10,
+        observations: 'Alta rotación en anaquel'
+      });
+      expect(invRes.success).toBe(true);
+
+      const allInv = await campoService.getInventoryLogs(true);
+      expect(allInv.length).toBe(1);
+      expect(allInv[0].productName).toBe('Arvejas Vencampo 400gr');
+      expect(allInv[0].promoter).toBe('NAIRELIS ANTUNEZ');
+      expect(allInv[0].initialStock).toBe(50);
+      expect(allInv[0].finalStock).toBe(38);
+      expect(allInv[0].netRotation).toBe(10);
+      expect(allInv[0].id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
     });
 
     it('ordena correctamente fechas ISO y DD/MM/YYYY mediante toSortableTimestamp', () => {

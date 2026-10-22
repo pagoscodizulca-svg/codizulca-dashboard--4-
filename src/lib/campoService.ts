@@ -140,9 +140,9 @@ export interface MerchandisingReportPayload {
 
 // Catálogo Oficial de Productos Asturias / Codizulca / Vencampo para Monitoreo de Precios, Inventario y Degustaciones
 export const CODIZULCA_PRODUCTS = [
-  // Línea Vencampo - Granos: Caraotas y Lentejas (400gr)
+  // Línea Vencampo - Granos: Caraotas y Arvejas Vencampo (400gr)
   { id: 'PROD-VEN-CAR-400', name: 'Caraotas 400gr', defaultPriceUsd: 1.10, category: 'Víveres / Granos', weight: '400gr' },
-  { id: 'PROD-VEN-LEN-400', name: 'Lentejas 400gr', defaultPriceUsd: 1.20, category: 'Víveres / Granos', weight: '400gr' },
+  { id: 'PROD-VEN-ARV-400', name: 'Arvejas Vencampo 400gr', defaultPriceUsd: 1.20, category: 'Víveres / Granos', weight: '400gr' },
   // Línea Vencampo - Arroz (400gr, 500gr, 900gr, 1kg)
   { id: 'PROD-VEN-ARR-400', name: 'Arroz Vencampo 400gr', defaultPriceUsd: 0.65, category: 'Víveres / Granos', weight: '400gr' },
   { id: 'PROD-VEN-ARR-500', name: 'Arroz Vencampo 500gr', defaultPriceUsd: 0.80, category: 'Víveres / Granos', weight: '500gr' },
@@ -1025,6 +1025,25 @@ export const campoService = {
           } catch {}
         }
 
+        if (!isTestEnv && item.type === 'inventory_log' && item.payload && !isSyntheticPriceOrInventoryRow(item.payload)) {
+          try {
+            const norm = mapSupabaseInventoryRowToPayload(item.payload);
+            const dbId = ensureCampoUuid(norm.id, `${norm.date}|${norm.promoter}|${norm.store}|${norm.productName}`);
+            await (supabase.from('inventory') as any).upsert({
+              id: dbId,
+              date: norm.date,
+              store: norm.store,
+              product: norm.productName,
+              initialQuantity: Number(norm.initialStock) || 0,
+              finalQuantity: Number(norm.finalStock) || 0,
+              degustations: Number(norm.tastingsGiven) || 0,
+              comments: norm.observations || '',
+              creatorId: item.payload.creatorId || norm.promoter || '',
+              promoter: norm.promoter,
+            });
+          } catch {}
+        }
+
         if (endpoint) {
           const res = await fetch(endpoint, {
             method: 'POST',
@@ -1429,7 +1448,7 @@ export const campoService = {
     const isTestEnv =
       typeof process !== 'undefined' &&
       Boolean(process.env?.NODE_ENV === 'test' || process.env?.VITEST);
-    if (!isTestEnv && (forceRefresh || serverList.length === 0)) {
+    if (!isTestEnv) {
       try {
         const { data: sbData, error: sbErr } = await supabase
           .from('prices')
@@ -1504,7 +1523,7 @@ export const campoService = {
     const isTestEnv =
       typeof process !== 'undefined' &&
       Boolean(process.env?.NODE_ENV === 'test' || process.env?.VITEST);
-    if (!isTestEnv && (forceRefresh || serverList.length === 0)) {
+    if (!isTestEnv) {
       try {
         const { data: sbData, error: sbErr } = await supabase
           .from('inventory')

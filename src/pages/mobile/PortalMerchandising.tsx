@@ -623,7 +623,7 @@ export const PortalMerchandising: React.FC = () => {
             <div className="flex flex-wrap gap-1.5 pb-1">
               {[
                 'Caraotas 400gr',
-                'Lentejas 400gr',
+                'Arvejas Vencampo 400gr',
                 'Arroz Vencampo (400gr / 500gr / 900gr / 1kg)',
                 'Línea Embutidos Asturias'
               ].map((skuChip) => {
@@ -659,7 +659,7 @@ export const PortalMerchandising: React.FC = () => {
               type="text"
               value={productDetail}
               onChange={(e) => setProductDetail(e.target.value)}
-              placeholder="Ej. Caraotas 400gr, Lentejas 400gr, Mortadelas..."
+              placeholder="Ej. Caraotas 400gr, Arvejas Vencampo 400gr, Mortadelas..."
               className="w-full text-xs px-3 py-1.5 border border-gray-300 rounded-lg"
             />
           </div>

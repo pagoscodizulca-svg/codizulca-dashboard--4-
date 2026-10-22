@@ -31,10 +31,12 @@ export const CampoInventario: React.FC<{ activePromoterName?: string }> = ({
   const activePromoter = context?.activePromoter || campoService.getActivePromoter();
 
   const [storeName, setStoreName] = useState<string>(() => {
-    const savedStore = localStorage.getItem(STORAGE_KEY_ACTIVE_STORE);
-    if (savedStore && savedStore.trim() && FREQUENT_STORES.includes(savedStore.trim())) {
-      return savedStore.trim();
-    }
+    try {
+      const savedStore = localStorage.getItem(STORAGE_KEY_ACTIVE_STORE);
+      if (savedStore && savedStore.trim()) {
+        return savedStore.trim();
+      }
+    } catch {}
     if (activePromoter?.assignedStore) {
       const cleanAssigned = activePromoter.assignedStore.toUpperCase();
       const matched = FREQUENT_STORES.find(s => s.toUpperCase().includes(cleanAssigned));
@@ -52,6 +54,7 @@ export const CampoInventario: React.FC<{ activePromoterName?: string }> = ({
 
   const [saveSuccess, setSaveSuccess] = useState<boolean>(false);
   const [isOfflineSaved, setIsOfflineSaved] = useState<boolean>(false);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
   // Inventario Final automático: Inicial - Ventas - Degustaciones/Muestras
   const rawFinalStock = roundQty(initialStock - salesGiven - tastingsGiven);
@@ -65,6 +68,7 @@ export const CampoInventario: React.FC<{ activePromoterName?: string }> = ({
   const rotationPercentage = initialStock > 0 ? Math.round((netRotation / initialStock) * 100) : 0;
 
   const handleSave = async () => {
+    if (isSubmitting) return;
     if (isFinalStockInvalid) {
       alert('Error de validación: Las ventas y degustaciones no pueden ser mayores al inventario inicial.');
       return;
@@ -74,50 +78,56 @@ export const CampoInventario: React.FC<{ activePromoterName?: string }> = ({
       return;
     }
 
-    const promoterFinalName = activePromoterName || activePromoter?.name || campoService.getActivePromoter().name;
-    const generatedId =
-      typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
-        ? crypto.randomUUID()
-        : 'INV-' + Date.now().toString().slice(-6);
-    const payload: InventoryLogPayload = {
-      id: generatedId,
-      date: new Date().toISOString(),
-      store: storeName,
-      promoter: promoterFinalName,
-      productName: selectedProduct.name,
-      initialStock,
-      tastingsGiven,
-      finalStock,
-      netRotation,
-      observations
-    };
+    setIsSubmitting(true);
+    try {
+      const promoterFinalName = activePromoterName || activePromoter?.name || campoService.getActivePromoter().name;
+      const generatedId =
+        typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+          ? crypto.randomUUID()
+          : 'INV-' + Date.now().toString().slice(-6);
+      const payload: InventoryLogPayload = {
+        id: generatedId,
+        date: new Date().toISOString(),
+        store: storeName,
+        promoter: promoterFinalName,
+        creatorId: activePromoter?.email || activePromoter?.id || promoterFinalName,
+        productName: selectedProduct.name,
+        initialStock,
+        tastingsGiven,
+        finalStock,
+        netRotation,
+        observations
+      };
 
-    const res = await campoService.saveInventoryLog(payload);
+      const res = await campoService.saveInventoryLog(payload);
 
-    // Si registró muestras degustadas, sincronizar también con su degustación activa en Trade Marketing
-    if (tastingsGiven > 0) {
-      try {
-        const assigned = await degustacionesService.getForPromoter({
-          id: activePromoter?.id,
-          name: promoterFinalName,
-          email: activePromoter?.email
-        });
-        if (assigned.length > 0) {
-          const activeDeg = assigned.find((d) => d.status === 'in_progress') || assigned[0];
-          if (activeDeg) {
-            await degustacionesService.update(activeDeg.id, {
-              delivered: Math.max(Number(activeDeg.delivered) || 0, tastingsGiven),
-              status: activeDeg.status === 'scheduled' ? 'in_progress' : activeDeg.status
-            });
+      // Si registró muestras degustadas, sincronizar también con su degustación activa en Trade Marketing
+      if (tastingsGiven > 0) {
+        try {
+          const assigned = await degustacionesService.getForPromoter({
+            id: activePromoter?.id,
+            name: promoterFinalName,
+            email: activePromoter?.email
+          });
+          if (assigned.length > 0) {
+            const activeDeg = assigned.find((d) => d.status === 'in_progress') || assigned[0];
+            if (activeDeg) {
+              await degustacionesService.update(activeDeg.id, {
+                delivered: Math.max(Number(activeDeg.delivered) || 0, tastingsGiven),
+                status: activeDeg.status === 'scheduled' ? 'in_progress' : activeDeg.status
+              });
+            }
           }
+        } catch {
+          // ignore if offline
         }
-      } catch {
-        // ignore if offline
       }
-    }
 
-    setSaveSuccess(true);
-    setIsOfflineSaved(res.offline);
+      setSaveSuccess(true);
+      setIsOfflineSaved(res.offline);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleReset = () => {
@@ -156,7 +166,12 @@ export const CampoInventario: React.FC<{ activePromoterName?: string }> = ({
         <div className="mt-3 pt-3 border-t border-neutral-800/80">
           <CampoStoreSelector
             value={storeName}
-            onChange={(val) => setStoreName(val)}
+            onChange={(val) => {
+              setStoreName(val);
+              try {
+                localStorage.setItem(STORAGE_KEY_ACTIVE_STORE, val);
+              } catch {}
+            }}
             label="Punto de Venta / Establecimiento:"
           />
         </div>
@@ -367,15 +382,15 @@ export const CampoInventario: React.FC<{ activePromoterName?: string }> = ({
             <button
               type="button"
               onClick={handleSave}
-              disabled={isFinalStockInvalid}
+              disabled={isFinalStockInvalid || isSubmitting}
               className={`w-full py-4 rounded-xl font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg transition-all cursor-pointer ${
-                isFinalStockInvalid
+                isFinalStockInvalid || isSubmitting
                   ? 'bg-neutral-800 text-neutral-500 cursor-not-allowed'
                   : 'bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white shadow-red-600/30 active:scale-[0.98]'
               }`}
             >
               <Check className="w-4 h-4" />
-              <span>Guardar Control de Inventario</span>
+              <span>{isSubmitting ? 'Sincronizando Inventario...' : 'Guardar Control de Inventario'}</span>
             </button>
           </div>
         </>
