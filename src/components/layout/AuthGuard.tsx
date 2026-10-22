@@ -1,6 +1,6 @@
 import React from 'react';
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
-import { canAccessDashboardRoute, useAuth } from '../../lib/auth';
+import { canAccessDashboardRoute, getDefaultDashboardRoute, useAuth } from '../../lib/auth';
 
 export const AuthGuard: React.FC = () => {
   const { user, isLoading, corporateProfile } = useAuth();
@@ -24,7 +24,7 @@ export const AuthGuard: React.FC = () => {
 
   // Con sesión, cada perfil solo accede a los módulos que tiene asignados
   if (!canAccessDashboardRoute(corporateProfile, location.pathname)) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to={getDefaultDashboardRoute(corporateProfile)} replace />;
   }
 
   return <Outlet />;

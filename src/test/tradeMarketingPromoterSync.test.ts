@@ -100,22 +100,26 @@ describe('Restricción de Acceso a Trazabilidad y Sincronización App Promotoras
     });
 
     it('verifica que los perfiles corporativos estén correctamente configurados', () => {
-      expect(DASHBOARD_CORPORATE_PROFILES.length).toBe(6);
+      expect(DASHBOARD_CORPORATE_PROFILES.length).toBe(12);
       const allowedProfiles = DASHBOARD_CORPORATE_PROFILES.filter((p) => p.canViewTrazabilidad);
       expect(allowedProfiles.map((p) => p.roleLabel)).toEqual([
         'Administrador General',
+        'Presidente',
+        'Directivo',
         'Gerente Nacional',
+        'Gerente Regional',
       ]);
 
-      expect(resolveCorporateProfile('gerencia@codizulca.com').roleLabel).toBe('Gerente Nacional');
+      expect(resolveCorporateProfile('Ramon01').roleLabel).toBe('Gerente Nacional');
       expect(resolveCorporateProfile('admin@codi.com').roleLabel).toBe('Administrador General');
-      expect(resolveCorporateProfile('johnatan.soto@codizulca.com').canViewTrazabilidad).toBe(false);
+      expect(resolveCorporateProfile('Johnatan01').canViewTrazabilidad).toBe(false);
       expect(resolveCorporateProfile('trademarketing@codizulca.com').canViewTrazabilidad).toBe(false);
       expect(resolveCorporateProfile('Grecia01@codizulca.com').roleKey).toBe('trade_marketing');
-      expect(resolveCorporateProfile('Grecia01@codizulca.com').roleLabel).toBe('Coordinadora Trade Marketing');
+      expect(resolveCorporateProfile('Grecia01@codizulca.com').roleLabel).toBe('Trade Marketing');
+      expect(resolveCorporateProfile('Grecia01@codizulca.com').modules).toEqual(['Trade Marketing (IA)']);
       expect(resolveCorporateProfile('Grecia01@codizulca.com').canViewTrazabilidad).toBe(false);
-      expect(resolveCorporateProfile('Gisbell01@codizulca.com').roleKey).toBe('administrativo');
-      expect(resolveCorporateProfile('Gisbell01@codizulca.com').roleLabel).toBe('Administrativo');
+      expect(resolveCorporateProfile('Gisbell01@codizulca.com').roleKey).toBe('analista');
+      expect(resolveCorporateProfile('Gisbell01@codizulca.com').roleLabel).toBe('Analista');
       expect(resolveCorporateProfile('Gisbell01@codizulca.com').canViewTrazabilidad).toBe(false);
     });
   });

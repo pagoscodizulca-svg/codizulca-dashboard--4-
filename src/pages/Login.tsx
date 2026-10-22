@@ -6,9 +6,11 @@ import { supabase } from '../lib/supabase';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import {
   useAuth,
-  DASHBOARD_CORPORATE_PROFILES,
   STORAGE_KEY_DASHBOARD_PROFILE,
   resolveCorporateProfile,
+  authenticateCorporateUser,
+  canAccessDashboardRoute,
+  getDefaultDashboardRoute,
 } from '../lib/auth';
 import { campoService } from '../lib/campoService';
 import { Input } from '../components/ui/input';
@@ -26,7 +28,7 @@ const loginSchema = z.object({
 type LoginFormValues = z.infer<typeof loginSchema>;
 
 const LoginContent: React.FC = () => {
-  const { user } = useAuth();
+  const { user, corporateProfile } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const [authError, setAuthError] = useState<string | null>(null);
@@ -44,72 +46,26 @@ const LoginContent: React.FC = () => {
   const onSubmit = async (data: LoginFormValues) => {
     setAuthError(null);
     
-    const rawEmail = data.email.trim().toLowerCase();
+    const rawIdentifier = data.email.trim();
     const rawPass = data.password.trim();
 
-    const isGreciaOrTradeAlias =
-      rawEmail === 'grecia01@codizulca.com' ||
-      rawEmail === 'grecia@codizulca.com' ||
-      rawEmail === 'trademarketing@codizulca.com' ||
-      rawEmail === 'coordinadora@codizulca.com' ||
-      rawEmail === 'grecia01' ||
-      rawEmail === 'grecia';
+    const matchedCandidate = resolveCorporateProfile(rawIdentifier);
+    const authenticatedCorp = authenticateCorporateUser(rawIdentifier, rawPass);
 
-    const isGisbellOrAdminAlias =
-      rawEmail === 'gisbell01@codizulca.com' ||
-      rawEmail === 'gisbell@codizulca.com' ||
-      rawEmail === 'administracion@codizulca.com' ||
-      rawEmail === 'administrativo@codizulca.com' ||
-      rawEmail === 'gisbell01' ||
-      rawEmail === 'gisbell';
-
-    const matchedCorpProfile = isGreciaOrTradeAlias
-      ? DASHBOARD_CORPORATE_PROFILES.find((p) => p.roleKey === 'trade_marketing')
-      : isGisbellOrAdminAlias
-      ? DASHBOARD_CORPORATE_PROFILES.find((p) => p.roleKey === 'administrativo')
-      : DASHBOARD_CORPORATE_PROFILES.find((p) => p.email.toLowerCase() === rawEmail);
-
-    let loginEmail = data.email.trim();
+    let loginEmail = rawIdentifier;
     let loginPassword = data.password;
-    
-    const validCorporatePasswords = [
-      '123',
-      'codi123',
-      'codi.123',
-      'codi.01',
-      'codi01',
-      'codi.02',
-      'codi02',
-      'gisbell01',
-      'gisbell',
-      'admin123',
-      'admin123_codizulca_gerencia',
-      matchedCorpProfile?.passwordHint?.toLowerCase(),
-    ].filter(Boolean) as string[];
 
-    const isShortCorpPass = validCorporatePasswords.includes(rawPass.toLowerCase());
-
-    if (matchedCorpProfile && isShortCorpPass) {
-      // Mapeamos a la sesión autenticada de Supabase manteniendo el perfil corporativo exacto
+    // Si es un usuario corporativo válido con su contraseña oficial asignada
+    if (authenticatedCorp) {
+      const activeCorp = authenticatedCorp;
       loginEmail = 'admin@codi.com';
       loginPassword = 'admin123_Codizulca_Gerencia';
-    } else if (rawEmail === 'admin@codi.com' && isShortCorpPass) {
-      loginPassword = 'admin123_Codizulca_Gerencia';
-    }
 
-    // Si es un perfil corporativo oficial con contraseña corporativa válida, garantizamos acceso inmediato
-    if (matchedCorpProfile && isShortCorpPass) {
-      const activeCorp = matchedCorpProfile;
       try {
         localStorage.setItem(STORAGE_KEY_DASHBOARD_PROFILE, JSON.stringify(activeCorp));
         window.dispatchEvent(new Event('codizulca_dashboard_profile_changed'));
       } catch {
         // ignore storage errors
-      }
-
-      // Si es la Coordinadora de Trade Marketing, autenticar también su sesión en Codizulca Campo (/portal)
-      if (activeCorp.roleKey === 'trade_marketing') {
-        await campoService.loginPromoter(activeCorp.email, 'Codi.02').catch(() => {});
       }
 
       // Intentar sincronizar sesión de Supabase en segundo plano sin bloquear el acceso
@@ -129,27 +85,41 @@ const LoginContent: React.FC = () => {
         false
       );
 
-      const targetPath = activeCorp.roleKey === 'trade_marketing' && from === '/dashboard' ? '/dashboard/trade' : from;
+      const defaultRoute = getDefaultDashboardRoute(activeCorp);
+      const targetPath =
+        from && from !== '/dashboard' && canAccessDashboardRoute(activeCorp, from)
+          ? from
+          : defaultRoute;
       navigate(targetPath, { replace: true });
       return;
     }
 
+    // Si el usuario pertenece a un perfil corporativo oficial pero la contraseña no coincide, rechazar
+    if (matchedCandidate && matchedCandidate.id !== 'CORP-NA') {
+      setAuthError('Usuario o contraseña incorrectos.');
+      trazabilidadService.logFailedLogin({
+        email: rawIdentifier,
+        role: matchedCandidate.roleLabel,
+        details: 'Contraseña incorrecta en Portal Gerencia',
+        module: 'Dashboard Gerencia',
+      });
+      return;
+    }
+
     // Si una promotora o impulsadora intenta ingresar desde /login, autenticarla y redirigirla a /portal/ruta
-    if (!matchedCorpProfile) {
-      const promoterRes = await campoService.loginPromoter(data.email.trim(), data.password);
-      if (promoterRes.success && promoterRes.promoter) {
-        trazabilidadService.logConnection(
-          {
-            name: promoterRes.promoter.name,
-            email: promoterRes.promoter.email,
-            role: promoterRes.promoter.role,
-            photoUrl: promoterRes.promoter.photoUrl,
-          },
-          true
-        );
-        navigate('/portal/ruta', { replace: true });
-        return;
-      }
+    const promoterRes = await campoService.loginPromoter(rawIdentifier, data.password);
+    if (promoterRes.success && promoterRes.promoter) {
+      trazabilidadService.logConnection(
+        {
+          name: promoterRes.promoter.name,
+          email: promoterRes.promoter.email,
+          role: promoterRes.promoter.role,
+          photoUrl: promoterRes.promoter.photoUrl,
+        },
+        true
+      );
+      navigate('/portal/ruta', { replace: true });
+      return;
     }
 
     let { error } = await supabase.auth.signInWithPassword({
@@ -157,7 +127,7 @@ const LoginContent: React.FC = () => {
       password: loginPassword,
     });
 
-    // Autoprovisionamiento: si no existe y es un perfil corporativo oficial, intentamos crearlo
+    // Autoprovisionamiento: si no existe y es el administrador general, intentamos crearlo
     if (error && error.message.includes('Invalid login credentials') && loginEmail.toLowerCase() === 'admin@codi.com') {
       const { error: signUpError } = await supabase.auth.signUp({
         email: loginEmail,
@@ -180,13 +150,13 @@ const LoginContent: React.FC = () => {
         setAuthError(error.message);
       }
       trazabilidadService.logFailedLogin({
-        email: data.email.trim(),
-        role: matchedCorpProfile?.roleLabel || 'Sin Asignar',
+        email: rawIdentifier,
+        role: matchedCandidate?.roleLabel || 'Sin Asignar',
         details: 'Credenciales inválidas en Portal Gerencia',
         module: 'Dashboard Gerencia'
       });
     } else {
-      const activeCorp = matchedCorpProfile || resolveCorporateProfile(data.email.trim());
+      const activeCorp = resolveCorporateProfile(rawIdentifier);
       try {
         localStorage.setItem(STORAGE_KEY_DASHBOARD_PROFILE, JSON.stringify(activeCorp));
         window.dispatchEvent(new Event('codizulca_dashboard_profile_changed'));
@@ -202,7 +172,10 @@ const LoginContent: React.FC = () => {
   };
 
   if (user) {
-    return <Navigate to={from} replace />;
+    const safeDestination = canAccessDashboardRoute(corporateProfile, from)
+      ? from
+      : getDefaultDashboardRoute(corporateProfile);
+    return <Navigate to={safeDestination} replace />;
   }
 
   return (

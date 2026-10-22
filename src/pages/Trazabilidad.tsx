@@ -201,12 +201,17 @@ export const Trazabilidad: React.FC = () => {
   // Roles disponibles para el filtro
   const availableRoles = [
     { value: 'todos', label: 'Todos los Roles' },
-    { value: 'Administrador', label: 'Administrador' },
-    { value: 'Coordinador Trade', label: 'Coordinador Trade' },
-    { value: 'Impulsadora', label: 'Impulsadora' },
+    { value: 'Presidente', label: 'Presidente' },
+    { value: 'Directivo', label: 'Directivo' },
+    { value: 'Gerente Nacional', label: 'Gerente Nacional' },
+    { value: 'Gerente Regional', label: 'Gerente Regional' },
+    { value: 'Administrador', label: 'Administrador General' },
+    { value: 'Analista', label: 'Analista' },
+    { value: 'Trade Marketing', label: 'Trade Marketing' },
+    { value: 'Supervisor', label: 'Supervisor' },
     { value: 'Promotora', label: 'Promotora' },
-    { value: 'Promotor Merchandising', label: 'Promotor Merchandising' },
-    { value: 'Supervisor', label: 'Supervisor Comercial' }
+    { value: 'Impulsadora', label: 'Impulsadora' },
+    { value: 'Promotor Merchandising', label: 'Promotor Merchandising' }
   ];
 
   // Alternar ordenamiento
@@ -324,7 +329,7 @@ export const Trazabilidad: React.FC = () => {
           <p className="text-sm text-zinc-400 leading-relaxed">
             Por políticas de seguridad corporativa de <strong className="text-white">CODIZULCA</strong>, el módulo de{' '}
             <strong className="text-red-400">Trazabilidad & Auditoría GPS</strong> solo puede ser visualizado por los perfiles de{' '}
-            <strong className="text-emerald-400">Gerente Nacional</strong> y{' '}
+            <strong className="text-emerald-400">Gerencia</strong> (Presidente, Directivo, Gerente Nacional, Gerente Regional) y{' '}
             <strong className="text-emerald-400">Administrador General</strong>.
           </p>
           <div className="bg-zinc-900/80 border border-white/10 rounded-xl p-3 text-xs text-zinc-400">
@@ -358,7 +363,7 @@ export const Trazabilidad: React.FC = () => {
                 </span>
                 <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-950/80 border border-amber-500/40 text-amber-300 text-[10px] font-bold uppercase tracking-wider">
                   <ShieldCheck className="w-3 h-3 text-amber-400" />
-                  Exclusivo: Gerente Nacional & Admin General
+                  Exclusivo: Gerencia & Admin General
                 </span>
               </div>
               <p className="text-xs text-zinc-400">
