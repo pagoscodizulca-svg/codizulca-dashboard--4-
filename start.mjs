@@ -11,13 +11,21 @@ process.env.NODE_ENV = process.env.NODE_ENV || 'production';
 
 const distServerPath = path.join(__dirname, 'dist', 'server.cjs');
 const distIndexPath = path.join(__dirname, 'dist', 'index.html');
-const watchedSourcePaths = [
-  path.join(__dirname, 'index.html'),
-  path.join(__dirname, 'server.ts'),
-  path.join(__dirname, 'src', 'lib', 'supabase.ts'),
-  path.join(__dirname, 'src', 'lib', 'campoService.ts'),
-  path.join(__dirname, 'src', 'lib', 'checkinsService.ts'),
-];
+
+const getNewestSourceMtime = (targetPath) => {
+  if (!fs.existsSync(targetPath)) return 0;
+  const stat = fs.statSync(targetPath);
+  if (!stat.isDirectory()) return stat.mtimeMs;
+  let newest = stat.mtimeMs;
+  for (const entry of fs.readdirSync(targetPath)) {
+    if (entry === 'node_modules' || entry === 'dist' || entry === '.git' || entry === '__tests__' || entry === 'test') {
+      continue;
+    }
+    const childTime = getNewestSourceMtime(path.join(targetPath, entry));
+    if (childTime > newest) newest = childTime;
+  }
+  return newest;
+};
 
 const needsRebuild = () => {
   if (!fs.existsSync(distServerPath) || !fs.existsSync(distIndexPath)) return true;
@@ -25,10 +33,14 @@ const needsRebuild = () => {
     const distServerTime = fs.statSync(distServerPath).mtimeMs;
     const distIndexTime = fs.statSync(distIndexPath).mtimeMs;
     const minDistTime = Math.min(distServerTime, distIndexTime);
-    for (const srcPath of watchedSourcePaths) {
-      if (fs.existsSync(srcPath) && fs.statSync(srcPath).mtimeMs > minDistTime) {
-        return true;
-      }
+    const newestSrcTime = Math.max(
+      getNewestSourceMtime(path.join(__dirname, 'index.html')),
+      getNewestSourceMtime(path.join(__dirname, 'server.ts')),
+      getNewestSourceMtime(path.join(__dirname, 'src'))
+    );
+    // Allow 2s tolerance for git checkout timestamps when dist/ is committed together with src/
+    if (newestSrcTime > minDistTime + 2000) {
+      return true;
     }
     const serverCode = fs.readFileSync(distServerPath, 'utf8');
     if (serverCode.includes('import_meta.env.')) {

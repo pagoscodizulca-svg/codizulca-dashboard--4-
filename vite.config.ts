@@ -60,16 +60,21 @@ export default defineConfig(() => {
       },
     },
     build: {
-      chunkSizeWarningLimit: 1000,
+      target: 'es2020',
+      sourcemap: false,
+      chunkSizeWarningLimit: 1200,
       rollupOptions: {
         output: {
           manualChunks(id) {
             if (!id.includes('node_modules')) return;
             if (id.includes('recharts') || id.includes('d3-')) return 'vendor-charts';
-            if (id.includes('xlsx') || id.includes('jspdf') || id.includes('papaparse')) return 'vendor-export';
+            if (id.includes('xlsx')) return 'vendor-xlsx';
+            if (id.includes('jspdf') || id.includes('html2canvas')) return 'vendor-pdf';
+            if (id.includes('papaparse')) return 'vendor-csv';
             if (id.includes('leaflet')) return 'vendor-maps';
             if (id.includes('@supabase')) return 'vendor-supabase';
             if (id.includes('lucide-react')) return 'vendor-icons';
+            if (id.includes('motion') || id.includes('framer-motion')) return 'vendor-motion';
             if (id.includes('react-dom') || id.includes('react-router') || id.includes('node_modules/react/')) return 'vendor-react';
           },
         },

@@ -99,31 +99,16 @@ describe('Perfiles corporativos asignados del Dashboard de Gerencia', () => {
     expect(canAccessModule(grecia, 'Portal Móvil PWA')).toBe(false);
   });
 
-  it('las Analistas (Gisbell01 y Mari01) acceden a los módulos operativos y analíticos pero NO a Trazabilidad', () => {
-    for (const u of ['Gisbell01', 'Mari01']) {
-      const analista = resolveCorporateProfile(u);
-      expect(analista.roleLabel).toBe('Analista');
-      expect(analista.canViewTrazabilidad).toBe(false);
-      expect(canAccessDashboardRoute(analista, '/dashboard/trazabilidad')).toBe(false);
-      for (const route of ['cuotas', 'ventas', 'clientes', 'productos', 'inventario', 'trade']) {
-        expect(canAccessDashboardRoute(analista, `/dashboard/${route}`)).toBe(true);
+  it('las Analistas (Gisbell01 y Mari01) y Supervisores (Nelson01, Jose01, Johnatan01, Ali01) tienen acceso a TODOS los módulos menos a Trazabilidad', () => {
+    for (const u of ['Gisbell01', 'Mari01', 'Nelson01', 'Jose01', 'Johnatan01', 'Ali01']) {
+      const profile = resolveCorporateProfile(u);
+      expect(profile.canViewTrazabilidad).toBe(false);
+      expect(canAccessDashboardRoute(profile, '/dashboard/trazabilidad')).toBe(false);
+      expect(canAccessDashboardRoute(profile, '/dashboard')).toBe(true);
+      for (const route of ['cuotas', 'ventas', 'clientes', 'productos', 'inventario', 'trade', 'geofence-review']) {
+        expect(canAccessDashboardRoute(profile, `/dashboard/${route}`)).toBe(true);
       }
-    }
-  });
-
-  it('los Supervisores (Nelson01, Jose01, Johnatan01, Ali01) acceden a supervisión comercial sin Inventario ni Trazabilidad', () => {
-    for (const u of ['Nelson01', 'Jose01', 'Johnatan01', 'Ali01']) {
-      const sup = resolveCorporateProfile(u);
-      expect(sup.roleLabel).toBe('Supervisor');
-      expect(canAccessDashboardRoute(sup, '/dashboard')).toBe(true);
-      expect(canAccessDashboardRoute(sup, '/dashboard/cuotas')).toBe(true);
-      expect(canAccessDashboardRoute(sup, '/dashboard/ventas')).toBe(true);
-      expect(canAccessDashboardRoute(sup, '/dashboard/clientes')).toBe(true);
-      expect(canAccessDashboardRoute(sup, '/dashboard/productos')).toBe(true);
-      expect(canAccessDashboardRoute(sup, '/dashboard/trade')).toBe(true);
-      expect(canAccessDashboardRoute(sup, '/dashboard/inventario')).toBe(false);
-      expect(canAccessDashboardRoute(sup, '/dashboard/trazabilidad')).toBe(false);
-      expect(canAccessModule(sup, 'Portal Móvil PWA')).toBe(false);
+      expect(canAccessModule(profile, 'Portal Móvil PWA')).toBe(true);
     }
   });
 });

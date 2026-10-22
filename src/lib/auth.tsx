@@ -41,7 +41,7 @@ const GERENCIA_ALL_MODULES = [
   'Trazabilidad (Exclusivo)',
 ];
 
-const ANALISTA_MODULES = [
+const ALL_MODULES_EXCEPT_TRAZABILIDAD = [
   'Resumen Ejecutivo',
   'Cuotas & Metas',
   'Ventas & Facturación',
@@ -52,14 +52,9 @@ const ANALISTA_MODULES = [
   'Portal Móvil PWA',
 ];
 
-const SUPERVISOR_MODULES = [
-  'Resumen Ejecutivo',
-  'Cuotas & Metas',
-  'Ventas & Facturación',
-  'Clientes & Geocercas',
-  'Catálogo de Productos',
-  'Trade Marketing (IA)',
-];
+const ANALISTA_MODULES = ALL_MODULES_EXCEPT_TRAZABILIDAD;
+
+const SUPERVISOR_MODULES = ALL_MODULES_EXCEPT_TRAZABILIDAD;
 
 export const DASHBOARD_CORPORATE_PROFILES: DashboardCorporateProfile[] = [
   {

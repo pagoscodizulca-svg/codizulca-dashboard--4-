@@ -10,32 +10,50 @@ import { AuthGuard } from './components/layout/AuthGuard';
 import { MainLayout } from './components/layout/MainLayout';
 import { Login } from './pages/Login';
 import { CampoLayout } from './components/layout/CampoLayout';
-import { PortalLogin } from './pages/mobile/PortalLogin';
-import { CampoRuta } from './pages/mobile/CampoRuta';
-import { CampoAsistencia } from './pages/mobile/CampoAsistencia';
-import { CampoEncuestas } from './pages/mobile/CampoEncuestas';
-import { CampoInventario } from './pages/mobile/CampoInventario';
-import { CampoPrecios } from './pages/mobile/CampoPrecios';
-import { CampoMerchandising } from './pages/mobile/CampoMerchandising';
-import { PortalPerfil } from './pages/mobile/PortalPerfil';
 
 function lazyWithRetry<T extends React.ComponentType<any>>(
   factory: () => Promise<{ default: T }>
 ) {
   return lazy(async () => {
+    const reloadKey = 'codizulca_chunk_retry_reload';
     try {
-      return await factory();
+      const mod = await factory();
+      try {
+        sessionStorage.removeItem(reloadKey);
+      } catch {}
+      return mod;
     } catch (error) {
-      const reloadKey = 'codizulca_chunk_retry_reload';
-      const hasReloaded = sessionStorage.getItem(reloadKey);
+      let hasReloaded = false;
+      try {
+        hasReloaded = Boolean(sessionStorage.getItem(reloadKey));
+      } catch {}
       if (!hasReloaded) {
-        sessionStorage.setItem(reloadKey, 'true');
+        try {
+          sessionStorage.setItem(reloadKey, 'true');
+          if ('caches' in window) {
+            await caches.keys().then((names) => Promise.all(names.map((n) => caches.delete(n))));
+          }
+          if ('serviceWorker' in navigator) {
+            await navigator.serviceWorker
+              .getRegistrations()
+              .then((regs) => Promise.all(regs.map((r) => r.unregister())));
+          }
+        } catch {}
         window.location.reload();
       }
       throw error;
     }
   });
 }
+
+const PortalLogin = lazyWithRetry(() => import('./pages/mobile/PortalLogin').then(m => ({ default: m.PortalLogin })));
+const CampoRuta = lazyWithRetry(() => import('./pages/mobile/CampoRuta').then(m => ({ default: m.CampoRuta })));
+const CampoAsistencia = lazyWithRetry(() => import('./pages/mobile/CampoAsistencia').then(m => ({ default: m.CampoAsistencia })));
+const CampoEncuestas = lazyWithRetry(() => import('./pages/mobile/CampoEncuestas').then(m => ({ default: m.CampoEncuestas })));
+const CampoInventario = lazyWithRetry(() => import('./pages/mobile/CampoInventario').then(m => ({ default: m.CampoInventario })));
+const CampoPrecios = lazyWithRetry(() => import('./pages/mobile/CampoPrecios').then(m => ({ default: m.CampoPrecios })));
+const CampoMerchandising = lazyWithRetry(() => import('./pages/mobile/CampoMerchandising').then(m => ({ default: m.CampoMerchandising })));
+const PortalPerfil = lazyWithRetry(() => import('./pages/mobile/PortalPerfil').then(m => ({ default: m.PortalPerfil })));
 
 const DashboardOverview = lazyWithRetry(() => import('./pages/DashboardOverview').then(m => ({ default: m.DashboardOverview })));
 const Cuotas = lazyWithRetry(() => import('./pages/Cuotas').then(m => ({ default: m.Cuotas })));
