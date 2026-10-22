@@ -7872,6 +7872,16 @@ export const TradeMarketing: React.FC = () => {
                     <option value="Leche Vencampo 500gr">Leche Vencampo 500gr</option>
                     <option value="Leche Vencampo 900gr">Leche Vencampo 900gr</option>
                     <option value="Leche Vencampo 1kg">Leche Vencampo 1kg</option>
+                    <option value="Jamón Cocido Superior">Jamón Cocido Superior</option>
+                    <option value="Jamón Cocido Estándar">Jamón Cocido Estándar</option>
+                    <option value="Jamón Cocido de Pavo">Jamón Cocido de Pavo</option>
+                    <option value="Pechuga Cocida de Pollo">Pechuga Cocida de Pollo</option>
+                    <option value="Jamón Cocido Ahumado">Jamón Cocido Ahumado</option>
+                    <option value="Jamón Cocido Ahumado Arepero">Jamón Cocido Ahumado Arepero</option>
+                    <option value="Jamón Espalda Cocida">Jamón Espalda Cocida</option>
+                    <option value="Mortadela Especial de Pollo">Mortadela Especial de Pollo</option>
+                    <option value="Mortadela Especial de Pollo Asturias 900gr">Mortadela Especial de Pollo Asturias 900gr</option>
+                    <option value="Mortadela Especial de Pollo Asturias 500gr">Mortadela Especial de Pollo Asturias 500gr</option>
                     <option value="Embutidos (Mortadela, Salchichas...) - 1kg">Embutidos (Mortadela, Salchichas...) - 1kg</option>
                     <option value="Pollo Beneficiado Ebenezer por Kg">Pollo Beneficiado Ebenezer por Kg</option>
                     <option value="Salchichas Especiales Asturias 500g">Salchichas Especiales Asturias 500g</option>

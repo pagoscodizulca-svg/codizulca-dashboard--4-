@@ -231,7 +231,7 @@ describe('campoService - Offline-First & Sync Test Suite', () => {
     });
 
     it('contiene los productos de Asturias y las presentaciones de Vencampo (incluyendo Caraotas y Arvejas Vencampo 400gr) en CODIZULCA_PRODUCTS', () => {
-      expect(CODIZULCA_PRODUCTS.length).toBe(24);
+      expect(CODIZULCA_PRODUCTS.length).toBe(32);
       const names = CODIZULCA_PRODUCTS.map((p) => p.name);
       expect(names).toContain('Caraotas 400gr');
       expect(names).toContain('Arvejas Vencampo 400gr');
@@ -248,6 +248,14 @@ describe('campoService - Offline-First & Sync Test Suite', () => {
       expect(names.some((n) => n.includes('Azúcar Vencampo'))).toBe(true);
       expect(names.some((n) => n.includes('Aceite Vencampo'))).toBe(true);
       expect(names.some((n) => n.includes('Leche Vencampo'))).toBe(true);
+      expect(names).toContain('Jamón Cocido Superior');
+      expect(names).toContain('Jamón Cocido Estándar');
+      expect(names).toContain('Jamón Cocido de Pavo');
+      expect(names).toContain('Pechuga Cocida de Pollo');
+      expect(names).toContain('Jamón Cocido Ahumado');
+      expect(names).toContain('Jamón Cocido Ahumado Arepero');
+      expect(names).toContain('Jamón Espalda Cocida');
+      expect(names).toContain('Mortadela Especial de Pollo');
       const mortadelas = CODIZULCA_PRODUCTS.filter((p) => p.name.includes('Mortadela Especial de Pollo Asturias'));
       expect(mortadelas.length).toBe(2);
       expect(mortadelas.some((m) => m.weight === '900gr')).toBe(true);
