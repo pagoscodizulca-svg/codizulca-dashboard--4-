@@ -547,17 +547,31 @@ export function mapSupabasePriceRowToPayload(row: any): PriceSurveyPayload {
 
 export function mapSupabaseInventoryRowToPayload(row: any): InventoryLogPayload {
   const init = Number(row?.initialQuantity ?? row?.initialStock) || 0;
-  const fin = Number(row?.finalQuantity ?? row?.finalStock) || 0;
-  const tastings = Number(row?.degustations ?? row?.tastingsGiven) || 0;
-  const rawDiff = Number((init - fin).toFixed(3));
-  const calculatedNet =
-    tastings > 0 && rawDiff > tastings
-      ? Number((rawDiff - tastings).toFixed(3))
-      : Math.max(0, rawDiff);
-  const netRotation =
+  const tastings = Number(row?.degustations ?? row?.tastingsGiven ?? row?.samplesGiven) || 0;
+  const explicitNet =
     row?.netRotation !== undefined && row?.netRotation !== null && !Number.isNaN(Number(row.netRotation))
       ? Number(row.netRotation)
-      : calculatedNet;
+      : row?.salesGiven !== undefined && row?.salesGiven !== null && !Number.isNaN(Number(row.salesGiven))
+      ? Number(row.salesGiven)
+      : null;
+
+  const rawFinProvided = row?.finalQuantity ?? row?.finalStock;
+  const parsedRawFin = rawFinProvided !== undefined && rawFinProvided !== null ? Number(rawFinProvided) : null;
+
+  // Si no se suministró inventario final, o quedó igual al inicial habiendo degustación o venta, calcularlo automáticamente
+  const fin =
+    parsedRawFin === null ||
+    Number.isNaN(parsedRawFin) ||
+    (parsedRawFin === init && init > 0 && ((explicitNet ?? 0) > 0 || tastings > 0))
+      ? Number(Math.max(0, init - (explicitNet ?? 0) - tastings).toFixed(3))
+      : Number(Math.max(0, parsedRawFin).toFixed(3));
+
+  const rawDiff = Number(Math.max(0, init - fin).toFixed(3));
+  const calculatedNet =
+    tastings > 0 && rawDiff >= tastings
+      ? Number((rawDiff - tastings).toFixed(3))
+      : Math.max(0, rawDiff);
+  const netRotation = explicitNet !== null ? Number(explicitNet.toFixed(3)) : calculatedNet;
 
   return {
     id: String(row?.id),

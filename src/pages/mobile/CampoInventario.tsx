@@ -63,9 +63,11 @@ export const CampoInventario: React.FC<{ activePromoterName?: string }> = ({
   // Validación Lógica Estricta: lo vendido + degustado no puede exceder el inventario inicial
   const isFinalStockInvalid = rawFinalStock < 0;
 
-  // Rotación Neta (Ventas) ingresada por la promotora
-  const netRotation = salesGiven;
-  const rotationPercentage = initialStock > 0 ? Math.round((netRotation / initialStock) * 100) : 0;
+  // Rotación Neta (Ventas) y Desplazamiento Total (Ventas + Degustación)
+  const netRotation = roundQty(salesGiven);
+  const totalDisplacement = roundQty(salesGiven + tastingsGiven);
+  const rotationPercentage =
+    initialStock > 0 ? Math.min(100, Math.max(0, Math.round(((initialStock - finalStock) / initialStock) * 100))) : 0;
 
   const handleSave = async () => {
     if (isSubmitting) return;
@@ -299,23 +301,31 @@ export const CampoInventario: React.FC<{ activePromoterName?: string }> = ({
                 </div>
               </div>
 
-              {/* Inventario Final (calculado automáticamente) */}
+              {/* Inventario Final (calculado automáticamente al ingresar Inicial y Degustación o Venta) */}
               <div className={`p-3 rounded-xl border flex items-center justify-between transition-colors ${
                 isFinalStockInvalid
                   ? 'bg-red-950/40 border-red-500/60'
-                  : 'bg-[#171717] border-neutral-800'
+                  : 'bg-[#171717] border-emerald-500/30'
               }`}>
                 <div>
-                  <strong className="text-xs text-white block">Inventario Final (Cierre)</strong>
-                  <span className="text-[10px] text-neutral-500">Automático: Inicial − Ventas − Muestras</span>
+                  <div className="flex items-center gap-1.5">
+                    <strong className="text-xs text-white block">Inventario Final (Cierre)</strong>
+                    <span className="px-1.5 py-0.2 rounded bg-emerald-950/80 border border-emerald-500/40 text-emerald-400 text-[9px] font-mono font-bold uppercase">
+                      Automático
+                    </span>
+                  </div>
+                  <span className="text-[10px] text-neutral-400 font-mono">
+                    {initialStock} (Inicial) − {salesGiven} (Venta) − {tastingsGiven} (Degustación) = {finalStock}
+                  </span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <div
-                    className="w-24 bg-neutral-950 border border-emerald-500/30 rounded-lg px-2.5 py-1.5 text-center text-xs text-emerald-300 font-mono font-bold"
+                  <input
+                    type="text"
+                    readOnly
+                    value={finalStock}
                     aria-label="Inventario final calculado"
-                  >
-                    {finalStock}
-                  </div>
+                    className="w-24 bg-neutral-950 border border-emerald-500/40 rounded-lg px-2.5 py-1.5 text-center text-xs text-emerald-300 font-mono font-bold focus:outline-none cursor-default"
+                  />
                   <span className="text-xs text-neutral-400 font-mono">Kg/u.</span>
                 </div>
               </div>

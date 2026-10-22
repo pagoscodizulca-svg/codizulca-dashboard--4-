@@ -352,6 +352,36 @@ describe('Restricción de Acceso a Trazabilidad y Sincronización App Promotoras
       expect(mappedInv.finalStock).toBe(23.05);
       expect(mappedInv.netRotation).toBe(5.01);
 
+      // Cálculo automático de Inventario Final cuando se ingresa Inicial y Degustación o Venta
+      const autoFromTastingsAndSales = mapSupabaseInventoryRowToPayload({
+        id: 'b3f5b701-8103-4d4e-9bfb-807a8bd91fb0',
+        date: '2026-10-22T15:00:00.000Z',
+        store: 'Alkosto Bella Vista',
+        product: 'Caraotas 400gr',
+        initialStock: 100,
+        salesGiven: 15,
+        tastingsGiven: 5,
+        promoter: 'TANIA CARDENAS',
+      });
+      expect(autoFromTastingsAndSales.finalStock).toBe(80);
+      expect(autoFromTastingsAndSales.netRotation).toBe(15);
+      expect(autoFromTastingsAndSales.tastingsGiven).toBe(5);
+
+      // Cuando solo hubo degustación (Inicial - Final === Degustación), Ventas netas = 0
+      const onlyDegustationRow = mapSupabaseInventoryRowToPayload({
+        id: 'c3f5b701-8103-4d4e-9bfb-807a8bd91fb0',
+        date: '2026-10-22T15:00:00.000Z',
+        store: 'Alkos Coromoto',
+        product: 'Pechuga de pollo',
+        initialQuantity: 73.18,
+        finalQuantity: 67.37,
+        degustations: 5.81,
+        promoter: 'TANIA CARDENAS',
+      });
+      expect(onlyDegustationRow.finalStock).toBe(67.37);
+      expect(onlyDegustationRow.netRotation).toBe(0);
+      expect(onlyDegustationRow.tastingsGiven).toBe(5.81);
+
       // Resuelve el nombre de promotora cuando el registro trae correo o UID en creatorId
       expect(resolvePromoterNameFromRaw('', 'valevalentina0111@gmail.com')).toBe('VALERIA ACEVEDO');
       expect(resolvePromoterNameFromRaw('scarmichell22@gmail.com', 'scarmichell22@gmail.com')).toBe('SCARLETH PIÑA');

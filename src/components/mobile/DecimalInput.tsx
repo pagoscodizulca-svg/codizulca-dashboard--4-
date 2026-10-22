@@ -55,10 +55,14 @@ export const DecimalInput: React.FC<DecimalInputProps> = ({
       placeholder={placeholder ?? '0'}
       value={text}
       onChange={(e) => {
-        const next = e.target.value;
-        if (next !== '' && !/^\d*[.,]?\d*$/.test(next)) return;
-        setText(next);
-        onValueChange(parseDecimal(next));
+        if (readOnly) return;
+        const cleaned = e.target.value.replace(/[^0-9.,]/g, '');
+        // Permitir solo un separador decimal (coma o punto)
+        const parts = cleaned.split(/[.,]/);
+        const normalizedText =
+          parts.length > 2 ? `${parts[0]}.${parts.slice(1).join('')}` : cleaned;
+        setText(normalizedText);
+        onValueChange(parseDecimal(normalizedText));
       }}
       className={className}
     />

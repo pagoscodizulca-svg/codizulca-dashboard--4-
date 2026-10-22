@@ -863,17 +863,22 @@ export const TradeMarketing: React.FC = () => {
       const mappedInvReports: InventoryTastingReport[] = invLogs.map((log, idx) => {
         const staffMatch = resolvePromoterIdentity(log.promoter);
         const init = Number(log.initialStock) || 0;
-        const fin = Number(log.finalStock) || 0;
         const samples = Number(log.tastingsGiven) || 0;
-        const rawDiff = Number((init - fin).toFixed(2));
-        const defaultNet =
-          samples > 0 && rawDiff > samples
-            ? Number((rawDiff - samples).toFixed(2))
-            : Math.max(0, rawDiff);
-        const net =
+        const explicitNet =
           typeof log.netRotation === 'number' && !Number.isNaN(log.netRotation)
             ? Number(log.netRotation.toFixed(2))
-            : defaultNet;
+            : null;
+        const rawFin = Number(log.finalStock) || 0;
+        const fin =
+          rawFin === init && init > 0 && ((explicitNet ?? 0) > 0 || samples > 0)
+            ? Number(Math.max(0, init - (explicitNet ?? 0) - samples).toFixed(2))
+            : rawFin;
+        const rawDiff = Number(Math.max(0, init - fin).toFixed(2));
+        const defaultNet =
+          samples > 0 && rawDiff >= samples
+            ? Number((rawDiff - samples).toFixed(2))
+            : Math.max(0, rawDiff);
+        const net = explicitNet !== null ? explicitNet : defaultNet;
         const rotPct = init > 0 ? Math.round(((init - fin) / init) * 100) : 0;
         const prodLower = String(log.productName || '').toLowerCase();
         const detectedUnit =
@@ -1342,8 +1347,9 @@ export const TradeMarketing: React.FC = () => {
     client: 'Olimpica mayorista',
     promoter: 'JAIVELIN FEREIRA',
     initialStock: 50.50,
-    finalStock: 50.50,
+    salesGiven: 0,
     samplesGiven: 1,
+    finalStock: 49.50,
     unit: 'Kg',
     promoterObservation: 'Buen precio '
   });
@@ -1374,9 +1380,10 @@ export const TradeMarketing: React.FC = () => {
   const handleCreateInventoryReport = async (e: React.FormEvent) => {
     e.preventDefault();
     const initial = Number(newReportForm.initialStock) || 0;
-    const final = Number(newReportForm.finalStock) || 0;
+    const salesInput = Number(newReportForm.salesGiven) || 0;
     const samples = Number(newReportForm.samplesGiven) || 0;
-    const sales = Math.round((initial - final - samples) * 10) / 10;
+    const final = Math.max(0, Number((initial - salesInput - samples).toFixed(2)));
+    const sales = salesInput;
     const rotation = initial > 0 ? Math.round(((initial - final) / initial) * 100) : 0;
     const reportId = `INV-${Date.now().toString().slice(-6)}`;
 
@@ -7893,8 +7900,8 @@ export const TradeMarketing: React.FC = () => {
                 </div>
               </div>
 
-              {/* Conteo de Inventarios: Inicial, Final y Muestras */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-zinc-900/60 p-3.5 rounded-xl border border-white/5">
+              {/* Conteo de Inventarios: Inicial, Ventas, Degustación/Muestras e Inv. Final Automático */}
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 bg-zinc-900/60 p-3.5 rounded-xl border border-white/5">
                 <div className="space-y-1">
                   <label className="font-bold text-zinc-300 text-[11px] block">
                     Inv. Inicial:
@@ -7905,42 +7912,79 @@ export const TradeMarketing: React.FC = () => {
                     min="0"
                     required
                     value={newReportForm.initialStock}
-                    onChange={(e) => setNewReportForm({ ...newReportForm, initialStock: parseFloat(e.target.value) || 0 })}
+                    onChange={(e) => {
+                      const nextInit = parseFloat(e.target.value) || 0;
+                      const nextFinal = Math.max(
+                        0,
+                        Number((nextInit - (Number(newReportForm.salesGiven) || 0) - (Number(newReportForm.samplesGiven) || 0)).toFixed(2))
+                      );
+                      setNewReportForm({ ...newReportForm, initialStock: nextInit, finalStock: nextFinal });
+                    }}
                     className="w-full bg-zinc-950 border border-white/10 rounded-lg px-2.5 py-1.5 text-white font-mono font-bold text-xs"
                   />
                   <span className="text-[9px] text-zinc-500 block">Antes degustación</span>
                 </div>
 
                 <div className="space-y-1">
-                  <label className="font-bold text-zinc-300 text-[11px] block">
-                    Inv. Final:
+                  <label className="font-bold text-emerald-300 text-[11px] block">
+                    Ventas:
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={newReportForm.salesGiven}
+                    onChange={(e) => {
+                      const nextSales = parseFloat(e.target.value) || 0;
+                      const nextFinal = Math.max(
+                        0,
+                        Number(((Number(newReportForm.initialStock) || 0) - nextSales - (Number(newReportForm.samplesGiven) || 0)).toFixed(2))
+                      );
+                      setNewReportForm({ ...newReportForm, salesGiven: nextSales, finalStock: nextFinal });
+                    }}
+                    className="w-full bg-zinc-950 border border-emerald-500/30 rounded-lg px-2.5 py-1.5 text-emerald-300 font-mono font-bold text-xs"
+                  />
+                  <span className="text-[9px] text-emerald-400/80 block">Desplazadas</span>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="font-bold text-purple-300 text-[11px] block">
+                    Degustación:
                   </label>
                   <input
                     type="number"
                     step="0.01"
                     min="0"
                     required
-                    value={newReportForm.finalStock}
-                    onChange={(e) => setNewReportForm({ ...newReportForm, finalStock: parseFloat(e.target.value) || 0 })}
-                    className="w-full bg-zinc-950 border border-white/10 rounded-lg px-2.5 py-1.5 text-white font-mono font-bold text-xs"
+                    value={newReportForm.samplesGiven}
+                    onChange={(e) => {
+                      const nextSamples = parseFloat(e.target.value) || 0;
+                      const nextFinal = Math.max(
+                        0,
+                        Number(((Number(newReportForm.initialStock) || 0) - (Number(newReportForm.salesGiven) || 0) - nextSamples).toFixed(2))
+                      );
+                      setNewReportForm({ ...newReportForm, samplesGiven: nextSamples, finalStock: nextFinal });
+                    }}
+                    className="w-full bg-zinc-950 border border-purple-500/30 rounded-lg px-2.5 py-1.5 text-purple-300 font-mono font-bold text-xs"
                   />
-                  <span className="text-[9px] text-zinc-500 block">Post degustación/venta</span>
+                  <span className="text-[9px] text-purple-400/80 block">Muestras</span>
                 </div>
 
                 <div className="space-y-1">
-                  <label className="font-bold text-purple-300 text-[11px] block">
-                    Muestras:
+                  <label className="font-bold text-amber-300 text-[11px] block">
+                    Inv. Final (Auto):
                   </label>
                   <input
                     type="number"
-                    step="0.1"
-                    min="0"
-                    required
-                    value={newReportForm.samplesGiven}
-                    onChange={(e) => setNewReportForm({ ...newReportForm, samplesGiven: parseFloat(e.target.value) || 0 })}
-                    className="w-full bg-zinc-950 border border-purple-500/30 rounded-lg px-2.5 py-1.5 text-purple-300 font-mono font-bold text-xs"
+                    step="0.01"
+                    readOnly
+                    value={Math.max(
+                      0,
+                      Number(((Number(newReportForm.initialStock) || 0) - (Number(newReportForm.salesGiven) || 0) - (Number(newReportForm.samplesGiven) || 0)).toFixed(2))
+                    )}
+                    className="w-full bg-zinc-950 border border-amber-500/40 rounded-lg px-2.5 py-1.5 text-amber-300 font-mono font-bold text-xs cursor-default"
                   />
-                  <span className="text-[9px] text-purple-400/80 block">Entregadas</span>
+                  <span className="text-[9px] text-amber-400/80 block">Automático</span>
                 </div>
 
                 <div className="space-y-1">
@@ -7964,18 +8008,18 @@ export const TradeMarketing: React.FC = () => {
               {/* Resumen Calculado en Vivo del Resultado */}
               {(() => {
                 const init = Number(newReportForm.initialStock) || 0;
-                const fin = Number(newReportForm.finalStock) || 0;
+                const calcSales = Number(newReportForm.salesGiven) || 0;
                 const samp = Number(newReportForm.samplesGiven) || 0;
-                const calcSales = Math.round((init - fin - samp) * 10) / 10;
+                const fin = Math.max(0, Number((init - calcSales - samp).toFixed(2)));
                 const calcRot = init > 0 ? Math.round(((init - fin) / init) * 100) : 0;
                 return (
                   <div className="p-3 rounded-xl bg-zinc-900 border border-white/10 flex items-center justify-between">
                     <div>
                       <span className="text-[10px] text-zinc-400 uppercase font-mono block">
-                        Cálculo Automático del Resultado:
+                        Cálculo Automático de Inventario Final:
                       </span>
                       <span className="text-xs text-zinc-300">
-                        Ventas Generadas = Inicial ({init}) - Final ({fin}) - Muestras ({samp})
+                        Inv. Final ({fin}) = Inicial ({init}) − Ventas ({calcSales}) − Degustación ({samp})
                       </span>
                     </div>
                     <div className="text-right">
