@@ -1,7 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Store, Search, X, Check, Building2, MapPin, ChevronDown } from 'lucide-react';
-import { CARTERA_CLIENTES, ClienteItem } from '../../data/carteraClientes';
-import { ENRICHED_CLIENTS } from '../../data/clientsWithLocation';
+import { FREQUENT_STORES } from '../../lib/campoService';
 
 interface ClientSearchAutocompleteProps {
   value: string;
@@ -12,6 +11,16 @@ interface ClientSearchAutocompleteProps {
   className?: string;
   dark?: boolean;
 }
+
+type LightClientOption = {
+  id: string;
+  name: string;
+  canal?: string;
+  region?: string;
+  sector?: string;
+};
+
+let cachedFullClients: LightClientOption[] | null = null;
 
 export const ClientSearchAutocomplete: React.FC<ClientSearchAutocompleteProps> = ({
   value,
@@ -24,40 +33,74 @@ export const ClientSearchAutocomplete: React.FC<ClientSearchAutocompleteProps> =
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [allClients, setAllClients] = useState<LightClientOption[]>(() => {
+    if (cachedFullClients) return cachedFullClients;
+    return FREQUENT_STORES.map((s, idx) => ({
+      id: `PDV-${idx + 1}`,
+      name: s,
+      canal: 'SUPERMERCADOS',
+      region: 'Zulia / Falcón'
+    }));
+  });
   const wrapperRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Combinar cartera y enriquecidos en una lista única optimizada
-  const allClients = useMemo(() => {
-    const map = new Map<string, { id: string; name: string; canal?: string; region?: string; sector?: string }>();
+  // Cargar cartera completa de forma diferida sin bloquear el arranque móvil
+  useEffect(() => {
+    if (cachedFullClients) return;
+    let cancelled = false;
+    Promise.all([
+      import('../../data/clientsWithLocation').catch(() => ({ ENRICHED_CLIENTS: [] })),
+      import('../../data/carteraClientes').catch(() => ({ CARTERA_CLIENTES: [] }))
+    ]).then(([enrichedMod, carteraMod]) => {
+      if (cancelled) return;
+      const map = new Map<string, LightClientOption>();
 
-    // Primero los enriquecidos que tienen datos de ubicación y sector
-    ENRICHED_CLIENTS.forEach((c) => {
-      if (c.nombre) {
-        map.set(c.nombre.toUpperCase(), {
-          id: c.id,
-          name: c.nombre,
-          canal: c.canal,
-          region: c.region,
-          sector: c.sector
+      FREQUENT_STORES.forEach((s, idx) => {
+        map.set(s.toUpperCase(), {
+          id: `PDV-${idx + 1}`,
+          name: s,
+          canal: 'CUENTAS CLAVE',
+          region: 'Zulia / Falcón'
         });
-      }
+      });
+
+      const enrichedList = Array.isArray(enrichedMod?.ENRICHED_CLIENTS) ? enrichedMod.ENRICHED_CLIENTS : [];
+      enrichedList.forEach((c: any) => {
+        if (c && c.nombre) {
+          map.set(String(c.nombre).toUpperCase(), {
+            id: String(c.id || ''),
+            name: String(c.nombre),
+            canal: c.canal,
+            region: c.region,
+            sector: c.sector
+          });
+        }
+      });
+
+      const carteraList = Array.isArray(carteraMod?.CARTERA_CLIENTES) ? carteraMod.CARTERA_CLIENTES : [];
+      carteraList.forEach((c: any) => {
+        if (c && c.nombre) {
+          const key = String(c.nombre).toUpperCase();
+          if (!map.has(key)) {
+            map.set(key, {
+              id: String(c.id || ''),
+              name: String(c.nombre),
+              canal: c.canal,
+              region: c.region
+            });
+          }
+        }
+      });
+
+      const merged = Array.from(map.values());
+      cachedFullClients = merged;
+      setAllClients(merged);
     });
 
-    // Luego la cartera general completa
-    CARTERA_CLIENTES.forEach((c) => {
-      const key = c.nombre.toUpperCase();
-      if (!map.has(key)) {
-        map.set(key, {
-          id: c.id,
-          name: c.nombre,
-          canal: c.canal,
-          region: c.region
-        });
-      }
-    });
-
-    return Array.from(map.values());
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // Filtrado reactivo e instantáneo según lo que escriba el usuario

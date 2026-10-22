@@ -1271,6 +1271,29 @@ function resolvePromoterNameFromRaw(rawPromoter, creatorId) {
   }
   return cleanRaw || "Promotora";
 }
+function toSortableTimestamp(dateVal, createdAtVal) {
+  const parseStr = (s) => {
+    if (!s) return 0;
+    const trimmed = String(s).trim();
+    if (!trimmed) return 0;
+    const dmyMatch = trimmed.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+    if (dmyMatch) {
+      const dd = Number(dmyMatch[1]);
+      const mm = Number(dmyMatch[2]);
+      const yyyy = Number(dmyMatch[3]);
+      const dt = new Date(yyyy, mm - 1, dd).getTime();
+      if (!Number.isNaN(dt)) return dt;
+    }
+    const parsed = new Date(trimmed).getTime();
+    return Number.isNaN(parsed) ? 0 : parsed;
+  };
+  const tsCreated = parseStr(createdAtVal);
+  const tsDate = parseStr(dateVal);
+  if (tsCreated > 0 && tsDate > 0 && dateVal && !String(dateVal).includes("T") && Math.abs(tsCreated - tsDate) < 864e5 * 2) {
+    return tsCreated;
+  }
+  return tsDate || tsCreated || 0;
+}
 function mapSupabasePriceRowToPayload(row) {
   const rate = Number(row?.bcvRate) || OFFICIAL_BCV_RATE;
   const ownUsd = Number(row?.ourPrice ?? row?.ownPriceUsd) || 0;
@@ -5499,7 +5522,7 @@ Responde con un JSON estructurado con:
         ...remoteRows || [],
         ...localFiltered.filter((r) => !remoteIds.has(r.id))
       ].sort(
-        (a, b) => new Date(b.date || b.created_at || 0).getTime() - new Date(a.date || a.created_at || 0).getTime()
+        (a, b) => toSortableTimestamp(b.date, b.created_at) - toSortableTimestamp(a.date, a.created_at)
       );
       memoryPriceSurveys = merged;
       priceSurveysCache = { payload: merged, timestamp: now };
@@ -5638,7 +5661,7 @@ Responde con un JSON estructurado con:
         ...remoteRows || [],
         ...localFiltered.filter((r) => !remoteIds.has(r.id))
       ].sort(
-        (a, b) => new Date(b.date || b.created_at || 0).getTime() - new Date(a.date || a.created_at || 0).getTime()
+        (a, b) => toSortableTimestamp(b.date, b.created_at) - toSortableTimestamp(a.date, a.created_at)
       );
       memoryInvLogs = merged;
       inventoryLogsCache = { payload: merged, timestamp: now };
@@ -6330,6 +6353,9 @@ Responde con un JSON estructurado con:
       })
     );
     app.get("*", (req, res) => {
+      if (req.path.startsWith("/assets/")) {
+        return res.status(404).end();
+      }
       res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
       res.sendFile(import_path2.default.join(distPath, "index.html"));
     });

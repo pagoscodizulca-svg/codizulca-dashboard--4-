@@ -34,7 +34,7 @@
 
         // Auto-invalidate stale Service Worker and Workbox caches when version updates
         try {
-          var APP_BUILD_VERSION = 'v4.5-20261020-volumen-sku-official-sheet-only';
+          var APP_BUILD_VERSION = 'v4.7-20261022-portal-granos-400gr';
           var prevVersion = localStorage.getItem('codizulca_app_build_version');
           if (prevVersion !== APP_BUILD_VERSION) {
             localStorage.setItem('codizulca_app_build_version', APP_BUILD_VERSION);
@@ -60,6 +60,16 @@
             }
           }
         } catch (err) {}
+
+        // Auto-recover from Vite preload / dynamic import chunk errors after deployments
+        window.addEventListener('vite:preloadError', function() {
+          try {
+            if (!sessionStorage.getItem('codizulca_vite_preload_reloaded')) {
+              sessionStorage.setItem('codizulca_vite_preload_reloaded', 'true');
+              window.location.reload();
+            }
+          } catch (e) {}
+        });
       })();
     </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
@@ -75,13 +85,13 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="Codizulca" />
     <link rel="apple-touch-icon" href="https://placehold.co/180x180/dc2626/ffffff.png?text=C&font=sans-serif" />
-    <script type="module" crossorigin src="/assets/index-JLQg9ycj.js"></script>
-    <link rel="modulepreload" crossorigin href="/assets/vendor-react-CX9_B5Y9.js">
-    <link rel="modulepreload" crossorigin href="/assets/vendor-export-BvzyG0zu.js">
+    <script type="module" crossorigin src="/assets/index-BUG_NblE.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/vendor-react-B1Iav0W3.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-export-euvG20kv.js">
     <link rel="modulepreload" crossorigin href="/assets/vendor-supabase-s3XNS0mn.js">
-    <link rel="modulepreload" crossorigin href="/assets/vendor-charts-D8Y0pK5e.js">
-    <link rel="modulepreload" crossorigin href="/assets/vendor-icons-1RHCigfm.js">
-    <link rel="stylesheet" crossorigin href="/assets/index-DR2cUstV.css">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-charts-BfKhB_z-.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-icons-C_RtxuAq.js">
+    <link rel="stylesheet" crossorigin href="/assets/index-B927hwST.css">
   <link rel="manifest" href="/manifest.webmanifest"><script id="vite-plugin-pwa:register-sw" src="/registerSW.js"></script></head>
   <body>
     <div id="root"></div>

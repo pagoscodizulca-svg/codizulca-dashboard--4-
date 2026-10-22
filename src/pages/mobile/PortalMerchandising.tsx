@@ -616,15 +616,50 @@ export const PortalMerchandising: React.FC = () => {
             })}
           </div>
 
-          <div>
-            <label className="text-[11px] font-bold text-gray-600 block mb-1">
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-bold text-gray-600 block">
               Marcas / SKUs Trabajados en la Jornada:
             </label>
+            <div className="flex flex-wrap gap-1.5 pb-1">
+              {[
+                'Caraotas 400gr',
+                'Lentejas 400gr',
+                'Arroz Vencampo (400gr / 500gr / 900gr / 1kg)',
+                'Línea Embutidos Asturias'
+              ].map((skuChip) => {
+                const isIncluded = productDetail.toLowerCase().includes(skuChip.toLowerCase());
+                return (
+                  <button
+                    key={skuChip}
+                    type="button"
+                    onClick={() => {
+                      if (isIncluded) {
+                        const next = productDetail
+                          .split(',')
+                          .map((s) => s.trim())
+                          .filter((s) => s && s.toLowerCase() !== skuChip.toLowerCase())
+                          .join(', ');
+                        setProductDetail(next);
+                      } else {
+                        setProductDetail((prev) => (prev.trim() ? `${prev.trim()}, ${skuChip}` : skuChip));
+                      }
+                    }}
+                    className={`px-2 py-1 rounded-lg text-[10px] font-bold border transition cursor-pointer ${
+                      isIncluded
+                        ? 'bg-red-600 border-red-600 text-white'
+                        : 'bg-gray-100 border-gray-200 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    + {skuChip}
+                  </button>
+                );
+              })}
+            </div>
             <input
               type="text"
               value={productDetail}
               onChange={(e) => setProductDetail(e.target.value)}
-              placeholder="Ej. Mortadelas, Jamones Cocidos, Charcutería"
+              placeholder="Ej. Caraotas 400gr, Lentejas 400gr, Mortadelas..."
               className="w-full text-xs px-3 py-1.5 border border-gray-300 rounded-lg"
             />
           </div>

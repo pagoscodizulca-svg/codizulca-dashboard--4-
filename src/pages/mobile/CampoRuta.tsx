@@ -28,9 +28,9 @@ import {
 import {
   degustacionesService,
   DegustacionItem,
-  matchPromoterAssignment
+  matchPromoterAssignment,
+  isPastDegustacionDate
 } from '../../lib/degustacionesService';
-import { isPastDegustacionDate } from '../TradeMarketing';
 import { campoService, PromoterProfile } from '../../lib/campoService';
 import { STORAGE_KEY_ACTIVE_STORE } from '../../lib/checkinsService';
 
@@ -133,11 +133,11 @@ export const CampoRuta: React.FC = () => {
       const q = searchTerm.toLowerCase();
       const matchSearch =
         searchTerm.trim() === '' ||
-        item.activity.toLowerCase().includes(q) ||
-        item.client.toLowerCase().includes(q) ||
-        item.product.toLowerCase().includes(q) ||
-        item.id.toLowerCase().includes(q) ||
-        (item.promoter && item.promoter.toLowerCase().includes(q));
+        String(item.activity || '').toLowerCase().includes(q) ||
+        String(item.client || '').toLowerCase().includes(q) ||
+        String(item.product || '').toLowerCase().includes(q) ||
+        String(item.id || '').toLowerCase().includes(q) ||
+        (item.promoter && String(item.promoter).toLowerCase().includes(q));
       return matchStatus && matchSearch;
     });
   }, [periodDegustaciones, selectedStatus, searchTerm]);
@@ -215,6 +215,12 @@ export const CampoRuta: React.FC = () => {
   const handleGoToInventario = (clientName: string) => {
     localStorage.setItem(STORAGE_KEY_ACTIVE_STORE, clientName);
     navigate('/portal/inventario');
+  };
+
+  // Navegar al monitoreo de precios con la tienda preseleccionada
+  const handleGoToPrecios = (clientName: string) => {
+    localStorage.setItem(STORAGE_KEY_ACTIVE_STORE, clientName);
+    navigate('/portal/precios');
   };
 
   return (
@@ -798,6 +804,18 @@ export const CampoRuta: React.FC = () => {
                 >
                   <CheckSquare className="w-3.5 h-3.5 text-red-500" />
                   <span>Asistencia</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setIsModalOpen(false);
+                    handleGoToPrecios(selectedDegustacion.client);
+                  }}
+                  className="py-2.5 px-3 rounded-xl bg-zinc-800 hover:bg-zinc-700 border border-white/10 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                  title="Monitoreo y comparativa de precios en este PDV"
+                >
+                  <Tag className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Precios</span>
                 </button>
 
                 <button

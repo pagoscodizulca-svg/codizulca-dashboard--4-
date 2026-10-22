@@ -404,6 +404,9 @@ _Generado por Codizulca Trade Marketing Intelligence_`;
               onChange={(e) => setCategory(e.target.value)}
               className="w-full bg-[#171717] border border-neutral-800 rounded-xl px-2.5 py-2.5 text-xs text-white focus:outline-none focus:border-red-500"
             >
+              <option value="Granos & Víveres (Caraotas, Lentejas, Arroz)">Granos & Víveres (Caraotas, Lentejas, Arroz)</option>
+              <option value="Caraotas 400gr">Caraotas (400gr)</option>
+              <option value="Lentejas 400gr">Lentejas (400gr)</option>
               <option value="Embutidos Cocidos & Refrigerados">Embutidos Cocidos & Refrigerados</option>
               <option value="Salchichas & Especialidades">Salchichas & Especialidades</option>
               <option value="Ahumados & Madurados">Ahumados & Madurados</option>

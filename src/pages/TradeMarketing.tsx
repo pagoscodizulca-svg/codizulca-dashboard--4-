@@ -79,8 +79,23 @@ import {
   matchPromoterAssignment,
   resolvePromoterIdentity,
   matchVendedorName,
-  normalizeDateToDMY
+  normalizeDateToDMY,
+  getWeekBounds,
+  parseDateDMY,
+  getTodayStart,
+  isPastDegustacionDate,
+  getDefaultScheduleDateStr,
+  getWeekInfo
 } from '../lib/degustacionesService';
+
+export {
+  getWeekBounds,
+  parseDateDMY,
+  getTodayStart,
+  isPastDegustacionDate,
+  getDefaultScheduleDateStr,
+  getWeekInfo
+};
 
 interface InformeItem {
   id: string;
@@ -416,96 +431,8 @@ interface MerchandisingItem {
   status: 'Aprobado' | 'En Revisión' | 'Corregir';
 }
 
-// Función dinámica para calcular los límites exactos de la semana en curso (Lunes 00:00:00 a Domingo 23:59:59)
-export const getWeekBounds = (referenceDate: Date = new Date()): { weekStart: Date; weekEnd: Date } => {
-  const d = new Date(referenceDate.getFullYear(), referenceDate.getMonth(), referenceDate.getDate());
-  const day = d.getDay(); // 0 = Domingo, 1 = Lunes, ..., 6 = Sábado
-  const diffToMonday = (day === 0 ? -6 : 1) - day;
-  
-  const monday = new Date(d);
-  monday.setDate(d.getDate() + diffToMonday);
-  monday.setHours(0, 0, 0, 0);
-
-  const sunday = new Date(monday);
-  sunday.setDate(monday.getDate() + 6);
-  sunday.setHours(23, 59, 59, 999);
-
-  return { weekStart: monday, weekEnd: sunday };
-};
-
-export const parseDateDMY = (dateStr: string): Date => {
-  const normalized = normalizeDateToDMY(dateStr);
-  const parts = normalized.split('/');
-  if (parts.length === 3) {
-    const day = parseInt(parts[0], 10);
-    const month = parseInt(parts[1], 10) - 1;
-    const year = parseInt(parts[2], 10);
-    if (!isNaN(day) && !isNaN(month) && !isNaN(year)) {
-      return new Date(year, month, day, 0, 0, 0, 0);
-    }
-  }
-  const fallback = new Date();
-  fallback.setHours(0, 0, 0, 0);
-  return fallback;
-};
-
-// Inicio exacto del día actual (00:00:00.000) para separar Cronograma Actual (>= hoy) vs Historial (< hoy)
-export const getTodayStart = (referenceDate: Date = new Date()): Date => {
-  const d = new Date(referenceDate.getFullYear(), referenceDate.getMonth(), referenceDate.getDate());
-  d.setHours(0, 0, 0, 0);
-  return d;
-};
-
-// Evalúa si la fecha de una degustación es anterior al día de hoy (debe pasar automáticamente al Historial)
-export const isPastDegustacionDate = (dateStr: string, referenceDate: Date = new Date()): boolean => {
-  const todayStart = getTodayStart(referenceDate);
-  const parsed = parseDateDMY(dateStr);
-  return parsed.getTime() < todayStart.getTime();
-};
-
-// Fecha por defecto para programar nuevas degustaciones (si hoy es domingo, apunta al lunes siguiente)
-export const getDefaultScheduleDateStr = (referenceDate: Date = new Date()): string => {
-  const target = new Date(referenceDate.getFullYear(), referenceDate.getMonth(), referenceDate.getDate());
-  if (target.getDay() === 0) {
-    target.setDate(target.getDate() + 1);
-  }
-  const dd = String(target.getDate()).padStart(2, '0');
-  const mm = String(target.getMonth() + 1).padStart(2, '0');
-  const yyyy = target.getFullYear();
-  return `${dd}/${mm}/${yyyy}`;
-};
-
-const MONTH_NAMES = [
-  'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun',
-  'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'
-];
-
-export const getWeekInfo = (dateStr: string): { weekNumber: number; weekLabel: string; rangeLabel: string } => {
-  const normalized = normalizeDateToDMY(dateStr);
-  const parts = normalized.split('/');
-  if (parts.length === 3) {
-    const day = parseInt(parts[0], 10);
-    const monthIndex = parseInt(parts[1], 10) - 1;
-    const year = parseInt(parts[2], 10);
-    if (!isNaN(day) && !isNaN(monthIndex) && !isNaN(year)) {
-      const mName = MONTH_NAMES[monthIndex] || 'Oct';
-      
-      if (day <= 4) {
-        return { weekNumber: 1, weekLabel: 'Semana 1', rangeLabel: `01 ${mName} - 04 ${mName} ${year}` };
-      } else if (day <= 11) {
-        return { weekNumber: 2, weekLabel: 'Semana 2', rangeLabel: `05 ${mName} - 11 ${mName} ${year}` };
-      } else if (day <= 18) {
-        return { weekNumber: 3, weekLabel: 'Semana 3', rangeLabel: `12 ${mName} - 18 ${mName} ${year}` };
-      } else if (day <= 25) {
-        return { weekNumber: 4, weekLabel: 'Semana 4', rangeLabel: `19 ${mName} - 25 ${mName} ${year}` };
-      } else {
-        const lastDay = new Date(year, monthIndex + 1, 0).getDate();
-        return { weekNumber: 5, weekLabel: 'Semana 5', rangeLabel: `26 ${mName} - ${lastDay} ${mName} ${year}` };
-      }
-    }
-  }
-  return { weekNumber: 3, weekLabel: 'Semana 3', rangeLabel: '12 Oct - 18 Oct 2026' };
-};
+// Las funciones de cálculo de semanas y fechas (getWeekBounds, parseDateDMY, getTodayStart, isPastDegustacionDate, getDefaultScheduleDateStr, getWeekInfo)
+// se importan y re-exportan desde ../lib/degustacionesService para evitar acoplar paquetes móviles pesados.
 
 // Datos iniciales de degustaciones (Inicializado vacío para producción; sincronizado en vivo con actividades reales)
 const initialDegustaciones: DegustacionItem[] = [];
@@ -1907,6 +1834,58 @@ export const TradeMarketing: React.FC = () => {
       return matchesSearch && matchesPromoter;
     });
   }, [informes, searchTerm, promoterFilter]);
+
+  // Marcas de competidores disponibles dinámicamente según los relevamientos enviados por promotoras
+  const availableCompetitorBrands = useMemo(() => {
+    const baseBrands = [
+      'Plumrose',
+      'Hermo',
+      'Oscar Mayer',
+      'Alibal',
+      'Montserratina',
+      'San Antonio',
+      'Embutidos Arichuna',
+      'El Corral',
+      'Alimex',
+      'Turza',
+      'Leyenda',
+      'Torondoy',
+      'Primor',
+      'Mary',
+      'Montalbán',
+      'Pantera',
+      'Iberia',
+      'Campestre',
+      'La Campiña'
+    ];
+    const map = new Map<string, string>();
+    baseBrands.forEach((b) => map.set(b.toLowerCase(), b));
+    priceComparisons.forEach((item) => {
+      if (item.competitorBrand && item.competitorBrand.trim() && item.competitorBrand !== 'Competidor') {
+        const clean = item.competitorBrand.trim();
+        if (!map.has(clean.toLowerCase())) map.set(clean.toLowerCase(), clean);
+      }
+      if (Array.isArray(item.competitors)) {
+        item.competitors.forEach((c) => {
+          const clean = (c.brand || c.product || '').trim();
+          if (clean && clean !== 'Competidor' && !map.has(clean.toLowerCase())) {
+            map.set(clean.toLowerCase(), clean);
+          }
+        });
+      }
+    });
+    return Array.from(map.values());
+  }, [priceComparisons]);
+
+  const [isSyncingPrices, setIsSyncingPrices] = useState<boolean>(false);
+  const handleManualSyncPrices = async () => {
+    setIsSyncingPrices(true);
+    try {
+      await loadCampoSynchronizedData(true);
+    } finally {
+      setIsSyncingPrices(false);
+    }
+  };
 
   // Filtrado de Comparativa de Precios
   const filteredPriceComparisons = useMemo(() => {
@@ -3844,6 +3823,16 @@ export const TradeMarketing: React.FC = () => {
                       <span className="px-2.5 py-0.5 rounded-full bg-zinc-800 border border-white/5 text-zinc-300 font-medium text-xs font-mono">
                         {`${filteredPriceComparisons.length} de ${priceComparisons.length} registros`}
                       </span>
+                      <button
+                        type="button"
+                        onClick={handleManualSyncPrices}
+                        disabled={isSyncingPrices}
+                        className="px-2.5 py-1 rounded-xl bg-emerald-950/60 hover:bg-emerald-900/70 border border-emerald-500/40 text-emerald-400 font-mono font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+                        title="Sincronizar relevamientos de precios en vivo desde la App de Promotoras y Supabase"
+                      >
+                        <RefreshCw className={`w-3.5 h-3.5 ${isSyncingPrices ? 'animate-spin' : ''}`} />
+                        <span>{isSyncingPrices ? 'Sincronizando...' : 'Sincronizar Precios'}</span>
+                      </button>
                     </div>
                     <p className="text-xs text-zinc-400">
                       Precios relevados en punto de venta con comparativa directa de competidores.
@@ -3862,11 +3851,11 @@ export const TradeMarketing: React.FC = () => {
                         className="w-full sm:w-[260px] bg-zinc-900 border border-white/10 rounded-xl pl-9 pr-9 py-2 text-xs font-bold text-zinc-200 focus:outline-none focus:border-red-500 cursor-pointer appearance-none shadow-sm"
                       >
                         <option value="todos">Todas las marcas de competidores</option>
-                        <option value="Leyenda">Leyenda / El Tunal / Mi Jamón</option>
-                        <option value="Plumrose">Plumrose</option>
-                        <option value="Souto">Pollo Souto / La Caridad</option>
-                        <option value="Torondoy">Torondoy / Santa Rosa</option>
-                        <option value="Kiri">Huevos Kiri / Granja</option>
+                        {availableCompetitorBrands.map((brand) => (
+                          <option key={brand} value={brand}>
+                            {brand}
+                          </option>
+                        ))}
                       </select>
                       <Filter className="w-3.5 h-3.5 text-zinc-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                       <ChevronDown className="w-3.5 h-3.5 text-zinc-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />

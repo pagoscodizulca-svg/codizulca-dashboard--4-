@@ -5,7 +5,9 @@ import {
   ShelfScanPayload,
   PriceSurveyPayload,
   FREQUENT_STORES,
-  CODIZULCA_PRODUCTS
+  CODIZULCA_PRODUCTS,
+  mapSupabasePriceRowToPayload,
+  toSortableTimestamp
 } from '../campoService';
 
 describe('campoService - Offline-First & Sync Test Suite', () => {
@@ -228,9 +230,15 @@ describe('campoService - Offline-First & Sync Test Suite', () => {
       expect(FREQUENT_STORES).toContain('OLIMPICA SÚPER MARKET');
     });
 
-    it('contiene los productos de Asturias y las presentaciones de Vencampo en CODIZULCA_PRODUCTS', () => {
-      expect(CODIZULCA_PRODUCTS.length).toBe(22);
+    it('contiene los productos de Asturias y las presentaciones de Vencampo (incluyendo Caraotas y Lentejas 400gr) en CODIZULCA_PRODUCTS', () => {
+      expect(CODIZULCA_PRODUCTS.length).toBe(24);
       const names = CODIZULCA_PRODUCTS.map((p) => p.name);
+      expect(names).toContain('Caraotas 400gr');
+      expect(names).toContain('Lentejas 400gr');
+      expect(names).not.toContain('Caraotas 500gr');
+      expect(names).not.toContain('Caraotas 1kg');
+      expect(names).not.toContain('Lentejas 500gr');
+      expect(names).not.toContain('Lentejas 1kg');
       expect(names).toContain('Pechuga de Pavo Asturias');
       expect(names).toContain('Pechuga de Pollo Asturias');
       expect(names).toContain('Jamón Cocido de Pavo Asturias');
@@ -266,6 +274,96 @@ describe('campoService - Offline-First & Sync Test Suite', () => {
       const resAlias = await campoService.loginPromoter('trademarketing@codizulca.com', 'Codi.02');
       expect(resAlias.success).toBe(true);
       expect(resAlias.promoter?.id).toBe('COORD-TM-01');
+    });
+  });
+
+  describe('Sincronización de Comparativa de Precios (Promotoras -> Trade Marketing)', () => {
+    it('mapea filas de Supabase prices con hasta 3 competidores y resuelve creatorId a nombre de promotora', () => {
+      const rawSupabaseRow = {
+        id: '8f14e45f-ceea-467a-a13c-123456789abc',
+        date: '2026-10-22',
+        created_at: '2026-10-22T14:20:00.000Z',
+        store: 'ALKOSTO DONDE COMPRAR ES GANAR, C.A. (AV DELICIAS)',
+        ourProduct: 'Caraotas 400gr',
+        ourPrice: 1.5,
+        competitor1Brand: 'Pantera 400gr',
+        competitor1Price: 1.65,
+        competitor2Brand: 'Montalbán 400gr',
+        competitor2Price: 1.6,
+        competitor3Brand: '',
+        competitor3Price: null,
+        comments: 'Exhibición principal',
+        creatorId: 'dariannysferrer23@gmail.com',
+        promoter: 'dariannysferrer23@gmail.com'
+      };
+
+      const mapped = mapSupabasePriceRowToPayload(rawSupabaseRow);
+      expect(mapped.id).toBe('8f14e45f-ceea-467a-a13c-123456789abc');
+      expect(mapped.promoter).toBe('DARIANNYS FERRER');
+      expect(mapped.productName).toBe('Caraotas 400gr');
+      expect(mapped.ownPriceUsd).toBe(1.5);
+      expect(mapped.competitors.length).toBe(2);
+      expect(mapped.competitors[0].name).toBe('Pantera 400gr');
+      expect(mapped.competitors[0].priceUsd).toBe(1.65);
+      expect(mapped.competitors[1].name).toBe('Montalbán 400gr');
+      expect(mapped.competitors[1].priceUsd).toBe(1.6);
+    });
+
+    it('sincroniza sin duplicados entre savePriceSurvey y getPriceSurveys manteniendo UUID determinístico', async () => {
+      let postedBody: any = null;
+      vi.stubGlobal('fetch', vi.fn().mockImplementation(async (url: string, init?: RequestInit) => {
+        if (init?.method === 'POST' && url.includes('/api/price-surveys')) {
+          postedBody = JSON.parse(init.body as string);
+          return {
+            ok: true,
+            status: 201,
+            json: async () => postedBody
+          };
+        }
+        if (url.includes('/api/price-surveys')) {
+          return {
+            ok: true,
+            status: 200,
+            headers: new Headers({ 'content-type': 'application/json' }),
+            json: async () => (postedBody ? [postedBody] : [])
+          };
+        }
+        return { ok: true, status: 200, json: async () => [] };
+      }));
+
+      const survey: PriceSurveyPayload = {
+        id: 'PRICE-987654',
+        date: '2026-10-22T15:00:00.000Z',
+        store: 'OLIMPICA SÚPER MARKET',
+        promoter: 'JAIVELIN FEREIRA',
+        creatorId: 'jaivelinfereira20@gmail.com',
+        productName: 'Lentejas 400gr',
+        ownPriceUsd: 1.65,
+        ownPriceBs: 60.8,
+        bcvRate: 36.85,
+        competitors: [
+          { name: 'Pantera', priceUsd: 1.8, priceBs: 66.33, diffPercent: 9.1 }
+        ],
+        observations: 'Relevamiento en vivo'
+      };
+
+      const saveRes = await campoService.savePriceSurvey(survey);
+      expect(saveRes.success).toBe(true);
+      expect(saveRes.offline).toBe(false);
+
+      const allSurveys = await campoService.getPriceSurveys(true);
+      expect(allSurveys.length).toBe(1);
+      expect(allSurveys[0].productName).toBe('Lentejas 400gr');
+      expect(allSurveys[0].promoter).toBe('JAIVELIN FEREIRA');
+      expect(allSurveys[0].competitors[0].name).toBe('Pantera');
+      expect(allSurveys[0].id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+    });
+
+    it('ordena correctamente fechas ISO y DD/MM/YYYY mediante toSortableTimestamp', () => {
+      const tsIso = toSortableTimestamp('2026-10-22', '2026-10-22T14:30:00.000Z');
+      const tsDmyOlder = toSortableTimestamp('18/10/2026');
+      expect(tsIso).toBeGreaterThan(tsDmyOlder);
+      expect(Number.isNaN(tsDmyOlder)).toBe(false);
     });
   });
 });

@@ -37,6 +37,7 @@ import {
   mapSupabaseInventoryRowToPayload,
   mapSupabaseTastingSurveyRowToPayload,
   ensureCampoUuid,
+  toSortableTimestamp,
 } from './src/lib/campoService';
 import { mapSupabaseMerchRowToReport } from './src/lib/merchandisingService';
 
@@ -4740,7 +4741,7 @@ Responde con un JSON estructurado con:
         ...(remoteRows || []),
         ...localFiltered.filter((r) => !remoteIds.has(r.id)),
       ].sort(
-        (a, b) => new Date(b.date || b.created_at || 0).getTime() - new Date(a.date || a.created_at || 0).getTime()
+        (a, b) => toSortableTimestamp(b.date, b.created_at) - toSortableTimestamp(a.date, a.created_at)
       );
 
       memoryPriceSurveys = merged;
@@ -4897,7 +4898,7 @@ Responde con un JSON estructurado con:
         ...(remoteRows || []),
         ...localFiltered.filter((r) => !remoteIds.has(r.id)),
       ].sort(
-        (a, b) => new Date(b.date || b.created_at || 0).getTime() - new Date(a.date || a.created_at || 0).getTime()
+        (a, b) => toSortableTimestamp(b.date, b.created_at) - toSortableTimestamp(a.date, a.created_at)
       );
 
       memoryInvLogs = merged;
@@ -5710,6 +5711,9 @@ Responde con un JSON estructurado con:
       })
     );
     app.get('*', (req, res) => {
+      if (req.path.startsWith('/assets/')) {
+        return res.status(404).end();
+      }
       res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
       res.sendFile(path.join(distPath, 'index.html'));
     });

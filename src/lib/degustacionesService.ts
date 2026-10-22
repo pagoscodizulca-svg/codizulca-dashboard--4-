@@ -1259,25 +1259,44 @@ export function matchPromoterAssignment(
  * Enriquecedor automático de datos de promotora al guardar o actualizar una degustación
  */
 export function enrichPromoterFields(item: DegustacionItem): DegustacionItem {
-  if (!item.promoter || cleanPromoterText(item.promoter).includes('POR ASIGNAR')) {
+  const safeBase: DegustacionItem = {
+    ...item,
+    id: String(item?.id || `DEG-${Date.now().toString().slice(-6)}`),
+    date: normalizeDateToDMY(String(item?.date || '')),
+    time: String(item?.time || '09:00 AM - 01:00 PM'),
+    activity: String(item?.activity || 'Actividad de Degustación'),
+    product: String(item?.product || 'Producto Codizulca'),
+    promoter: String(item?.promoter || 'POR ASIGNAR (Trade Marketing)'),
+    promoterRole: item?.promoterRole || 'Impulsadora',
+    client: String(item?.client || 'Punto de Venta'),
+    zone: String(item?.zone || 'Ruta Comercial'),
+    vendedor: String(item?.vendedor || 'VENDEDOR COMERCIAL'),
+    source: item?.source || 'vendedor_app',
+    status: item?.status || 'scheduled',
+    delivered: Number(item?.delivered) || 0,
+    target: Number(item?.target) || 150,
+    acceptanceRate: Number(item?.acceptanceRate) || 0
+  };
+
+  if (!safeBase.promoter || cleanPromoterText(safeBase.promoter).includes('POR ASIGNAR')) {
     return {
-      ...item,
+      ...safeBase,
       promoter: 'POR ASIGNAR (Trade Marketing)',
       promoterEmail: '',
       promoterId: ''
     };
   }
-  const resolved = resolvePromoterIdentity(item.promoter, item.promoterEmail);
+  const resolved = resolvePromoterIdentity(safeBase.promoter, safeBase.promoterEmail);
   if (resolved) {
     return {
-      ...item,
+      ...safeBase,
       promoter: resolved.name,
-      promoterEmail: item.promoterEmail || resolved.email,
-      promoterId: item.promoterId || resolved.id,
-      promoterRole: item.promoterRole || resolved.role
+      promoterEmail: safeBase.promoterEmail || resolved.email,
+      promoterId: safeBase.promoterId || resolved.id,
+      promoterRole: safeBase.promoterRole || resolved.role
     };
   }
-  return item;
+  return safeBase;
 }
 
 /**
@@ -1327,6 +1346,97 @@ export function normalizeDateToDMY(rawDate: string): string {
 
   return trimmed;
 }
+
+// Función dinámica para calcular los límites exactos de la semana en curso (Lunes 00:00:00 a Domingo 23:59:59)
+export const getWeekBounds = (referenceDate: Date = new Date()): { weekStart: Date; weekEnd: Date } => {
+  const d = new Date(referenceDate.getFullYear(), referenceDate.getMonth(), referenceDate.getDate());
+  const day = d.getDay(); // 0 = Domingo, 1 = Lunes, ..., 6 = Sábado
+  const diffToMonday = (day === 0 ? -6 : 1) - day;
+
+  const monday = new Date(d);
+  monday.setDate(d.getDate() + diffToMonday);
+  monday.setHours(0, 0, 0, 0);
+
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+  sunday.setHours(23, 59, 59, 999);
+
+  return { weekStart: monday, weekEnd: sunday };
+};
+
+export const parseDateDMY = (dateStr: string): Date => {
+  const normalized = normalizeDateToDMY(dateStr);
+  const parts = normalized.split('/');
+  if (parts.length === 3) {
+    const day = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10) - 1;
+    const year = parseInt(parts[2], 10);
+    if (!isNaN(day) && !isNaN(month) && !isNaN(year)) {
+      return new Date(year, month, day, 0, 0, 0, 0);
+    }
+  }
+  const fallback = new Date();
+  fallback.setHours(0, 0, 0, 0);
+  return fallback;
+};
+
+// Inicio exacto del día actual (00:00:00.000) para separar Cronograma Actual (>= hoy) vs Historial (< hoy)
+export const getTodayStart = (referenceDate: Date = new Date()): Date => {
+  const d = new Date(referenceDate.getFullYear(), referenceDate.getMonth(), referenceDate.getDate());
+  d.setHours(0, 0, 0, 0);
+  return d;
+};
+
+// Evalúa si la fecha de una degustación es anterior al día de hoy (debe pasar automáticamente al Historial)
+export const isPastDegustacionDate = (dateStr: string, referenceDate: Date = new Date()): boolean => {
+  const todayStart = getTodayStart(referenceDate);
+  const parsed = parseDateDMY(dateStr);
+  return parsed.getTime() < todayStart.getTime();
+};
+
+// Fecha por defecto para programar nuevas degustaciones (si hoy es domingo, apunta al lunes siguiente)
+export const getDefaultScheduleDateStr = (referenceDate: Date = new Date()): string => {
+  const target = new Date(referenceDate.getFullYear(), referenceDate.getMonth(), referenceDate.getDate());
+  if (target.getDay() === 0) {
+    target.setDate(target.getDate() + 1);
+  }
+  const dd = String(target.getDate()).padStart(2, '0');
+  const mm = String(target.getMonth() + 1).padStart(2, '0');
+  const yyyy = target.getFullYear();
+  return `${dd}/${mm}/${yyyy}`;
+};
+
+const DEG_MONTH_NAMES = [
+  'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun',
+  'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'
+];
+
+export const getWeekInfo = (dateStr: string): { weekNumber: number; weekLabel: string; rangeLabel: string } => {
+  const normalized = normalizeDateToDMY(dateStr);
+  const parts = normalized.split('/');
+  if (parts.length === 3) {
+    const day = parseInt(parts[0], 10);
+    const monthIndex = parseInt(parts[1], 10) - 1;
+    const year = parseInt(parts[2], 10);
+    if (!isNaN(day) && !isNaN(monthIndex) && !isNaN(year)) {
+      const mName = DEG_MONTH_NAMES[monthIndex] || 'Oct';
+
+      if (day <= 4) {
+        return { weekNumber: 1, weekLabel: 'Semana 1', rangeLabel: `01 ${mName} - 04 ${mName} ${year}` };
+      } else if (day <= 11) {
+        return { weekNumber: 2, weekLabel: 'Semana 2', rangeLabel: `05 ${mName} - 11 ${mName} ${year}` };
+      } else if (day <= 18) {
+        return { weekNumber: 3, weekLabel: 'Semana 3', rangeLabel: `12 ${mName} - 18 ${mName} ${year}` };
+      } else if (day <= 25) {
+        return { weekNumber: 4, weekLabel: 'Semana 4', rangeLabel: `19 ${mName} - 25 ${mName} ${year}` };
+      } else {
+        const lastDay = new Date(year, monthIndex + 1, 0).getDate();
+        return { weekNumber: 5, weekLabel: 'Semana 5', rangeLabel: `26 ${mName} - ${lastDay} ${mName} ${year}` };
+      }
+    }
+  }
+  return { weekNumber: 3, weekLabel: 'Semana 3', rangeLabel: '12 Oct - 18 Oct 2026' };
+};
 
 export const degustacionesService = {
   /**

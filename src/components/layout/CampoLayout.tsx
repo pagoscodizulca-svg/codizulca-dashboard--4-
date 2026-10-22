@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Outlet, NavLink, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { Outlet, NavLink, Navigate, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Store,
   MapPin,
@@ -202,9 +202,9 @@ export const CampoLayout: React.FC = () => {
     }
   };
 
-  // Si no está autenticado
+  // Si no está autenticado, redirigir directamente al login móvil (evita pantalla en blanco)
   if (!isAuthenticated && !campoService.isAuthenticatedPromoter()) {
-    return null;
+    return <Navigate to="/portal/login" replace />;
   }
 
   // Si está fuera de horario y no tiene bypass activado
@@ -220,6 +220,7 @@ export const CampoLayout: React.FC = () => {
     { to: '/portal/ruta', label: 'Ruta', icon: MapPin },
     { to: '/portal/checkin', label: 'Asistencia', icon: CheckSquare },
     { to: '/portal/encuestas', label: 'Encuestas', icon: ClipboardList },
+    { to: '/portal/precios', label: 'Precios', icon: Tag },
     { to: '/portal/inventario', label: 'Inventario', icon: Package },
     ...(isMerchandisingRole
       ? [{ to: '/portal/merchandising', label: 'Merchandising', icon: Layers, isSpecial: true }]
@@ -383,7 +384,7 @@ export const CampoLayout: React.FC = () => {
       {/* 2.C. BARRA DE PESTAÑAS ADAPTATIVA                                         */}
       {/* ========================================================================= */}
       <nav className="sticky top-[53px] z-30 bg-[#0d0d0d] border-b border-[#262626] px-1.5 py-1.5 shadow-md">
-        <div className={`max-w-[512px] mx-auto grid ${isMerchandisingRole ? 'grid-cols-5' : 'grid-cols-4'} gap-0.5 sm:gap-1`}>
+        <div className={`max-w-[512px] mx-auto grid ${isMerchandisingRole ? 'grid-cols-6' : 'grid-cols-5'} gap-0.5 sm:gap-1`}>
           {tabs.map((tab) => {
             return (
               <NavLink

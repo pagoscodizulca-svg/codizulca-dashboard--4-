@@ -23,6 +23,7 @@ import {
 } from '../../lib/campoService';
 import { CampoStoreSelector } from '../../components/mobile/CampoStoreSelector';
 import { DecimalInput } from '../../components/mobile/DecimalInput';
+import { STORAGE_KEY_ACTIVE_STORE } from '../../lib/checkinsService';
 
 export const CampoPrecios: React.FC<{ activePromoterName?: string }> = ({
   activePromoterName
@@ -35,8 +36,14 @@ export const CampoPrecios: React.FC<{ activePromoterName?: string }> = ({
 
   const activePromoter = context?.activePromoter || campoService.getActivePromoter();
 
-  // Selecciona el Alkosto asignado a la promotora fija si corresponde
+  // Selecciona el PDV activo de ruta/asistencia o el Alkosto asignado a la promotora fija si corresponde
   const getInitialStore = () => {
+    try {
+      const savedActive = localStorage.getItem(STORAGE_KEY_ACTIVE_STORE);
+      if (savedActive && savedActive.trim()) {
+        return savedActive.trim();
+      }
+    } catch {}
     if (activePromoter?.assignedStore) {
       const cleanAssigned = activePromoter.assignedStore.toUpperCase();
       const matched = FREQUENT_STORES.find(s => {
@@ -63,6 +70,7 @@ export const CampoPrecios: React.FC<{ activePromoterName?: string }> = ({
   const [observations, setObservations] = useState<string>('');
   const [saveSuccess, setSaveSuccess] = useState<boolean>(false);
   const [isOfflineSaved, setIsOfflineSaved] = useState<boolean>(false);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
   // Al cambiar producto, actualiza precio sugerido
   const handleProductChange = (prodId: string) => {
@@ -114,46 +122,58 @@ export const CampoPrecios: React.FC<{ activePromoterName?: string }> = ({
 
   // Guardar Monitoreo de Precios
   const handleSave = async () => {
+    if (isSubmitting) return;
     if (!ownPriceUsd || ownPriceUsd <= 0) {
       alert('Ingresa el precio de góndola de Codizulca.');
       return;
     }
 
-    const compPayload = competitors.map((c) => {
-      const pBs = Number((c.priceUsd * bcvRate).toFixed(2));
-      const diffPercent = ownPriceUsd > 0
-        ? Number((((c.priceUsd - ownPriceUsd) / ownPriceUsd) * 100).toFixed(1))
-        : 0;
-      return {
-        name: c.name,
-        priceUsd: c.priceUsd,
-        priceBs: pBs,
-        diffPercent
+    setIsSubmitting(true);
+    try {
+      const validCompetitors = competitors.filter(
+        (c) => (c.name && c.name.trim() !== '') || Number(c.priceUsd) > 0
+      );
+      const compPayload = validCompetitors.map((c) => {
+        const cleanPrice = Number(c.priceUsd) || 0;
+        const pBs = Number((cleanPrice * bcvRate).toFixed(2));
+        const diffPercent = ownPriceUsd > 0 && cleanPrice > 0
+          ? Number((((cleanPrice - ownPriceUsd) / ownPriceUsd) * 100).toFixed(1))
+          : 0;
+        return {
+          name: (c.name || 'Competidor').trim(),
+          priceUsd: cleanPrice,
+          priceBs: pBs,
+          diffPercent
+        };
+      });
+
+      const generatedId =
+        typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+          ? crypto.randomUUID()
+          : 'PRICE-' + Date.now().toString().slice(-6);
+
+      const promoterFinal = activePromoterName || activePromoter?.name || campoService.getActivePromoter().name;
+      const payload: PriceSurveyPayload = {
+        id: generatedId,
+        date: new Date().toISOString(),
+        store: storeName,
+        promoter: promoterFinal,
+        creatorId: activePromoter?.email || activePromoter?.id || promoterFinal,
+        productName: selectedProduct.name,
+        ownPriceUsd,
+        ownPriceBs,
+        bcvRate,
+        competitors: compPayload,
+        photoPriceTag: priceTagPhoto || undefined,
+        observations
       };
-    });
 
-    const generatedId =
-      typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
-        ? crypto.randomUUID()
-        : 'PRICE-' + Date.now().toString().slice(-6);
-
-    const payload: PriceSurveyPayload = {
-      id: generatedId,
-      date: new Date().toISOString(),
-      store: storeName,
-      promoter: activePromoterName || activePromoter?.name || campoService.getActivePromoter().name,
-      productName: selectedProduct.name,
-      ownPriceUsd,
-      ownPriceBs,
-      bcvRate,
-      competitors: compPayload,
-      photoPriceTag: priceTagPhoto || undefined,
-      observations
-    };
-
-    const res = await campoService.savePriceSurvey(payload);
-    setSaveSuccess(true);
-    setIsOfflineSaved(res.offline);
+      const res = await campoService.savePriceSurvey(payload);
+      setSaveSuccess(true);
+      setIsOfflineSaved(res.offline);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleReset = () => {
@@ -190,7 +210,12 @@ export const CampoPrecios: React.FC<{ activePromoterName?: string }> = ({
         <div className="mt-3 pt-3 border-t border-neutral-800/80">
           <CampoStoreSelector
             value={storeName}
-            onChange={(val) => setStoreName(val)}
+            onChange={(val) => {
+              setStoreName(val);
+              try {
+                localStorage.setItem(STORAGE_KEY_ACTIVE_STORE, val);
+              } catch {}
+            }}
             label="Punto de Venta / Comercio:"
           />
         </div>
@@ -305,13 +330,20 @@ export const CampoPrecios: React.FC<{ activePromoterName?: string }> = ({
                   <div key={idx} className="p-3 bg-[#171717] border border-neutral-800 rounded-xl space-y-2">
                     <div className="flex items-center justify-between gap-2">
                       <select
-                        value={comp.name}
-                        onChange={(e) => updateCompetitor(idx, 'name', e.target.value)}
-                        className="bg-neutral-900 border border-neutral-800 rounded-lg px-2 py-1 text-xs text-white font-bold focus:outline-none"
+                        value={COMPETITOR_BRANDS.includes(comp.name) ? comp.name : '__CUSTOM__'}
+                        onChange={(e) => {
+                          if (e.target.value !== '__CUSTOM__') {
+                            updateCompetitor(idx, 'name', e.target.value);
+                          }
+                        }}
+                        className="bg-neutral-900 border border-neutral-800 rounded-lg px-2 py-1 text-xs text-white font-bold focus:outline-none max-w-[165px]"
                       >
                         {COMPETITOR_BRANDS.map((b) => (
                           <option key={b} value={b}>{b}</option>
                         ))}
+                        {!COMPETITOR_BRANDS.includes(comp.name) && (
+                          <option value="__CUSTOM__">Otra marca / Personalizado</option>
+                        )}
                       </select>
 
                       {/* Badge de Diferencial de Precio */}
@@ -334,6 +366,16 @@ export const CampoPrecios: React.FC<{ activePromoterName?: string }> = ({
                           <Trash2 className="w-3 h-3" />
                         </button>
                       )}
+                    </div>
+
+                    <div>
+                      <input
+                        type="text"
+                        value={comp.name}
+                        onChange={(e) => updateCompetitor(idx, 'name', e.target.value)}
+                        placeholder="Marca o producto competidor (ej. Plumrose / Pantera 400gr)"
+                        className="w-full bg-neutral-900 border border-neutral-800 rounded-lg px-2.5 py-1.5 text-xs text-amber-300 placeholder-neutral-500 font-bold focus:outline-none focus:border-red-500"
+                      />
                     </div>
 
                     <div className="grid grid-cols-2 gap-2 text-xs">
@@ -408,10 +450,11 @@ export const CampoPrecios: React.FC<{ activePromoterName?: string }> = ({
             <button
               type="button"
               onClick={handleSave}
-              className="w-full py-4 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-red-600/30 active:scale-[0.98] transition-all cursor-pointer"
+              disabled={isSubmitting}
+              className="w-full py-4 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 disabled:opacity-60 text-white font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-red-600/30 active:scale-[0.98] transition-all cursor-pointer"
             >
               <Check className="w-4 h-4" />
-              <span>Guardar Monitoreo de Precios</span>
+              <span>{isSubmitting ? 'Sincronizando Precios...' : 'Guardar Monitoreo de Precios'}</span>
             </button>
           </div>
         </>

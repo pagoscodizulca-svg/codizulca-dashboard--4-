@@ -64,6 +64,7 @@ export interface PriceSurveyPayload {
   date: string;
   store: string;
   promoter: string;
+  creatorId?: string;
   productName: string;
   ownPriceUsd: number;
   ownPriceBs: number;
@@ -85,6 +86,7 @@ export interface InventoryLogPayload {
   date: string;
   store: string;
   promoter: string;
+  creatorId?: string;
   productName: string;
   initialStock: number;             // Apertura de guardia
   tastingsGiven: number;            // Degustaciones / muestras entregadas
@@ -138,6 +140,9 @@ export interface MerchandisingReportPayload {
 
 // Catálogo Oficial de Productos Asturias / Codizulca / Vencampo para Monitoreo de Precios, Inventario y Degustaciones
 export const CODIZULCA_PRODUCTS = [
+  // Línea Vencampo - Granos: Caraotas y Lentejas (400gr)
+  { id: 'PROD-VEN-CAR-400', name: 'Caraotas 400gr', defaultPriceUsd: 1.10, category: 'Víveres / Granos', weight: '400gr' },
+  { id: 'PROD-VEN-LEN-400', name: 'Lentejas 400gr', defaultPriceUsd: 1.20, category: 'Víveres / Granos', weight: '400gr' },
   // Línea Vencampo - Arroz (400gr, 500gr, 900gr, 1kg)
   { id: 'PROD-VEN-ARR-400', name: 'Arroz Vencampo 400gr', defaultPriceUsd: 0.65, category: 'Víveres / Granos', weight: '400gr' },
   { id: 'PROD-VEN-ARR-500', name: 'Arroz Vencampo 500gr', defaultPriceUsd: 0.80, category: 'Víveres / Granos', weight: '500gr' },
@@ -175,9 +180,17 @@ export const COMPETITOR_BRANDS = [
   'Montserratina',
   'San Antonio',
   'Embutidos Arichuna',
+  'El Corral',
+  'Alimex',
+  'Turza',
+  'Leyenda',
+  'Torondoy',
   'Primor',
   'Mary',
   'Montalbán',
+  'Pantera',
+  'Iberia',
+  'Campestre',
   'Mazeite',
   'Vatel',
   'La Campiña'
@@ -423,6 +436,32 @@ export function resolvePromoterNameFromRaw(rawPromoter?: string, creatorId?: str
   }
 
   return cleanRaw || 'Promotora';
+}
+
+export function toSortableTimestamp(dateVal?: string, createdAtVal?: string): number {
+  const parseStr = (s?: string): number => {
+    if (!s) return 0;
+    const trimmed = String(s).trim();
+    if (!trimmed) return 0;
+    const dmyMatch = trimmed.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+    if (dmyMatch) {
+      const dd = Number(dmyMatch[1]);
+      const mm = Number(dmyMatch[2]);
+      const yyyy = Number(dmyMatch[3]);
+      const dt = new Date(yyyy, mm - 1, dd).getTime();
+      if (!Number.isNaN(dt)) return dt;
+    }
+    const parsed = new Date(trimmed).getTime();
+    return Number.isNaN(parsed) ? 0 : parsed;
+  };
+
+  const tsCreated = parseStr(createdAtVal);
+  const tsDate = parseStr(dateVal);
+  // Si dateVal es sólo fecha (sin hora) y createdAtVal es del mismo día con hora exacta, usar createdAtVal
+  if (tsCreated > 0 && tsDate > 0 && dateVal && !String(dateVal).includes('T') && Math.abs(tsCreated - tsDate) < 86400000 * 2) {
+    return tsCreated;
+  }
+  return tsDate || tsCreated || 0;
 }
 
 export function mapSupabasePriceRowToPayload(row: any): PriceSurveyPayload {
@@ -873,32 +912,51 @@ export const campoService = {
     return Boolean(token && userId);
   },
 
-  // Gestión del Perfil Activo
+  // Gestión del Perfil Activo (Sanitizado contra datos corruptos o incompletos en localStorage)
   getActivePromoter(): PromoterProfile {
-    const raw = localStorage.getItem(ACTIVE_USER_KEY);
-    if (raw) {
-      try {
+    const defaultPromoter = PROMOTERS_LIST[0];
+    try {
+      const raw = localStorage.getItem(ACTIVE_USER_KEY);
+      if (raw) {
         const parsed = JSON.parse(raw);
-        if (parsed && parsed.name) return parsed;
-      } catch {
-        // Fallback
+        if (parsed && typeof parsed === 'object' && typeof parsed.name === 'string' && parsed.name.trim().length > 0) {
+          return {
+            id: String(parsed.id || defaultPromoter.id),
+            name: parsed.name.trim(),
+            role: parsed.role || defaultPromoter.role,
+            zone: String(parsed.zone || defaultPromoter.zone),
+            phone: String(parsed.phone || defaultPromoter.phone),
+            tag: String(parsed.tag || defaultPromoter.tag),
+            email: String(parsed.email || defaultPromoter.email),
+            password: parsed.password || defaultPromoter.password,
+            photoUrl: parsed.photoUrl,
+            assignedStore: parsed.assignedStore
+          };
+        }
       }
+    } catch {
+      // Fallback seguro si el JSON está corrupto
     }
-    return PROMOTERS_LIST[0]; // Por defecto Careliz Reyes
+    return defaultPromoter; // Por defecto Nicole Godoy / primera promotora activa
   },
 
   setActivePromoter(promoter: PromoterProfile) {
-    localStorage.setItem(ACTIVE_USER_KEY, JSON.stringify(promoter));
-    localStorage.setItem('portal_active_promoter', promoter.name);
-    window.dispatchEvent(new Event('codizulca_promoter_changed'));
+    try {
+      localStorage.setItem(ACTIVE_USER_KEY, JSON.stringify(promoter));
+      localStorage.setItem('portal_active_promoter', promoter.name || 'Promotora');
+      window.dispatchEvent(new Event('codizulca_promoter_changed'));
+    } catch {
+      // ignore storage quota errors
+    }
   },
 
   // Cola Offline-First
   getQueue(): SyncQueueItem[] {
-    const raw = localStorage.getItem(QUEUE_STORAGE_KEY);
-    if (!raw) return [];
     try {
-      return JSON.parse(raw);
+      const raw = localStorage.getItem(QUEUE_STORAGE_KEY);
+      if (!raw) return [];
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
     } catch {
       return [];
     }
@@ -927,6 +985,10 @@ export const campoService = {
     const remaining: SyncQueueItem[] = [];
     let synced = 0;
 
+    const isTestEnv =
+      typeof process !== 'undefined' &&
+      Boolean(process.env?.NODE_ENV === 'test' || process.env?.VITEST);
+
     for (const item of queue) {
       try {
         let endpoint = '';
@@ -936,6 +998,32 @@ export const campoService = {
         else if (item.type === 'inventory_log') endpoint = '/api/inventory-logs';
         else if (item.type === 'tasting_survey') endpoint = '/api/tasting-surveys';
         else if (item.type === 'merchandising_report') endpoint = '/api/merchandising';
+
+        if (!isTestEnv && item.type === 'price_survey' && item.payload && !isSyntheticPriceOrInventoryRow(item.payload)) {
+          try {
+            const norm = mapSupabasePriceRowToPayload(item.payload);
+            const dbId = ensureCampoUuid(norm.id, `${norm.date}|${norm.promoter}|${norm.store}|${norm.productName}`);
+            const comps = Array.isArray(norm.competitors) ? norm.competitors : [];
+            await (supabase.from('prices') as any).upsert({
+              id: dbId,
+              date: norm.date,
+              store: norm.store,
+              ourProduct: norm.productName,
+              ourPrice: Number(norm.ownPriceUsd) || 0,
+              competitor1Brand: comps[0]?.name || '',
+              competitor1Price: comps[0]?.priceUsd !== undefined ? Number(comps[0].priceUsd) : null,
+              competitor2Brand: comps[1]?.name || '',
+              competitor2Price: comps[1]?.priceUsd !== undefined ? Number(comps[1].priceUsd) : null,
+              competitor3Brand: comps[2]?.name || '',
+              competitor3Price: comps[2]?.priceUsd !== undefined ? Number(comps[2].priceUsd) : null,
+              competitorBrand: comps[0]?.name || null,
+              competitorPrice: comps[0]?.priceUsd !== undefined ? Number(comps[0].priceUsd) : null,
+              comments: norm.observations || '',
+              creatorId: item.payload.creatorId || norm.promoter || '',
+              promoter: norm.promoter,
+            });
+          } catch {}
+        }
 
         if (endpoint) {
           const res = await fetch(endpoint, {
@@ -956,14 +1044,23 @@ export const campoService = {
 
     localStorage.setItem(QUEUE_STORAGE_KEY, JSON.stringify(remaining));
     window.dispatchEvent(new CustomEvent('codizulca_sync_queue_updated', { detail: { count: remaining.length } }));
+    if (synced > 0) {
+      notifyCampoDataChanged();
+    }
     return { synced, remaining: remaining.length };
   },
 
   // Guardado de Escaneo Inteligente de Góndolas
   async saveShelfScan(scan: ShelfScanPayload): Promise<{ success: boolean; offline: boolean }> {
     const KEY = 'codizulca_shelf_scans';
-    const local: ShelfScanPayload[] = JSON.parse(localStorage.getItem(KEY) || '[]');
-    const filtered = local.filter((s) => s.id !== scan.id);
+    let local: ShelfScanPayload[] = [];
+    try {
+      const parsed = JSON.parse(localStorage.getItem(KEY) || '[]');
+      local = Array.isArray(parsed) ? parsed : [];
+    } catch {
+      local = [];
+    }
+    const filtered = local.filter((s) => s && s.id !== scan.id);
     try {
       localStorage.setItem(KEY, JSON.stringify([scan, ...filtered]));
     } catch {
@@ -998,9 +1095,22 @@ export const campoService = {
   // Guardado de Monitoreo de Precios (Sincronización inmediata con Servidor + Supabase + Trade Marketing)
   async savePriceSurvey(survey: PriceSurveyPayload): Promise<{ success: boolean; offline: boolean }> {
     const KEY = 'codizulca_price_surveys';
+    const isSynthetic = isSyntheticPriceOrInventoryRow(survey);
     const normalized = mapSupabasePriceRowToPayload(survey);
-    const local: PriceSurveyPayload[] = JSON.parse(localStorage.getItem(KEY) || '[]');
-    const filtered = local.filter((s) => s.id !== normalized.id);
+    if (!isSynthetic) {
+      normalized.id = ensureCampoUuid(
+        normalized.id,
+        `${normalized.date}|${normalized.promoter}|${normalized.store}|${normalized.productName}`
+      );
+    }
+    let local: PriceSurveyPayload[] = [];
+    try {
+      const parsed = JSON.parse(localStorage.getItem(KEY) || '[]');
+      local = Array.isArray(parsed) ? parsed : [];
+    } catch {
+      local = [];
+    }
+    const filtered = local.filter((s) => s && s.id !== normalized.id && s.id !== survey.id);
     try {
       localStorage.setItem(KEY, JSON.stringify([normalized, ...filtered]));
     } catch {
@@ -1014,11 +1124,11 @@ export const campoService = {
     }
 
     let syncedDirectSupabase = false;
-    if (!isSyntheticPriceOrInventoryRow(normalized)) {
-      const dbId = ensureCampoUuid(
-        normalized.id,
-        `${normalized.date}|${normalized.promoter}|${normalized.store}|${normalized.productName}`
-      );
+    const isTestEnv =
+      typeof process !== 'undefined' &&
+      Boolean(process.env?.NODE_ENV === 'test' || process.env?.VITEST);
+    if (!isSynthetic && !isTestEnv) {
+      const dbId = normalized.id;
       try {
         const comps = Array.isArray(normalized.competitors) ? normalized.competitors : [];
         const dbRow: Record<string, any> = {
@@ -1036,13 +1146,12 @@ export const campoService = {
           competitorBrand: comps[0]?.name || null,
           competitorPrice: comps[0]?.priceUsd !== undefined ? Number(comps[0].priceUsd) : null,
           comments: normalized.observations || '',
-          creatorId: normalized.promoter || '',
+          creatorId: survey.creatorId || normalized.promoter || '',
           promoter: normalized.promoter,
         };
         const { error } = await (supabase.from('prices') as any).upsert(dbRow);
         if (!error) {
           syncedDirectSupabase = true;
-          normalized.id = dbId;
         }
       } catch {
         // ignore direct supabase error
@@ -1053,11 +1162,14 @@ export const campoService = {
       const res = await fetch('/api/price-surveys', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(normalized)
+        body: JSON.stringify({
+          ...normalized,
+          creatorId: survey.creatorId || normalized.promoter || '',
+        })
       });
       if (!res.ok) throw new Error('Error al enviar precios');
       const saved = await res.json().catch(() => normalized);
-      if (saved && saved.id && saved.id !== normalized.id) {
+      if (saved && saved.id && saved.id !== normalized.id && !isSynthetic) {
         const updatedLocal = [mapSupabasePriceRowToPayload(saved), ...filtered];
         try {
           localStorage.setItem(KEY, JSON.stringify(updatedLocal));
@@ -1077,9 +1189,22 @@ export const campoService = {
   // Guardado de Control de Inventario (Sincronización inmediata con Servidor + Supabase + Trade Marketing)
   async saveInventoryLog(log: InventoryLogPayload): Promise<{ success: boolean; offline: boolean }> {
     const KEY = 'codizulca_inventory_logs';
+    const isSynthetic = isSyntheticPriceOrInventoryRow(log);
     const normalized = mapSupabaseInventoryRowToPayload(log);
-    const local: InventoryLogPayload[] = JSON.parse(localStorage.getItem(KEY) || '[]');
-    const filtered = local.filter((l) => l.id !== normalized.id);
+    if (!isSynthetic) {
+      normalized.id = ensureCampoUuid(
+        normalized.id,
+        `${normalized.date}|${normalized.promoter}|${normalized.store}|${normalized.productName}`
+      );
+    }
+    let local: InventoryLogPayload[] = [];
+    try {
+      const parsed = JSON.parse(localStorage.getItem(KEY) || '[]');
+      local = Array.isArray(parsed) ? parsed : [];
+    } catch {
+      local = [];
+    }
+    const filtered = local.filter((l) => l && l.id !== normalized.id && l.id !== log.id);
     try {
       localStorage.setItem(KEY, JSON.stringify([normalized, ...filtered]));
     } catch {
@@ -1093,11 +1218,11 @@ export const campoService = {
     }
 
     let syncedDirectSupabase = false;
-    if (!isSyntheticPriceOrInventoryRow(normalized)) {
-      const dbId = ensureCampoUuid(
-        normalized.id,
-        `${normalized.date}|${normalized.promoter}|${normalized.store}|${normalized.productName}`
-      );
+    const isTestEnv =
+      typeof process !== 'undefined' &&
+      Boolean(process.env?.NODE_ENV === 'test' || process.env?.VITEST);
+    if (!isSynthetic && !isTestEnv) {
+      const dbId = normalized.id;
       try {
         const dbRow: Record<string, any> = {
           id: dbId,
@@ -1108,13 +1233,12 @@ export const campoService = {
           finalQuantity: Number(normalized.finalStock) || 0,
           degustations: Number(normalized.tastingsGiven) || 0,
           comments: normalized.observations || '',
-          creatorId: normalized.promoter || '',
+          creatorId: log.creatorId || normalized.promoter || '',
           promoter: normalized.promoter,
         };
         const { error } = await (supabase.from('inventory') as any).upsert(dbRow);
         if (!error) {
           syncedDirectSupabase = true;
-          normalized.id = dbId;
         }
       } catch {
         // ignore direct supabase error
@@ -1125,11 +1249,14 @@ export const campoService = {
       const res = await fetch('/api/inventory-logs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(normalized)
+        body: JSON.stringify({
+          ...normalized,
+          creatorId: log.creatorId || normalized.promoter || '',
+        })
       });
       if (!res.ok) throw new Error('Error al enviar inventario');
       const saved = await res.json().catch(() => normalized);
-      if (saved && saved.id && saved.id !== normalized.id) {
+      if (saved && saved.id && saved.id !== normalized.id && !isSynthetic) {
         const updatedLocal = [mapSupabaseInventoryRowToPayload(saved), ...filtered];
         try {
           localStorage.setItem(KEY, JSON.stringify(updatedLocal));
@@ -1150,8 +1277,14 @@ export const campoService = {
   async saveTastingSurvey(survey: TastingSurveyPayload): Promise<{ success: boolean; offline: boolean }> {
     const KEY = 'codizulca_tasting_surveys';
     const normalized = mapSupabaseTastingSurveyRowToPayload(survey);
-    const local: TastingSurveyPayload[] = JSON.parse(localStorage.getItem(KEY) || '[]');
-    const filtered = local.filter((s) => s.id !== normalized.id && s.id !== survey.id);
+    let local: TastingSurveyPayload[] = [];
+    try {
+      const parsed = JSON.parse(localStorage.getItem(KEY) || '[]');
+      local = Array.isArray(parsed) ? parsed : [];
+    } catch {
+      local = [];
+    }
+    const filtered = local.filter((s) => s && s.id !== normalized.id && s.id !== survey.id);
     try {
       localStorage.setItem(KEY, JSON.stringify([normalized, ...filtered]));
     } catch {
@@ -1249,7 +1382,8 @@ export const campoService = {
     }
     let localList: ShelfScanPayload[] = [];
     try {
-      localList = JSON.parse(localStorage.getItem(KEY) || '[]');
+      const parsed = JSON.parse(localStorage.getItem(KEY) || '[]');
+      localList = Array.isArray(parsed) ? parsed : [];
     } catch {
       localList = [];
     }
@@ -1320,7 +1454,8 @@ export const campoService = {
 
     let localList: PriceSurveyPayload[] = [];
     try {
-      localList = JSON.parse(localStorage.getItem(KEY) || '[]');
+      const parsed = JSON.parse(localStorage.getItem(KEY) || '[]');
+      localList = Array.isArray(parsed) ? parsed : [];
     } catch {
       localList = [];
     }
@@ -1335,7 +1470,7 @@ export const campoService = {
       if (item && item.id) map.set(item.id, item);
     });
     const merged = Array.from(map.values()).sort(
-      (a, b) => new Date(b.date || b.created_at || 0).getTime() - new Date(a.date || a.created_at || 0).getTime()
+      (a, b) => toSortableTimestamp(b.date, b.created_at) - toSortableTimestamp(a.date, a.created_at)
     );
     try {
       localStorage.setItem(KEY, JSON.stringify(merged));
@@ -1394,7 +1529,8 @@ export const campoService = {
 
     let localList: InventoryLogPayload[] = [];
     try {
-      localList = JSON.parse(localStorage.getItem(KEY) || '[]');
+      const parsed = JSON.parse(localStorage.getItem(KEY) || '[]');
+      localList = Array.isArray(parsed) ? parsed : [];
     } catch {
       localList = [];
     }
@@ -1408,7 +1544,7 @@ export const campoService = {
       if (item && item.id) map.set(item.id, item);
     });
     const merged = Array.from(map.values()).sort(
-      (a, b) => new Date(b.date || b.created_at || 0).getTime() - new Date(a.date || a.created_at || 0).getTime()
+      (a, b) => toSortableTimestamp(b.date, b.created_at) - toSortableTimestamp(a.date, a.created_at)
     );
     try {
       localStorage.setItem(KEY, JSON.stringify(merged));
@@ -1468,7 +1604,8 @@ export const campoService = {
 
     let localList: TastingSurveyPayload[] = [];
     try {
-      localList = JSON.parse(localStorage.getItem(KEY) || '[]');
+      const parsed = JSON.parse(localStorage.getItem(KEY) || '[]');
+      localList = Array.isArray(parsed) ? parsed : [];
     } catch {
       localList = [];
     }
@@ -1482,7 +1619,7 @@ export const campoService = {
       if (item && item.id) map.set(item.id, item);
     });
     const merged = Array.from(map.values()).sort(
-      (a, b) => new Date(b.date || b.created_at || 0).getTime() - new Date(a.date || a.created_at || 0).getTime()
+      (a, b) => toSortableTimestamp(b.date, b.created_at) - toSortableTimestamp(a.date, a.created_at)
     );
     try {
       localStorage.setItem(KEY, JSON.stringify(merged));
@@ -1495,9 +1632,10 @@ export const campoService = {
     try {
       await fetch(`/api/price-surveys/${id}`, { method: 'DELETE' });
     } catch {}
-    const local: PriceSurveyPayload[] = JSON.parse(localStorage.getItem(KEY) || '[]');
     try {
-      localStorage.setItem(KEY, JSON.stringify(local.filter((i) => i.id !== id)));
+      const parsed = JSON.parse(localStorage.getItem(KEY) || '[]');
+      const local: PriceSurveyPayload[] = Array.isArray(parsed) ? parsed : [];
+      localStorage.setItem(KEY, JSON.stringify(local.filter((i) => i && i.id !== id)));
     } catch {}
     notifyCampoDataChanged();
     return true;
@@ -1508,9 +1646,10 @@ export const campoService = {
     try {
       await fetch(`/api/inventory-logs/${id}`, { method: 'DELETE' });
     } catch {}
-    const local: InventoryLogPayload[] = JSON.parse(localStorage.getItem(KEY) || '[]');
     try {
-      localStorage.setItem(KEY, JSON.stringify(local.filter((i) => i.id !== id)));
+      const parsed = JSON.parse(localStorage.getItem(KEY) || '[]');
+      const local: InventoryLogPayload[] = Array.isArray(parsed) ? parsed : [];
+      localStorage.setItem(KEY, JSON.stringify(local.filter((i) => i && i.id !== id)));
     } catch {}
     notifyCampoDataChanged();
     return true;
@@ -1526,9 +1665,10 @@ export const campoService = {
         await (supabase.from('surveys') as any).delete().eq('id', id);
       }
     } catch {}
-    const local: TastingSurveyPayload[] = JSON.parse(localStorage.getItem(KEY) || '[]');
     try {
-      localStorage.setItem(KEY, JSON.stringify(local.filter((i) => i.id !== id)));
+      const parsed = JSON.parse(localStorage.getItem(KEY) || '[]');
+      const local: TastingSurveyPayload[] = Array.isArray(parsed) ? parsed : [];
+      localStorage.setItem(KEY, JSON.stringify(local.filter((i) => i && i.id !== id)));
     } catch {}
     notifyCampoDataChanged();
     return true;
