@@ -5530,6 +5530,61 @@ Responde con un JSON estructurado con:
   });
 
 
+  // Official BCV Exchange Rate Endpoint (with 30-min cache and multi-source fallback)
+  let bcvCache: { rate: number; exactRate: number; updatedAt: string; timestamp: number } | null = null;
+
+  app.get('/api/bcv-rate', async (req, res) => {
+    const forceRefresh = req.query.refresh === 'true';
+    const now = Date.now();
+    if (!forceRefresh && bcvCache && now - bcvCache.timestamp < 30 * 60 * 1000) {
+      return res.json(bcvCache);
+    }
+
+    let exactRate = 0;
+    let updatedAt = new Date().toISOString();
+
+    // 1. Primary source: ve.dolarapi.com (Official BCV USD rate)
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 6000);
+      const r1 = await fetch('https://ve.dolarapi.com/v1/dolares/oficial', { signal: controller.signal });
+      clearTimeout(timeout);
+      if (r1.ok) {
+        const j1 = (await r1.json()) as any;
+        const val = Number(j1?.promedio);
+        if (val > 50) {
+          exactRate = val;
+          if (j1?.fechaActualizacion) updatedAt = String(j1.fechaActualizacion);
+        }
+      }
+    } catch {}
+
+    // 2. Fallback: open.er-api.com (VES official rate)
+    if (!exactRate) {
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 6000);
+        const r2 = await fetch('https://open.er-api.com/v6/latest/USD', { signal: controller.signal });
+        clearTimeout(timeout);
+        if (r2.ok) {
+          const j2 = (await r2.json()) as any;
+          const val = Number(j2?.rates?.VES);
+          if (val > 50) {
+            exactRate = val;
+          }
+        }
+      } catch {}
+    }
+
+    if (!exactRate) {
+      exactRate = bcvCache?.exactRate || 886.2271;
+    }
+
+    const rate = Number(exactRate.toFixed(2));
+    bcvCache = { rate, exactRate, updatedAt, timestamp: now };
+    return res.json(bcvCache);
+  });
+
   // Google Sheets Proxy with in-memory caching to eliminate browser CORS and fetch errors
   const sheetCache = new Map<string, { data: string; timestamp: number }>();
 

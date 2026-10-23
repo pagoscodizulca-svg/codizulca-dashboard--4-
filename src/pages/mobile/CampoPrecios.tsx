@@ -17,6 +17,8 @@ import {
   COMPETITOR_BRANDS,
   FREQUENT_STORES,
   OFFICIAL_BCV_RATE,
+  getCurrentBcvRate,
+  fetchLiveBcvRate,
   campoService,
   PriceSurveyPayload,
   PromoterProfile
@@ -58,7 +60,19 @@ export const CampoPrecios: React.FC<{ activePromoterName?: string }> = ({
   const [storeName, setStoreName] = useState<string>(getInitialStore);
   const [selectedProduct, setSelectedProduct] = useState(CODIZULCA_PRODUCTS[0]);
   const [ownPriceUsd, setOwnPriceUsd] = useState<number>(CODIZULCA_PRODUCTS[0].defaultPriceUsd);
-  const [bcvRate, setBcvRate] = useState<number>(OFFICIAL_BCV_RATE);
+  const [bcvRate, setBcvRate] = useState<number>(() => getCurrentBcvRate() || OFFICIAL_BCV_RATE);
+
+  useEffect(() => {
+    let mounted = true;
+    fetchLiveBcvRate().then((rate) => {
+      if (mounted && rate > 50) {
+        setBcvRate(rate);
+      }
+    });
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   // Matriz Multicompetidor (Hasta 3 Marcas)
   const [competitors, setCompetitors] = useState<Array<{ name: string; priceUsd: number }>>([

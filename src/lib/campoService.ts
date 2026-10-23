@@ -318,8 +318,73 @@ export function addCustomStoreToCatalog(storeName: string): string[] {
   return getAllAvailableStores();
 }
 
-// Tasa Oficial BCV de Referencia (Actualizable o por defecto)
-export const OFFICIAL_BCV_RATE = 36.85;
+// Tasa Oficial BCV de Referencia (Actualizada en vivo desde BCV / DolarAPI; respaldo vigente BCV)
+export const OFFICIAL_BCV_RATE = 886.23;
+const BCV_RATE_STORAGE_KEY = 'codizulca_bcv_rate_v2';
+
+export function getCurrentBcvRate(): number {
+  try {
+    const saved = Number(localStorage.getItem(BCV_RATE_STORAGE_KEY));
+    if (!Number.isNaN(saved) && saved > 50) {
+      return Number(saved.toFixed(2));
+    }
+  } catch {
+    // ignore storage errors
+  }
+  return OFFICIAL_BCV_RATE;
+}
+
+export async function fetchLiveBcvRate(forceRefresh = false): Promise<number> {
+  const isTestEnv =
+    typeof process !== 'undefined' &&
+    Boolean(process.env?.NODE_ENV === 'test' || process.env?.VITEST);
+  if (isTestEnv) {
+    return getCurrentBcvRate();
+  }
+
+  let liveRate = 0;
+
+  // 1. Intentar desde el endpoint del servidor (/api/bcv-rate)
+  try {
+    const res = await fetch(forceRefresh ? '/api/bcv-rate?refresh=true' : '/api/bcv-rate');
+    if (res.ok) {
+      const data = await res.json();
+      const candidate = Number(data?.rate || data?.exactRate);
+      if (!Number.isNaN(candidate) && candidate > 50) {
+        liveRate = Number(candidate.toFixed(2));
+      }
+    }
+  } catch {
+    // fallback a DolarAPI directo
+  }
+
+  // 2. Fallback directo a ve.dolarapi.com (Tasa Oficial BCV)
+  if (!liveRate) {
+    try {
+      const res = await fetch('https://ve.dolarapi.com/v1/dolares/oficial');
+      if (res.ok) {
+        const data = await res.json();
+        const candidate = Number(data?.promedio);
+        if (!Number.isNaN(candidate) && candidate > 50) {
+          liveRate = Number(candidate.toFixed(2));
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  if (liveRate > 50) {
+    try {
+      localStorage.setItem(BCV_RATE_STORAGE_KEY, String(liveRate));
+    } catch {
+      // ignore
+    }
+    return liveRate;
+  }
+
+  return getCurrentBcvRate();
+}
 
 // Mapa oficial de correos y UIDs de promotoras (App Móvil / Supabase) -> Nombre canónico
 const PROMOTER_CREATOR_MAP: Record<string, string> = {
@@ -473,9 +538,12 @@ export function toSortableTimestamp(dateVal?: string, createdAtVal?: string): nu
 }
 
 export function mapSupabasePriceRowToPayload(row: any): PriceSurveyPayload {
-  const rate = Number(row?.bcvRate) || OFFICIAL_BCV_RATE;
+  const rawRowRate = Number(row?.bcvRate) || 0;
+  // Si el registro no tiene tasa guardada o tenía la tasa antigua (36.85), aplicar la tasa oficial BCV vigente
+  const rate = rawRowRate > 50 ? rawRowRate : getCurrentBcvRate();
   const ownUsd = Number(row?.ourPrice ?? row?.ownPriceUsd) || 0;
-  const ownBs = Number(row?.ownPriceBs) || Number((ownUsd * rate).toFixed(2));
+  const rawOwnBs = Number(row?.ownPriceBs) || 0;
+  const ownBs = rawRowRate > 50 && rawOwnBs > 0 ? rawOwnBs : Number((ownUsd * rate).toFixed(2));
 
   if (row && Array.isArray(row.competitors) && row.productName !== undefined) {
     return {
@@ -490,10 +558,11 @@ export function mapSupabasePriceRowToPayload(row: any): PriceSurveyPayload {
       bcvRate: rate,
       competitors: row.competitors.map((c: any) => {
         const cUsd = Number(c?.priceUsd) || 0;
+        const rawCBs = Number(c?.priceBs) || 0;
         return {
           name: String(c?.name || '').trim(),
           priceUsd: cUsd,
-          priceBs: Number(c?.priceBs) || Number((cUsd * rate).toFixed(2)),
+          priceBs: rawRowRate > 50 && rawCBs > 0 ? rawCBs : Number((cUsd * rate).toFixed(2)),
           diffPercent:
             c?.diffPercent !== undefined
               ? Number(c.diffPercent)
@@ -1446,6 +1515,14 @@ export const campoService = {
 
   async getPriceSurveys(forceRefresh: boolean = false): Promise<PriceSurveyPayload[]> {
     const KEY = 'codizulca_price_surveys';
+    const isTestEnv =
+      typeof process !== 'undefined' &&
+      Boolean(process.env?.NODE_ENV === 'test' || process.env?.VITEST);
+    if (!isTestEnv) {
+      try {
+        await fetchLiveBcvRate(forceRefresh);
+      } catch {}
+    }
     let serverList: PriceSurveyPayload[] = [];
     let serverResponded = false;
     try {
@@ -1467,9 +1544,6 @@ export const campoService = {
       // fallback to direct Supabase / localStorage
     }
 
-    const isTestEnv =
-      typeof process !== 'undefined' &&
-      Boolean(process.env?.NODE_ENV === 'test' || process.env?.VITEST);
     if (!isTestEnv) {
       try {
         const { data: sbData, error: sbErr } = await supabase

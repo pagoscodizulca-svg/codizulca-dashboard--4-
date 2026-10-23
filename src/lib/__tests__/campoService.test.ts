@@ -6,6 +6,8 @@ import {
   PriceSurveyPayload,
   FREQUENT_STORES,
   CODIZULCA_PRODUCTS,
+  OFFICIAL_BCV_RATE,
+  getCurrentBcvRate,
   mapSupabasePriceRowToPayload,
   toSortableTimestamp
 } from '../campoService';
@@ -420,6 +422,28 @@ describe('campoService - Offline-First & Sync Test Suite', () => {
       const tsDmyOlder = toSortableTimestamp('18/10/2026');
       expect(tsIso).toBeGreaterThan(tsDmyOlder);
       expect(Number.isNaN(tsDmyOlder)).toBe(false);
+    });
+
+    it('utiliza la tasa oficial vigente del BCV (886.23 Bs/$) y corrige cualquier registro con tasa antigua (36.85)', () => {
+      expect(OFFICIAL_BCV_RATE).toBe(886.23);
+      expect(getCurrentBcvRate()).toBe(886.23);
+
+      // Ejemplo real: Azúcar Vencampo 1kg a $1.20 USD -> Bs. 1,063.48 (no Bs. 44.22)
+      const mapped = mapSupabasePriceRowToPayload({
+        id: '8f14e45f-ceea-467a-a13c-999999999999',
+        date: '2026-10-23T12:00:00.000Z',
+        store: 'COMERCIAL HERMANOS MORILLO',
+        promoter: 'TANIA CARDENAS',
+        productName: 'Azúcar Vencampo 1kg',
+        ownPriceUsd: 1.2,
+        ownPriceBs: 44.22,
+        bcvRate: 36.85,
+        competitors: [{ name: 'Plumrose', priceUsd: 1.19, priceBs: 43.85, diffPercent: -0.8 }]
+      });
+
+      expect(mapped.bcvRate).toBe(886.23);
+      expect(mapped.ownPriceBs).toBe(1063.48);
+      expect(mapped.competitors[0].priceBs).toBe(1054.61);
     });
   });
 });
