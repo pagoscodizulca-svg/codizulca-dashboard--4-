@@ -7872,6 +7872,7 @@ export const TradeMarketing: React.FC = () => {
                     <option value="Leche Vencampo 500gr">Leche Vencampo 500gr</option>
                     <option value="Leche Vencampo 900gr">Leche Vencampo 900gr</option>
                     <option value="Leche Vencampo 1kg">Leche Vencampo 1kg</option>
+                    <option value="Pollo entero Vencampo">Pollo entero Vencampo</option>
                     <option value="Jamón Cocido Superior">Jamón Cocido Superior</option>
                     <option value="Jamón Cocido Estándar">Jamón Cocido Estándar</option>
                     <option value="Jamón Cocido de Pavo">Jamón Cocido de Pavo</option>

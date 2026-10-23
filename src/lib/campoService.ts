@@ -163,6 +163,8 @@ export const CODIZULCA_PRODUCTS = [
   { id: 'PROD-VEN-LEC-500', name: 'Leche Vencampo 500gr', defaultPriceUsd: 4.80, category: 'Lácteos / Leche en Polvo', weight: '500gr' },
   { id: 'PROD-VEN-LEC-900', name: 'Leche Vencampo 900gr', defaultPriceUsd: 8.50, category: 'Lácteos / Leche en Polvo', weight: '900gr' },
   { id: 'PROD-VEN-LEC-1000', name: 'Leche Vencampo 1kg', defaultPriceUsd: 9.40, category: 'Lácteos / Leche en Polvo', weight: '1kg' },
+  // Línea Vencampo - Avícola
+  { id: 'PROD-VEN-POL-ENT', name: 'Pollo entero Vencampo', defaultPriceUsd: 2.85, category: 'Aves / Pollo', weight: 'Kg' },
   // Línea Asturias / Charcutería y Embutidos
   { id: 'PROD-AST-JCS', name: 'Jamón Cocido Superior', defaultPriceUsd: 8.50, category: 'Jamones', weight: 'Kg' },
   { id: 'PROD-AST-JCE', name: 'Jamón Cocido Estándar', defaultPriceUsd: 7.50, category: 'Jamones', weight: 'Kg' },

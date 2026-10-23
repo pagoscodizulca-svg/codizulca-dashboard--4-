@@ -233,10 +233,11 @@ describe('campoService - Offline-First & Sync Test Suite', () => {
     });
 
     it('contiene los productos de Asturias y las presentaciones de Vencampo (incluyendo Caraotas y Arvejas Vencampo 400gr) en CODIZULCA_PRODUCTS', () => {
-      expect(CODIZULCA_PRODUCTS.length).toBe(32);
+      expect(CODIZULCA_PRODUCTS.length).toBe(33);
       const names = CODIZULCA_PRODUCTS.map((p) => p.name);
       expect(names).toContain('Caraotas 400gr');
       expect(names).toContain('Arvejas Vencampo 400gr');
+      expect(names).toContain('Pollo entero Vencampo');
       expect(names).not.toContain('Lentejas 400gr');
       expect(names).not.toContain('Caraotas 500gr');
       expect(names).not.toContain('Caraotas 1kg');
