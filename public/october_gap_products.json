@@ -1,462 +1,30 @@
 [
   {
     "period": "2026-10",
-    "product_id": "1543",
-    "product_name": "AZUCAR BLANCA VENCAMPO 1X20ND",
-    "total_boxes_sold": 11924.3,
-    "total_revenue": 260422.01,
-    "total_kgs": 238486,
-    "total_utilidad": 72076.72
-  },
-  {
-    "period": "2026-10",
-    "product_id": "1478",
-    "product_name": "POLLO LLANERITO POR KG",
-    "total_boxes_sold": 95699,
-    "total_revenue": 249288.64,
-    "total_kgs": 95702.54,
-    "total_utilidad": 77065.54
-  },
-  {
-    "period": "2026-10",
-    "product_id": "1568",
-    "product_name": "POLLO VENCAMPO POR KG",
-    "total_boxes_sold": 84121,
-    "total_revenue": 221916.63,
-    "total_kgs": 84122.53,
-    "total_utilidad": 36946.63
-  },
-  {
-    "period": "2026-10",
-    "product_id": "21",
-    "product_name": "MORTADELA ESP D/POLLO CORRAL 1X12UNI",
-    "total_boxes_sold": 5505.51,
-    "total_revenue": 198773.76,
-    "total_kgs": 66066,
-    "total_utilidad": 60040.25
+    "product_id": "1360",
+    "product_name": "PATATAS FRESCAS MARQUISE 4X2.5KG",
+    "total_boxes_sold": 9626.25,
+    "total_revenue": 243922.86,
+    "total_kgs": 96262.5,
+    "total_utilidad": 67255.08
   },
   {
     "period": "2026-10",
     "product_id": "28",
     "product_name": "HUEVOS DE CONSUMO TUNAL TIPO A 1X12UNI",
-    "total_boxes_sold": 2552.71,
-    "total_revenue": 175724.7,
-    "total_kgs": 58200.8,
-    "total_utilidad": 9722.14
-  },
-  {
-    "period": "2026-10",
-    "product_id": "1360",
-    "product_name": "PATATAS FRESCAS MARQUISE 4X2.5KG",
-    "total_boxes_sold": 6842,
-    "total_revenue": 173538.5,
-    "total_kgs": 68420,
-    "total_utilidad": 47765
-  },
-  {
-    "period": "2026-10",
-    "product_id": "1551",
-    "product_name": "ACEITE VENCAMPO 12X900ML",
-    "total_boxes_sold": 4231.92,
-    "total_revenue": 122585.92,
-    "total_kgs": 42049.63,
-    "total_utilidad": 29492.93
-  },
-  {
-    "period": "2026-10",
-    "product_id": "272",
-    "product_name": "PRODUCTO 272",
-    "total_boxes_sold": 16128,
-    "total_revenue": 101069.53,
-    "total_kgs": 16126.84,
-    "total_utilidad": 28521
-  },
-  {
-    "period": "2026-10",
-    "product_id": "1088",
-    "product_name": "CHULETA FRESCA IBERICO POR KG",
-    "total_boxes_sold": 15862,
-    "total_revenue": 87174.47,
-    "total_kgs": 15864.5,
-    "total_utilidad": 22132.56
-  },
-  {
-    "period": "2026-10",
-    "product_id": "979",
-    "product_name": "PRODUCTO 979",
-    "total_boxes_sold": 1138.16,
-    "total_revenue": 72442.06,
-    "total_kgs": 25950.2,
-    "total_utilidad": 14878.75
-  },
-  {
-    "period": "2026-10",
-    "product_id": "952",
-    "product_name": "PRODUCTO 952",
-    "total_boxes_sold": 1145.92,
-    "total_revenue": 70391.78,
-    "total_kgs": 26126.9,
-    "total_utilidad": 12724.85
-  },
-  {
-    "period": "2026-10",
-    "product_id": "1549",
-    "product_name": "ARROZ BLANCO VENCAMPO 24X900GR",
-    "total_boxes_sold": 3557.63,
-    "total_revenue": 57884.15,
-    "total_kgs": 76844.7,
-    "total_utilidad": 8637.82
+    "total_boxes_sold": 2994.84,
+    "total_revenue": 205678.7,
+    "total_kgs": 68280.3,
+    "total_utilidad": 12437.95
   },
   {
     "period": "2026-10",
     "product_id": "1464",
     "product_name": "MORT. NAVIDEÑA ASTURIAS XKG",
-    "total_boxes_sold": 803.79,
-    "total_revenue": 51981.43,
-    "total_kgs": 9738.32,
-    "total_utilidad": 7189.16
-  },
-  {
-    "period": "2026-10",
-    "product_id": "1445",
-    "product_name": "TOCINO FRESCO ASTURIAS X KG",
-    "total_boxes_sold": 4389,
-    "total_revenue": 44917.92,
-    "total_kgs": 4397.02,
-    "total_utilidad": 9508.27
-  },
-  {
-    "period": "2026-10",
-    "product_id": "629",
-    "product_name": "MUSLO CUADRIL DESPRESADO POR KG",
-    "total_boxes_sold": 17021,
-    "total_revenue": 39870.16,
-    "total_kgs": 17021.66,
-    "total_utilidad": 4136.25
-  },
-  {
-    "period": "2026-10",
-    "product_id": "931",
-    "product_name": "PRODUCTO 931",
-    "total_boxes_sold": 6142,
-    "total_revenue": 39580.52,
-    "total_kgs": 6137.01,
-    "total_utilidad": 9528.86
-  },
-  {
-    "period": "2026-10",
-    "product_id": "187",
-    "product_name": "PRODUCTO 187",
-    "total_boxes_sold": 6205,
-    "total_revenue": 36475.56,
-    "total_kgs": 6206.32,
-    "total_utilidad": 5716.68
-  },
-  {
-    "period": "2026-10",
-    "product_id": "1496",
-    "product_name": "MORTADELA ESP D/POLLO ASTURIAS 10UNDX900GR",
-    "total_boxes_sold": 1620.9,
-    "total_revenue": 34774.75,
-    "total_kgs": 14588.1,
-    "total_utilidad": 7226.05
-  },
-  {
-    "period": "2026-10",
-    "product_id": "1463",
-    "product_name": "MORT. SUPERIOR ASTURIAS X KG",
-    "total_boxes_sold": 471.5,
-    "total_revenue": 31776.79,
-    "total_kgs": 5383.4,
-    "total_utilidad": 6369.83
-  },
-  {
-    "period": "2026-10",
-    "product_id": "681",
-    "product_name": "FILET EN BOLSA CONG DESPRESADO POR KG",
-    "total_boxes_sold": 4688,
-    "total_revenue": 27525.92,
-    "total_kgs": 4698.93,
-    "total_utilidad": 7584.25
-  },
-  {
-    "period": "2026-10",
-    "product_id": "1512",
-    "product_name": "MORT. PECHUGA DE PAVO ASTURIAS X KG",
-    "total_boxes_sold": 312.75,
-    "total_revenue": 22347.03,
-    "total_kgs": 4007.62,
-    "total_utilidad": 5284
-  },
-  {
-    "period": "2026-10",
-    "product_id": "1572",
-    "product_name": "CAJAS DE PIZZA 1X100",
-    "total_boxes_sold": 477.97,
-    "total_revenue": 22174.62,
-    "total_kgs": 477.97,
-    "total_utilidad": 70.07
-  },
-  {
-    "period": "2026-10",
-    "product_id": "631",
-    "product_name": "FILET EN BOLSA FRESCO DESPRESADO POR KG",
-    "total_boxes_sold": 3412,
-    "total_revenue": 22110.12,
-    "total_kgs": 3414.4,
-    "total_utilidad": 7599.74
-  },
-  {
-    "period": "2026-10",
-    "product_id": "630",
-    "product_name": "ALAS DESPRESADAS POR KG",
-    "total_boxes_sold": 7284,
-    "total_revenue": 22013.05,
-    "total_kgs": 7290.93,
-    "total_utilidad": 3067.28
-  },
-  {
-    "period": "2026-10",
-    "product_id": "1461",
-    "product_name": "MORT. ESTANDAR ASTURIAS X KG",
-    "total_boxes_sold": 354,
-    "total_revenue": 21990.74,
-    "total_kgs": 4042.48,
-    "total_utilidad": 4610.93
-  },
-  {
-    "period": "2026-10",
-    "product_id": "179",
-    "product_name": "LECHE COMPLETA PURISIMA1X12LTRS",
-    "total_boxes_sold": 691.83,
-    "total_revenue": 19619.8,
-    "total_kgs": 8302,
-    "total_utilidad": 3923.38
-  },
-  {
-    "period": "2026-10",
-    "product_id": "1519",
-    "product_name": "MORTADELA ESP D/POLLO SALPICAO 10UNDX900GR",
-    "total_boxes_sold": 1061.9,
-    "total_revenue": 18792.2,
-    "total_kgs": 9557.1,
-    "total_utilidad": 4989.53
-  },
-  {
-    "period": "2026-10",
-    "product_id": "1511",
-    "product_name": "MORT. PECHUGA DE POLLO ASTURIAS X KG",
-    "total_boxes_sold": 311.6,
-    "total_revenue": 18785.57,
-    "total_kgs": 3474.19,
-    "total_utilidad": 3783.37
-  },
-  {
-    "period": "2026-10",
-    "product_id": "927",
-    "product_name": "MORTADELA ESP. CARACAS 10X900GRS",
-    "total_boxes_sold": 584.7,
-    "total_revenue": 18071.27,
-    "total_kgs": 5262.3,
-    "total_utilidad": 3191.72
-  },
-  {
-    "period": "2026-10",
-    "product_id": "1462",
-    "product_name": "MORT. ESPECIAL COCIDA ASTURIAS X KG",
-    "total_boxes_sold": 275.93,
-    "total_revenue": 16076.66,
-    "total_kgs": 3084.46,
-    "total_utilidad": 2699.66
-  },
-  {
-    "period": "2026-10",
-    "product_id": "1624",
-    "product_name": "PRODUCTO 1624",
-    "total_boxes_sold": 679.65,
-    "total_revenue": 15587.68,
-    "total_kgs": 6796.5,
-    "total_utilidad": 2675.51
-  },
-  {
-    "period": "2026-10",
-    "product_id": "1563",
-    "product_name": "MORT. ESTANDAR SALPICAO X KG",
-    "total_boxes_sold": 287,
-    "total_revenue": 15226.77,
-    "total_kgs": 3272.66,
-    "total_utilidad": 2891.23
-  },
-  {
-    "period": "2026-10",
-    "product_id": "171",
-    "product_name": "JAMON COC. SUPERIOR ALIMEX 1X5.9KG",
-    "total_boxes_sold": 74.5,
-    "total_revenue": 14317.71,
-    "total_kgs": 1752.88,
-    "total_utilidad": 2755.09
-  },
-  {
-    "period": "2026-10",
-    "product_id": "180",
-    "product_name": "LECHE DESCREMADA PURISIMA1X12LTS",
-    "total_boxes_sold": 442,
-    "total_revenue": 12530.67,
-    "total_kgs": 5304,
-    "total_utilidad": 2186.09
-  },
-  {
-    "period": "2026-10",
-    "product_id": "922",
-    "product_name": "HUEVOS DE CONSUMO TUNAL TIPO B 1X12UNI",
-    "total_boxes_sold": 175.67,
-    "total_revenue": 11611.36,
-    "total_kgs": 4005.2,
-    "total_utilidad": 407.19
-  },
-  {
-    "period": "2026-10",
-    "product_id": "302",
-    "product_name": "MANTEQUILLA CON SAL PURISIMA BARRA 18X200GR",
-    "total_boxes_sold": 111.5,
-    "total_revenue": 10330.42,
-    "total_kgs": 401.4,
-    "total_utilidad": 2028.63
-  },
-  {
-    "period": "2026-10",
-    "product_id": "1644",
-    "product_name": "PRODUCTO 1644",
-    "total_boxes_sold": 498,
-    "total_revenue": 10190,
-    "total_kgs": 4980,
-    "total_utilidad": 3257.84
-  },
-  {
-    "period": "2026-10",
-    "product_id": "1643",
-    "product_name": "PRODUCTO 1643",
-    "total_boxes_sold": 1512,
-    "total_revenue": 10159.98,
-    "total_kgs": 1515,
-    "total_utilidad": 3948.48
-  },
-  {
-    "period": "2026-10",
-    "product_id": "1591",
-    "product_name": "QUESO AMARILLO TIPO EDAM BARRA DE MI FINCA X KG",
-    "total_boxes_sold": 229,
-    "total_revenue": 9234.7,
-    "total_kgs": 726.44,
-    "total_utilidad": 1827.82
-  },
-  {
-    "period": "2026-10",
-    "product_id": "1562",
-    "product_name": "MORT. ESPECIAL COCIDA SALPICAO X KG",
-    "total_boxes_sold": 162.01,
-    "total_revenue": 8587.28,
-    "total_kgs": 1871.87,
-    "total_utilidad": 1530.59
-  },
-  {
-    "period": "2026-10",
-    "product_id": "1622",
-    "product_name": "LECHE EN POLVO VENCAMPO 24X125GR",
-    "total_boxes_sold": 263,
-    "total_revenue": 8397,
-    "total_kgs": 789,
-    "total_utilidad": 2086.65
-  },
-  {
-    "period": "2026-10",
-    "product_id": "1575",
-    "product_name": "QUESO MOZZARELLA CORLASA 3.5KG X 4 UND",
-    "total_boxes_sold": 51.25,
-    "total_revenue": 7233.63,
-    "total_kgs": 722.95,
-    "total_utilidad": 2516.22
-  },
-  {
-    "period": "2026-10",
-    "product_id": "242",
-    "product_name": "LECHE DESLACTOSADA PURISIMA1X12LT",
-    "total_boxes_sold": 220,
-    "total_revenue": 6588.4,
-    "total_kgs": 2640,
-    "total_utilidad": 1421.46
-  },
-  {
-    "period": "2026-10",
-    "product_id": "1625",
-    "product_name": "PRODUCTO 1625",
-    "total_boxes_sold": 315.9,
-    "total_revenue": 6569.82,
-    "total_kgs": 3159,
-    "total_utilidad": 1611.6
-  },
-  {
-    "period": "2026-10",
-    "product_id": "1599",
-    "product_name": "MORT. NAVIDEÑA SALPICAO X KG",
-    "total_boxes_sold": 107.62,
-    "total_revenue": 6421.1,
-    "total_kgs": 1316.23,
-    "total_utilidad": 1156.74
-  },
-  {
-    "period": "2026-10",
-    "product_id": "1613",
-    "product_name": "FILET DE PECHUGA INDUST. LIGHT POR KG",
-    "total_boxes_sold": 1273,
-    "total_revenue": 6350.63,
-    "total_kgs": 1273.97,
-    "total_utilidad": 966.12
-  },
-  {
-    "period": "2026-10",
-    "product_id": "1642",
-    "product_name": "PRODUCTO 1642",
-    "total_boxes_sold": 309,
-    "total_revenue": 6064.4,
-    "total_kgs": 3090,
-    "total_utilidad": 2659.22
-  },
-  {
-    "period": "2026-10",
-    "product_id": "1608",
-    "product_name": "QUESO BLANCO MOZZARELLA MI FINCA",
-    "total_boxes_sold": 177,
-    "total_revenue": 5996.27,
-    "total_kgs": 537.08,
-    "total_utilidad": 1217.38
-  },
-  {
-    "period": "2026-10",
-    "product_id": "1561",
-    "product_name": "MORT. PAVO TIPO SHOULDER ASTURIAS POR KG",
-    "total_boxes_sold": 84.66,
-    "total_revenue": 5761.43,
-    "total_kgs": 912.99,
-    "total_utilidad": 1419.42
-  },
-  {
-    "period": "2026-10",
-    "product_id": "177",
-    "product_name": "SALCHICHA VIENA ALIMEX 16 X 450 GRS",
-    "total_boxes_sold": 84.94,
-    "total_revenue": 5514.88,
-    "total_kgs": 611.55,
-    "total_utilidad": 1153.24
-  },
-  {
-    "period": "2026-10",
-    "product_id": "176",
-    "product_name": "SALCHICHA VIENA ALIMEX 8 X 800 GRS",
-    "total_boxes_sold": 98,
-    "total_revenue": 5414.97,
-    "total_kgs": 627.2,
-    "total_utilidad": 1107.61
+    "total_boxes_sold": 1440.4,
+    "total_revenue": 92329.42,
+    "total_kgs": 17379.54,
+    "total_utilidad": 12414.49
   },
   {
     "period": "2026-10",
@@ -469,381 +37,273 @@
   },
   {
     "period": "2026-10",
-    "product_id": "172",
-    "product_name": "ESPALDA COCIDA ALIMEX 1X4.6KG",
-    "total_boxes_sold": 42.75,
-    "total_revenue": 5362.43,
-    "total_kgs": 757.81,
-    "total_utilidad": 1073.18
+    "product_id": "183",
+    "product_name": "NECTAR DE PERA EL TUNAL 1X12LTRS",
+    "total_boxes_sold": 109,
+    "total_revenue": 2168.8,
+    "total_kgs": 1308,
+    "total_utilidad": 391.28
   },
   {
     "period": "2026-10",
-    "product_id": "340",
-    "product_name": "CHULETA AHUMADA ALIMEX X KG",
-    "total_boxes_sold": 659,
-    "total_revenue": 5043.77,
-    "total_kgs": 661.81,
-    "total_utilidad": 913.65
+    "product_id": "1142",
+    "product_name": "Prod 1142",
+    "total_boxes_sold": 1.55,
+    "total_revenue": 433.4,
+    "total_kgs": 12.15,
+    "total_utilidad": 88.72
   },
   {
     "period": "2026-10",
-    "product_id": "1569",
-    "product_name": "PATATAS FRESCAS DOBLE COBERTURA 4X2.5KG",
-    "total_boxes_sold": 146,
-    "total_revenue": 4609,
-    "total_kgs": 1460,
-    "total_utilidad": 668.92
+    "product_id": "21",
+    "product_name": "MORTADELA ESP D/POLLO CORRAL 1X12UNI",
+    "total_boxes_sold": 9797.01,
+    "total_revenue": 349891.01,
+    "total_kgs": 117564,
+    "total_utilidad": 103018.59
   },
   {
     "period": "2026-10",
-    "product_id": "1358",
-    "product_name": "ARROZ ESPERANZA TIPO I 24 X 900 GRS",
-    "total_boxes_sold": 261,
-    "total_revenue": 4317.5,
-    "total_kgs": 5637.6,
-    "total_utilidad": 586.14
+    "product_id": "1496",
+    "product_name": "MORTADELA ESP D/POLLO ASTURIAS 10UNDX900GR",
+    "total_boxes_sold": 2154.6,
+    "total_revenue": 46499.63,
+    "total_kgs": 19391.4,
+    "total_utilidad": 9881.38
   },
   {
     "period": "2026-10",
-    "product_id": "1577",
-    "product_name": "QUESO CREMA KRAFT 226 GR X 36 UND",
-    "total_boxes_sold": 32.92,
-    "total_revenue": 3558,
-    "total_kgs": 268.01,
-    "total_utilidad": 1011.25
-  },
-  {
-    "period": "2026-10",
-    "product_id": "1051",
-    "product_name": "MORTADELA ESP. CARACAS 10X500GRS",
-    "total_boxes_sold": 197,
-    "total_revenue": 3480.83,
-    "total_kgs": 985,
-    "total_utilidad": 674.6
+    "product_id": "1613",
+    "product_name": "FILET DE PECHUGA INDUST. LIGHT POR KG",
+    "total_boxes_sold": 1271,
+    "total_revenue": 6339.63,
+    "total_kgs": 1271.77,
+    "total_utilidad": 964.54
   },
   {
     "period": "2026-10",
     "product_id": "46",
     "product_name": "NUGGETS INSTITUCIONAL CORRAL POR KG",
-    "total_boxes_sold": 352,
-    "total_revenue": 3073.75,
-    "total_kgs": 352.9,
-    "total_utilidad": 967.14
+    "total_boxes_sold": 320,
+    "total_revenue": 2796.77,
+    "total_kgs": 321.1,
+    "total_utilidad": 884.83
   },
   {
     "period": "2026-10",
-    "product_id": "69",
-    "product_name": "GALLINA ENTERA POR KG",
-    "total_boxes_sold": 1030,
-    "total_revenue": 3043.09,
-    "total_kgs": 1031.55,
-    "total_utilidad": 1186.41
+    "product_id": "629",
+    "product_name": "MUSLO CUADRIL DESPRESADO POR KG",
+    "total_boxes_sold": 30105,
+    "total_revenue": 69040.26,
+    "total_kgs": 30103.73,
+    "total_utilidad": 5940.84
   },
   {
     "period": "2026-10",
-    "product_id": "1103",
-    "product_name": "MANTEQUILLA SIN SAL PURISIMA 18X200GR",
-    "total_boxes_sold": 35,
-    "total_revenue": 3023.7,
-    "total_kgs": 126,
-    "total_utilidad": 690.94
+    "product_id": "630",
+    "product_name": "ALAS DESPRESADAS POR KG",
+    "total_boxes_sold": 11528,
+    "total_revenue": 35604,
+    "total_kgs": 11541.36,
+    "total_utilidad": 5641.39
   },
   {
     "period": "2026-10",
     "product_id": "170",
     "product_name": "TOCINETA AHUM S/CUERO ALIMEX X KG",
-    "total_boxes_sold": 206,
-    "total_revenue": 2901.98,
-    "total_kgs": 207.95,
-    "total_utilidad": 654.55
+    "total_boxes_sold": 272,
+    "total_revenue": 3782.63,
+    "total_kgs": 274.18,
+    "total_utilidad": 819.25
   },
   {
     "period": "2026-10",
-    "product_id": "241",
-    "product_name": "ESPAL. AHUM T/VISKING ALIMEX 6X3.2",
-    "total_boxes_sold": 13.69,
-    "total_revenue": 2599.84,
-    "total_kgs": 265.65,
-    "total_utilidad": 533.44
+    "product_id": "171",
+    "product_name": "JAMON COC. SUPERIOR ALIMEX 1X5.9KG",
+    "total_boxes_sold": 72.75,
+    "total_revenue": 13802.54,
+    "total_kgs": 1711.66,
+    "total_utilidad": 2513.61
   },
   {
     "period": "2026-10",
-    "product_id": "1089",
-    "product_name": "CREMA DE LECHE PURISIMA 12X250GRS",
-    "total_boxes_sold": 84,
-    "total_revenue": 2584.75,
-    "total_kgs": 252,
-    "total_utilidad": 525.94
+    "product_id": "172",
+    "product_name": "ESPALDA COCIDA ALIMEX 1X4.6KG",
+    "total_boxes_sold": 49.25,
+    "total_revenue": 6176.76,
+    "total_kgs": 874.44,
+    "total_utilidad": 1227.99
   },
   {
     "period": "2026-10",
-    "product_id": "10",
-    "product_name": "PRODUCTO 10",
-    "total_boxes_sold": 484,
-    "total_revenue": 2566.26,
-    "total_kgs": 484.2,
-    "total_utilidad": 508.84
+    "product_id": "179",
+    "product_name": "LECHE COMPLETA PURISIMA1X12LTRS",
+    "total_boxes_sold": 690.83,
+    "total_revenue": 19590.8,
+    "total_kgs": 8290,
+    "total_utilidad": 3917.37
   },
   {
     "period": "2026-10",
-    "product_id": "1091",
-    "product_name": "CREMA DE LECHE PURISIMA 6 X 500 GRS",
-    "total_boxes_sold": 89,
-    "total_revenue": 2287.95,
-    "total_kgs": 267,
-    "total_utilidad": 438.12
-  },
-  {
-    "period": "2026-10",
-    "product_id": "270",
-    "product_name": "NUGGETS CORRAL 12X0.460GR",
-    "total_boxes_sold": 48.42,
-    "total_revenue": 2248.22,
-    "total_kgs": 267.26,
-    "total_utilidad": 754.2
-  },
-  {
-    "period": "2026-10",
-    "product_id": "174",
-    "product_name": "MORTADELA TAPARA ALIMEX DE 6X3.5KG",
-    "total_boxes_sold": 10.53,
-    "total_revenue": 2064.2,
-    "total_kgs": 205.98,
-    "total_utilidad": 387.86
-  },
-  {
-    "period": "2026-10",
-    "product_id": "182",
-    "product_name": "NECTAR DE MANZANA EL TUNAL 1X12LTRS",
-    "total_boxes_sold": 95,
-    "total_revenue": 1921.36,
-    "total_kgs": 1140,
-    "total_utilidad": 370.34
-  },
-  {
-    "period": "2026-10",
-    "product_id": "1339",
-    "product_name": "PRODUCTO 1339",
-    "total_boxes_sold": 209,
-    "total_revenue": 1919.12,
-    "total_kgs": 208.6,
-    "total_utilidad": 479.78
-  },
-  {
-    "period": "2026-10",
-    "product_id": "1517",
-    "product_name": "LECHE POLVO COMPLETA PURISIMA 12X900GRS",
-    "total_boxes_sold": 13,
-    "total_revenue": 1774.15,
-    "total_kgs": 140.4,
-    "total_utilidad": 306.97
-  },
-  {
-    "period": "2026-10",
-    "product_id": "439",
-    "product_name": "ESPAL AHUM.T/AREPERO ALIMEX 12X1,6KG",
-    "total_boxes_sold": 11.99,
-    "total_revenue": 1765.71,
-    "total_kgs": 230.5,
-    "total_utilidad": 353.04
-  },
-  {
-    "period": "2026-10",
-    "product_id": "1099",
-    "product_name": "NECTAR DE MANZANA EL TUNAL 27X200ML",
-    "total_boxes_sold": 102.04,
-    "total_revenue": 1735.58,
-    "total_kgs": 551,
-    "total_utilidad": 323.67
-  },
-  {
-    "period": "2026-10",
-    "product_id": "1564",
-    "product_name": "MORTADELA EXTRA ASTURIAS X KG",
-    "total_boxes_sold": 44.5,
-    "total_revenue": 1721.49,
-    "total_kgs": 365.97,
-    "total_utilidad": 293.47
-  },
-  {
-    "period": "2026-10",
-    "product_id": "1522",
-    "product_name": "MORT. TIPO AREPERO ASTURIAS X KG",
-    "total_boxes_sold": 41.2,
-    "total_revenue": 1634.8,
-    "total_kgs": 310.36,
-    "total_utilidad": 347.68
-  },
-  {
-    "period": "2026-10",
-    "product_id": "1623",
-    "product_name": "PRODUCTO 1623",
-    "total_boxes_sold": 265,
-    "total_revenue": 1576.14,
-    "total_kgs": 262.69,
-    "total_utilidad": 447.18
-  },
-  {
-    "period": "2026-10",
-    "product_id": "183",
-    "product_name": "NECTAR DE PERA EL TUNAL 1X12LTRS",
-    "total_boxes_sold": 69,
-    "total_revenue": 1370.23,
-    "total_kgs": 828,
-    "total_utilidad": 245.62
-  },
-  {
-    "period": "2026-10",
-    "product_id": "1100",
-    "product_name": "NECTAR DE PERA EL TUNAL 27X200ML",
-    "total_boxes_sold": 73,
-    "total_revenue": 1241.63,
-    "total_kgs": 394.2,
-    "total_utilidad": 231.31
-  },
-  {
-    "period": "2026-10",
-    "product_id": "1268",
-    "product_name": "LECHE BARISTA PURISIMA 1X12 LTRS",
-    "total_boxes_sold": 40,
-    "total_revenue": 1197.05,
-    "total_kgs": 480,
-    "total_utilidad": 243.62
-  },
-  {
-    "period": "2026-10",
-    "product_id": "337",
-    "product_name": "JAMON COCIDO ESTANDAR ITALICO X KG",
-    "total_boxes_sold": 7.75,
-    "total_revenue": 1126.2,
-    "total_kgs": 181.14,
-    "total_utilidad": 197.47
-  },
-  {
-    "period": "2026-10",
-    "product_id": "1446",
-    "product_name": "CHULETA FRESCA ASTURIAS POR KG",
-    "total_boxes_sold": 147,
-    "total_revenue": 1029.66,
-    "total_kgs": 149.77,
-    "total_utilidad": 254.69
+    "product_id": "180",
+    "product_name": "LECHE DESCREMADA PURISIMA1X12LTS",
+    "total_boxes_sold": 471,
+    "total_revenue": 13352.82,
+    "total_kgs": 5652,
+    "total_utilidad": 2331.11
   },
   {
     "period": "2026-10",
     "product_id": "181",
     "product_name": "JUGO DE NARANJA EL TUNAL 1X12LTRS",
-    "total_boxes_sold": 37,
-    "total_revenue": 934.32,
-    "total_kgs": 444,
-    "total_utilidad": 195.9
+    "total_boxes_sold": 41,
+    "total_revenue": 1030.07,
+    "total_kgs": 492,
+    "total_utilidad": 212.26
   },
   {
     "period": "2026-10",
-    "product_id": "1471",
-    "product_name": "FS MORT NAVIDEÑA ASTURIAS POR KG",
-    "total_boxes_sold": 167,
-    "total_revenue": 910.34,
-    "total_kgs": 166.92,
-    "total_utilidad": 129.33
+    "product_id": "242",
+    "product_name": "LECHE DESLACTOSADA PURISIMA1X12LT",
+    "total_boxes_sold": 261,
+    "total_revenue": 7816.35,
+    "total_kgs": 3132,
+    "total_utilidad": 1686.45
   },
   {
     "period": "2026-10",
-    "product_id": "393",
-    "product_name": "MOLLEJA (EMPACADA)",
-    "total_boxes_sold": 329,
-    "total_revenue": 853.5,
-    "total_kgs": 328.27,
-    "total_utilidad": 132.42
+    "product_id": "1577",
+    "product_name": "QUESO CREMA KRAFT 226 GR X 36 UND",
+    "total_boxes_sold": 30.96,
+    "total_revenue": 3345,
+    "total_kgs": 251.94,
+    "total_utilidad": 955.21
   },
   {
     "period": "2026-10",
-    "product_id": "1521",
-    "product_name": "MORT. ECONOM COCIDA ASTURIAS X KG",
-    "total_boxes_sold": 14.65,
-    "total_revenue": 739.53,
-    "total_kgs": 160,
-    "total_utilidad": 127.22
+    "product_id": "1478",
+    "product_name": "POLLO LLANERITO POR KG",
+    "total_boxes_sold": 161575,
+    "total_revenue": 432221.35,
+    "total_kgs": 161579.55,
+    "total_utilidad": 141424.63
+  },
+  {
+    "period": "2026-10",
+    "product_id": "681",
+    "product_name": "FILET EN BOLSA CONG DESPRESADO POR KG",
+    "total_boxes_sold": 8384,
+    "total_revenue": 51911.5,
+    "total_kgs": 8393.63,
+    "total_utilidad": 16267.38
+  },
+  {
+    "period": "2026-10",
+    "product_id": "1463",
+    "product_name": "MORT. SUPERIOR ASTURIAS X KG",
+    "total_boxes_sold": 692,
+    "total_revenue": 45985.99,
+    "total_kgs": 7780.38,
+    "total_utilidad": 9270.32
+  },
+  {
+    "period": "2026-10",
+    "product_id": "1622",
+    "product_name": "LECHE EN POLVO VENCAMPO 24X125GR",
+    "total_boxes_sold": 225.37,
+    "total_revenue": 7239.14,
+    "total_kgs": 676.11,
+    "total_utilidad": 1865.3
+  },
+  {
+    "period": "2026-10",
+    "product_id": "270",
+    "product_name": "NUGGETS CORRAL 12X0.460GR",
+    "total_boxes_sold": 102.42,
+    "total_revenue": 4827.35,
+    "total_kgs": 565.34,
+    "total_utilidad": 1666.66
   },
   {
     "period": "2026-10",
     "product_id": "860",
     "product_name": "SALCHICHAS VIENA ALIMEX 32 X 225GRS",
-    "total_boxes_sold": 8.97,
-    "total_revenue": 731.12,
-    "total_kgs": 64.57,
-    "total_utilidad": 147.95
+    "total_boxes_sold": 6.97,
+    "total_revenue": 568.08,
+    "total_kgs": 50.17,
+    "total_utilidad": 116.76
   },
   {
     "period": "2026-10",
-    "product_id": "184",
-    "product_name": "NECTAR DE DURAZNO EL TUNAL 1X12LTRS",
-    "total_boxes_sold": 34,
-    "total_revenue": 707.54,
-    "total_kgs": 408,
-    "total_utilidad": 152.32
+    "product_id": "931",
+    "product_name": "Prod 931",
+    "total_boxes_sold": 6645,
+    "total_revenue": 42966.75,
+    "total_kgs": 6632.16,
+    "total_utilidad": 10523.72
+  },
+  {
+    "period": "2026-10",
+    "product_id": "1089",
+    "product_name": "CREMA DE LECHE PURISIMA 12X250GRS",
+    "total_boxes_sold": 85,
+    "total_revenue": 2615.41,
+    "total_kgs": 255,
+    "total_utilidad": 532.39
+  },
+  {
+    "period": "2026-10",
+    "product_id": "1091",
+    "product_name": "CREMA DE LECHE PURISIMA 6 X 500 GRS",
+    "total_boxes_sold": 82,
+    "total_revenue": 2108.32,
+    "total_kgs": 246,
+    "total_utilidad": 405.24
+  },
+  {
+    "period": "2026-10",
+    "product_id": "1461",
+    "product_name": "MORT. ESTANDAR ASTURIAS X KG",
+    "total_boxes_sold": 554,
+    "total_revenue": 33741.48,
+    "total_kgs": 6310.82,
+    "total_utilidad": 6611.78
+  },
+  {
+    "period": "2026-10",
+    "product_id": "1462",
+    "product_name": "MORT. ESPECIAL COCIDA ASTURIAS X KG",
+    "total_boxes_sold": 450.25,
+    "total_revenue": 26113.98,
+    "total_kgs": 5012.53,
+    "total_utilidad": 4383.82
+  },
+  {
+    "period": "2026-10",
+    "product_id": "1511",
+    "product_name": "MORT. PECHUGA DE POLLO ASTURIAS X KG",
+    "total_boxes_sold": 484.92,
+    "total_revenue": 29118.7,
+    "total_kgs": 5396.64,
+    "total_utilidad": 5815.81
+  },
+  {
+    "period": "2026-10",
+    "product_id": "1549",
+    "product_name": "ARROZ BLANCO VENCAMPO 24X900GR",
+    "total_boxes_sold": 3615.51,
+    "total_revenue": 58905.97,
+    "total_kgs": 78094.8,
+    "total_utilidad": 11876.33
   },
   {
     "period": "2026-10",
     "product_id": "1589",
     "product_name": "QUESO PECORINO DE MI FINCA X KG",
-    "total_boxes_sold": 18,
-    "total_revenue": 680.99,
-    "total_kgs": 27.81,
-    "total_utilidad": 136.22
-  },
-  {
-    "period": "2026-10",
-    "product_id": "1576",
-    "product_name": "QUESO CREMA KRAFT 1.36 KG X 6 UND",
-    "total_boxes_sold": 7.67,
-    "total_revenue": 630.2,
-    "total_kgs": 62.56,
-    "total_utilidad": 158.38
-  },
-  {
-    "period": "2026-10",
-    "product_id": "676",
-    "product_name": "FILET DE PECHUGA EN BANDEJA (DE)",
-    "total_boxes_sold": 99,
-    "total_revenue": 590.27,
-    "total_kgs": 99.25,
-    "total_utilidad": 44.42
-  },
-  {
-    "period": "2026-10",
-    "product_id": "1472",
-    "product_name": "FS MORT SUPERIOR ASTURIAS POR KG",
-    "total_boxes_sold": 95,
-    "total_revenue": 580.66,
-    "total_kgs": 96.31,
-    "total_utilidad": 122.22
-  },
-  {
-    "period": "2026-10",
-    "product_id": "1600",
-    "product_name": "FS QUESO AMARILLO TIPO EDAM BARRA DE MI FINCA X KG",
-    "total_boxes_sold": 41,
-    "total_revenue": 514.99,
-    "total_kgs": 40.55,
-    "total_utilidad": 101.38
-  },
-  {
-    "period": "2026-10",
-    "product_id": "1142",
-    "product_name": "PRODUCTO 1142",
-    "total_boxes_sold": 1.33,
-    "total_revenue": 371.82,
-    "total_kgs": 10.42,
-    "total_utilidad": 76.12
-  },
-  {
-    "period": "2026-10",
-    "product_id": "1181",
-    "product_name": "NECTAR DE DURAZNO EL TUNAL 27X200ML",
-    "total_boxes_sold": 17,
-    "total_revenue": 288.66,
-    "total_kgs": 91.8,
-    "total_utilidad": 65.16
+    "total_boxes_sold": 19,
+    "total_revenue": 716.64,
+    "total_kgs": 29.26,
+    "total_utilidad": 143.46
   },
   {
     "period": "2026-10",
@@ -856,84 +316,111 @@
   },
   {
     "period": "2026-10",
+    "product_id": "1624",
+    "product_name": "Prod 1624",
+    "total_boxes_sold": 871.6,
+    "total_revenue": 20101.04,
+    "total_kgs": 8716,
+    "total_utilidad": 3542.09
+  },
+  {
+    "period": "2026-10",
+    "product_id": "1625",
+    "product_name": "Prod 1625",
+    "total_boxes_sold": 397.95,
+    "total_revenue": 8268.46,
+    "total_kgs": 3979.5,
+    "total_utilidad": 2023.4
+  },
+  {
+    "period": "2026-10",
     "product_id": "870",
     "product_name": "HIGADO (EMPACADO)",
-    "total_boxes_sold": 143,
-    "total_revenue": 217.3,
-    "total_kgs": 144.87,
-    "total_utilidad": 101.43
+    "total_boxes_sold": 1066,
+    "total_revenue": 1599.67,
+    "total_kgs": 1066.45,
+    "total_utilidad": 746.58
   },
   {
     "period": "2026-10",
-    "product_id": "1468",
-    "product_name": "PRODUCTO 1468",
-    "total_boxes_sold": 40,
-    "total_revenue": 211.89,
-    "total_kgs": 40.36,
-    "total_utilidad": 37.94
+    "product_id": "1358",
+    "product_name": "ARROZ ESPERANZA TIPO I 24 X 900 GRS",
+    "total_boxes_sold": 281,
+    "total_revenue": 4667.5,
+    "total_kgs": 6069.6,
+    "total_utilidad": 650.14
   },
   {
     "period": "2026-10",
-    "product_id": "1574",
-    "product_name": "LECHE EN POLVO VENCAMPO 10X400GR",
-    "total_boxes_sold": 4,
-    "total_revenue": 168,
-    "total_kgs": 16,
-    "total_utilidad": 40.96
+    "product_id": "1543",
+    "product_name": "AZUCAR BLANCA VENCAMPO 1X20ND",
+    "total_boxes_sold": 20002.25,
+    "total_revenue": 434818.31,
+    "total_kgs": 400045,
+    "total_utilidad": 118850.71
   },
   {
     "period": "2026-10",
-    "product_id": "1259",
-    "product_name": "MORTADELA T/ESPECIAL MAXI CARACAS 6UNDX3.3KG",
-    "total_boxes_sold": 2.02,
-    "total_revenue": 161.28,
-    "total_kgs": 38.86,
-    "total_utilidad": 50.28
+    "product_id": "1512",
+    "product_name": "MORT. PECHUGA DE PAVO ASTURIAS X KG",
+    "total_boxes_sold": 419.5,
+    "total_revenue": 29958.82,
+    "total_kgs": 5369.51,
+    "total_utilidad": 7096.84
   },
   {
     "period": "2026-10",
-    "product_id": "1175",
-    "product_name": "PRODUCTO 1175",
-    "total_boxes_sold": 0.55,
-    "total_revenue": 153.68,
-    "total_kgs": 4.32,
-    "total_utilidad": 49.26
+    "product_id": "631",
+    "product_name": "FILET EN BOLSA FRESCO DESPRESADO POR KG",
+    "total_boxes_sold": 4738,
+    "total_revenue": 31606.15,
+    "total_kgs": 4741.36,
+    "total_utilidad": 11458.2
   },
   {
     "period": "2026-10",
-    "product_id": "185",
-    "product_name": "TE CON LIMON EL TUNAL 1X12LTRS",
-    "total_boxes_sold": 5.92,
-    "total_revenue": 116.79,
-    "total_kgs": 71,
-    "total_utilidad": 21.59
+    "product_id": "241",
+    "product_name": "ESPAL. AHUM T/VISKING ALIMEX 6X3.2",
+    "total_boxes_sold": 27.54,
+    "total_revenue": 5206.83,
+    "total_kgs": 533.58,
+    "total_utilidad": 1053.47
   },
   {
     "period": "2026-10",
-    "product_id": "1467",
-    "product_name": "PRODUCTO 1467",
-    "total_boxes_sold": 20,
-    "total_revenue": 109.67,
-    "total_kgs": 20.31,
-    "total_utilidad": 21.32
+    "product_id": "1521",
+    "product_name": "MORT. ECONOM COCIDA ASTURIAS X KG",
+    "total_boxes_sold": 23.97,
+    "total_revenue": 1215,
+    "total_kgs": 263.46,
+    "total_utilidad": 202.64
   },
   {
     "period": "2026-10",
-    "product_id": "1459",
-    "product_name": "FS QUESO MOZZARELA EL LUCERO POR KG",
-    "total_boxes_sold": 8,
-    "total_revenue": 108.11,
-    "total_kgs": 8.19,
-    "total_utilidad": 26.21
+    "product_id": "1099",
+    "product_name": "NECTAR DE MANZANA EL TUNAL 27X200ML",
+    "total_boxes_sold": 146,
+    "total_revenue": 2482.07,
+    "total_kgs": 788.4,
+    "total_utilidad": 461.79
   },
   {
     "period": "2026-10",
-    "product_id": "1456",
-    "product_name": "FS TOCINETA FRESCA ASTURIAS POR KG",
-    "total_boxes_sold": 10,
-    "total_revenue": 107.84,
-    "total_kgs": 10.27,
-    "total_utilidad": 54.33
+    "product_id": "1445",
+    "product_name": "TOCINO FRESCO ASTURIAS X KG",
+    "total_boxes_sold": 6886,
+    "total_revenue": 70684.48,
+    "total_kgs": 6898.98,
+    "total_utilidad": 15134.25
+  },
+  {
+    "period": "2026-10",
+    "product_id": "1551",
+    "product_name": "ACEITE VENCAMPO 12X900ML",
+    "total_boxes_sold": 4715.18,
+    "total_revenue": 136438.39,
+    "total_kgs": 46851.65,
+    "total_utilidad": 32764.46
   },
   {
     "period": "2026-10",
@@ -946,102 +433,264 @@
   },
   {
     "period": "2026-10",
-    "product_id": "1143",
-    "product_name": "PRODUCTO 1143",
-    "total_boxes_sold": 0.22,
-    "total_revenue": 77.99,
-    "total_kgs": 2.02,
-    "total_utilidad": 15.91
+    "product_id": "1100",
+    "product_name": "NECTAR DE PERA EL TUNAL 27X200ML",
+    "total_boxes_sold": 96.89,
+    "total_revenue": 1647.26,
+    "total_kgs": 523.2,
+    "total_utilidad": 306.39
   },
   {
     "period": "2026-10",
-    "product_id": "186",
-    "product_name": "TE CON DURAZNO EL TUNAL 1X12LTRS",
-    "total_boxes_sold": 4,
-    "total_revenue": 70.92,
-    "total_kgs": 48,
-    "total_utilidad": 6.56
+    "product_id": "1568",
+    "product_name": "POLLO VENCAMPO POR KG",
+    "total_boxes_sold": 137324,
+    "total_revenue": 364073.2,
+    "total_kgs": 137326.66,
+    "total_utilidad": 62058.89
   },
   {
     "period": "2026-10",
-    "product_id": "1250",
-    "product_name": "NECTAR DE PERA EL TUNAL12 X 500ML",
-    "total_boxes_sold": 4,
-    "total_revenue": 64.74,
-    "total_kgs": 24,
-    "total_utilidad": 21.92
+    "product_id": "1051",
+    "product_name": "MORTADELA ESP. CARACAS 10X500GRS",
+    "total_boxes_sold": 193.6,
+    "total_revenue": 3420.77,
+    "total_kgs": 968,
+    "total_utilidad": 664.48
   },
   {
     "period": "2026-10",
-    "product_id": "704",
-    "product_name": "PRODUCTO 704",
-    "total_boxes_sold": 3,
-    "total_revenue": 60.81,
-    "total_kgs": 36,
-    "total_utilidad": 12.54
+    "product_id": "1574",
+    "product_name": "LECHE EN POLVO VENCAMPO 10X400GR",
+    "total_boxes_sold": -0.8,
+    "total_revenue": -33.6,
+    "total_kgs": -3.2,
+    "total_utilidad": -1.61
   },
   {
     "period": "2026-10",
-    "product_id": "1578",
-    "product_name": "ARROZ  BLANCO VENCAMPO 24X1KG",
-    "total_boxes_sold": 2,
-    "total_revenue": 36.75,
-    "total_kgs": 48,
-    "total_utilidad": 3.69
-  },
-  {
-    "period": "2026-10",
-    "product_id": "1251",
-    "product_name": "PRODUCTO 1251",
-    "total_boxes_sold": 2,
-    "total_revenue": 31.58,
-    "total_kgs": 12,
-    "total_utilidad": 10.14
-  },
-  {
-    "period": "2026-10",
-    "product_id": "687",
-    "product_name": "CUADRIL DESPRESADO POR KG",
-    "total_boxes_sold": 0,
-    "total_revenue": 0,
-    "total_kgs": 0,
-    "total_utilidad": 0
-  },
-  {
-    "period": "2026-10",
-    "product_id": "688",
-    "product_name": "PIERNITAS DESPRESADA POR KG",
-    "total_boxes_sold": 0,
-    "total_revenue": 0,
-    "total_kgs": 0,
-    "total_utilidad": 0
-  },
-  {
-    "period": "2026-10",
-    "product_id": "632",
-    "product_name": "CARCASA DESPRESADA POR KG",
-    "total_boxes_sold": -1,
-    "total_revenue": -1.88,
-    "total_kgs": -1,
-    "total_utilidad": -0.88
+    "product_id": "676",
+    "product_name": "FILET DE PECHUGA EN BANDEJA (DE)",
+    "total_boxes_sold": 453,
+    "total_revenue": 2997.47,
+    "total_kgs": 453.25,
+    "total_utilidad": 504.62
   },
   {
     "period": "2026-10",
     "product_id": "699",
     "product_name": "MUSLO DESPRESADO EN BANDEJA",
-    "total_boxes_sold": -4,
-    "total_revenue": -13.49,
-    "total_kgs": -3.9,
+    "total_boxes_sold": 42,
+    "total_revenue": 114.11,
+    "total_kgs": 42.5,
     "total_utilidad": -2.74
   },
   {
     "period": "2026-10",
-    "product_id": "1409",
-    "product_name": "FILET DE PECHUGA LOS LLANOS POR KG",
-    "total_boxes_sold": -10,
-    "total_revenue": -58,
-    "total_kgs": -10,
-    "total_utilidad": -10.73
+    "product_id": "952",
+    "product_name": "Prod 952",
+    "total_boxes_sold": 2043.5,
+    "total_revenue": 123053.59,
+    "total_kgs": 46591.8,
+    "total_utilidad": 20544.2
+  },
+  {
+    "period": "2026-10",
+    "product_id": "1517",
+    "product_name": "LECHE POLVO COMPLETA PURISIMA 12X900GRS",
+    "total_boxes_sold": 16.17,
+    "total_revenue": 2188.75,
+    "total_kgs": 174.6,
+    "total_utilidad": 392.39
+  },
+  {
+    "period": "2026-10",
+    "product_id": "1519",
+    "product_name": "MORTADELA ESP D/POLLO SALPICAO 10UNDX900GR",
+    "total_boxes_sold": 1630.9,
+    "total_revenue": 28978.7,
+    "total_kgs": 14678.1,
+    "total_utilidad": 7780.54
+  },
+  {
+    "period": "2026-10",
+    "product_id": "302",
+    "product_name": "MANTEQUILLA CON SAL PURISIMA BARRA 18X200GR",
+    "total_boxes_sold": 111.5,
+    "total_revenue": 10340.42,
+    "total_kgs": 401.4,
+    "total_utilidad": 2039.35
+  },
+  {
+    "period": "2026-10",
+    "product_id": "1268",
+    "product_name": "LECHE BARISTA PURISIMA 1X12 LTRS",
+    "total_boxes_sold": 58,
+    "total_revenue": 1736.15,
+    "total_kgs": 696,
+    "total_utilidad": 353.67
+  },
+  {
+    "period": "2026-10",
+    "product_id": "1561",
+    "product_name": "MORT. PAVO TIPO SHOULDER ASTURIAS POR KG",
+    "total_boxes_sold": 187.97,
+    "total_revenue": 12719.99,
+    "total_kgs": 2027.88,
+    "total_utilidad": 3072
+  },
+  {
+    "period": "2026-10",
+    "product_id": "187",
+    "product_name": "Prod 187",
+    "total_boxes_sold": 6207,
+    "total_revenue": 36486.9,
+    "total_kgs": 6207.62,
+    "total_utilidad": 5723.03
+  },
+  {
+    "period": "2026-10",
+    "product_id": "922",
+    "product_name": "HUEVOS DE CONSUMO TUNAL TIPO B 1X12UNI",
+    "total_boxes_sold": 203.67,
+    "total_revenue": 13460.26,
+    "total_kgs": 4643.6,
+    "total_utilidad": 468.57
+  },
+  {
+    "period": "2026-10",
+    "product_id": "1562",
+    "product_name": "MORT. ESPECIAL COCIDA SALPICAO X KG",
+    "total_boxes_sold": 260.33,
+    "total_revenue": 13637.28,
+    "total_kgs": 2965.72,
+    "total_utilidad": 2457.44
+  },
+  {
+    "period": "2026-10",
+    "product_id": "1563",
+    "product_name": "MORT. ESTANDAR SALPICAO X KG",
+    "total_boxes_sold": 370.5,
+    "total_revenue": 19651.18,
+    "total_kgs": 4217.81,
+    "total_utilidad": 3754.23
+  },
+  {
+    "period": "2026-10",
+    "product_id": "69",
+    "product_name": "GALLINA ENTERA POR KG",
+    "total_boxes_sold": 1545,
+    "total_revenue": 4563.23,
+    "total_kgs": 1546.85,
+    "total_utilidad": 1779.08
+  },
+  {
+    "period": "2026-10",
+    "product_id": "1608",
+    "product_name": "QUESO BLANCO MOZZARELLA MI FINCA",
+    "total_boxes_sold": 261,
+    "total_revenue": 8613.68,
+    "total_kgs": 789.72,
+    "total_utilidad": 1586.97
+  },
+  {
+    "period": "2026-10",
+    "product_id": "1599",
+    "product_name": "MORT. NAVIDEÑA SALPICAO X KG",
+    "total_boxes_sold": 133.27,
+    "total_revenue": 7965.34,
+    "total_kgs": 1631.56,
+    "total_utilidad": 1439.72
+  },
+  {
+    "period": "2026-10",
+    "product_id": "1591",
+    "product_name": "QUESO AMARILLO TIPO EDAM BARRA DE MI FINCA X KG",
+    "total_boxes_sold": 220,
+    "total_revenue": 8907.81,
+    "total_kgs": 700.7,
+    "total_utilidad": 1764.85
+  },
+  {
+    "period": "2026-10",
+    "product_id": "174",
+    "product_name": "MORTADELA TAPARA ALIMEX DE 6X3.5KG",
+    "total_boxes_sold": 10.19,
+    "total_revenue": 2016.69,
+    "total_kgs": 200.88,
+    "total_utilidad": 383.09
+  },
+  {
+    "period": "2026-10",
+    "product_id": "185",
+    "product_name": "TE CON LIMON EL TUNAL 1X12LTRS",
+    "total_boxes_sold": 7.92,
+    "total_revenue": 156.27,
+    "total_kgs": 95,
+    "total_utilidad": 28.89
+  },
+  {
+    "period": "2026-10",
+    "product_id": "182",
+    "product_name": "NECTAR DE MANZANA EL TUNAL 1X12LTRS",
+    "total_boxes_sold": 151,
+    "total_revenue": 3056.71,
+    "total_kgs": 1812,
+    "total_utilidad": 591.29
+  },
+  {
+    "period": "2026-10",
+    "product_id": "1522",
+    "product_name": "MORT. TIPO AREPERO ASTURIAS X KG",
+    "total_boxes_sold": 55.4,
+    "total_revenue": 2195.42,
+    "total_kgs": 417.12,
+    "total_utilidad": 465.5
+  },
+  {
+    "period": "2026-10",
+    "product_id": "337",
+    "product_name": "JAMON COCIDO ESTANDAR ITALICO X KG",
+    "total_boxes_sold": 12.25,
+    "total_revenue": 1759.99,
+    "total_kgs": 286.26,
+    "total_utilidad": 291.21
+  },
+  {
+    "period": "2026-10",
+    "product_id": "1564",
+    "product_name": "MORTADELA EXTRA ASTURIAS X KG",
+    "total_boxes_sold": 61,
+    "total_revenue": 2591.08,
+    "total_kgs": 549.92,
+    "total_utilidad": 443.9
+  },
+  {
+    "period": "2026-10",
+    "product_id": "1569",
+    "product_name": "PATATAS FRESCAS DOBLE COBERTURA 4X2.5KG",
+    "total_boxes_sold": 161.5,
+    "total_revenue": 5142.5,
+    "total_kgs": 1615,
+    "total_utilidad": 784.46
+  },
+  {
+    "period": "2026-10",
+    "product_id": "8",
+    "product_name": "Prod 8",
+    "total_boxes_sold": -209,
+    "total_revenue": -502.24,
+    "total_kgs": -209.3,
+    "total_utilidad": -109.94
+  },
+  {
+    "period": "2026-10",
+    "product_id": "1572",
+    "product_name": "CAJAS DE PIZZA 1X100",
+    "total_boxes_sold": 637.97,
+    "total_revenue": 29794.62,
+    "total_kgs": 11355.87,
+    "total_utilidad": 70.07
   },
   {
     "period": "2026-10",
@@ -1054,30 +703,66 @@
   },
   {
     "period": "2026-10",
-    "product_id": "1579",
-    "product_name": "LECHE EN POLVO VENCAMPO 10X500GR",
-    "total_boxes_sold": -4,
-    "total_revenue": -216,
-    "total_kgs": -20,
-    "total_utilidad": -51.99
+    "product_id": "1103",
+    "product_name": "MANTEQUILLA SIN SAL PURISIMA 18X200GR",
+    "total_boxes_sold": 74,
+    "total_revenue": 6371.26,
+    "total_kgs": 266.4,
+    "total_utilidad": 1438.37
   },
   {
     "period": "2026-10",
-    "product_id": "1536",
-    "product_name": "LECHE EN POLVO VENCAMPO 10X1KG",
-    "total_boxes_sold": -2,
-    "total_revenue": -230,
-    "total_kgs": -20,
-    "total_utilidad": -67.71
+    "product_id": "1578",
+    "product_name": "ARROZ  BLANCO VENCAMPO 24X1KG",
+    "total_boxes_sold": 1,
+    "total_revenue": 17,
+    "total_kgs": 24,
+    "total_utilidad": 1.13
   },
   {
     "period": "2026-10",
-    "product_id": "8",
-    "product_name": "PRODUCTO 8",
-    "total_boxes_sold": -209,
-    "total_revenue": -502.24,
-    "total_kgs": -209.3,
-    "total_utilidad": -109.94
+    "product_id": "927",
+    "product_name": "MORTADELA ESP. CARACAS 10X900GRS",
+    "total_boxes_sold": 897.3,
+    "total_revenue": 27739.03,
+    "total_kgs": 8075.7,
+    "total_utilidad": 4900.5
+  },
+  {
+    "period": "2026-10",
+    "product_id": "979",
+    "product_name": "Prod 979",
+    "total_boxes_sold": 1696.57,
+    "total_revenue": 108419.45,
+    "total_kgs": 38682.1,
+    "total_utilidad": 22967.41
+  },
+  {
+    "period": "2026-10",
+    "product_id": "1471",
+    "product_name": "FS MORT NAVIDEÑA ASTURIAS POR KG",
+    "total_boxes_sold": 289,
+    "total_revenue": 1582.31,
+    "total_kgs": 289.15,
+    "total_utilidad": 229.26
+  },
+  {
+    "period": "2026-10",
+    "product_id": "1472",
+    "product_name": "FS MORT SUPERIOR ASTURIAS POR KG",
+    "total_boxes_sold": 85,
+    "total_revenue": 518.42,
+    "total_kgs": 85.85,
+    "total_utilidad": 110.17
+  },
+  {
+    "period": "2026-10",
+    "product_id": "632",
+    "product_name": "CARCASA DESPRESADA POR KG",
+    "total_boxes_sold": -1,
+    "total_revenue": -1.88,
+    "total_kgs": -1,
+    "total_utilidad": -0.88
   },
   {
     "period": "2026-10",
@@ -1090,11 +775,335 @@
   },
   {
     "period": "2026-10",
+    "product_id": "1259",
+    "product_name": "MORTADELA T/ESPECIAL MAXI CARACAS 6UNDX3.3KG",
+    "total_boxes_sold": 3.02,
+    "total_revenue": 243.14,
+    "total_kgs": 58.6,
+    "total_utilidad": 75.58
+  },
+  {
+    "period": "2026-10",
+    "product_id": "340",
+    "product_name": "CHULETA AHUMADA ALIMEX X KG",
+    "total_boxes_sold": 669,
+    "total_revenue": 5123.35,
+    "total_kgs": 672.24,
+    "total_utilidad": 928.13
+  },
+  {
+    "period": "2026-10",
+    "product_id": "439",
+    "product_name": "ESPAL AHUM.T/AREPERO ALIMEX 12X1,6KG",
+    "total_boxes_sold": 13.82,
+    "total_revenue": 2035.9,
+    "total_kgs": 265.78,
+    "total_utilidad": 406.99
+  },
+  {
+    "period": "2026-10",
+    "product_id": "1175",
+    "product_name": "Prod 1175",
+    "total_boxes_sold": 0.66,
+    "total_revenue": 182.42,
+    "total_kgs": 5.13,
+    "total_utilidad": 58.47
+  },
+  {
+    "period": "2026-10",
+    "product_id": "10",
+    "product_name": "Prod 10",
+    "total_boxes_sold": 474,
+    "total_revenue": 2512.46,
+    "total_kgs": 474.05,
+    "total_utilidad": 499.84
+  },
+  {
+    "period": "2026-10",
+    "product_id": "176",
+    "product_name": "SALCHICHA VIENA ALIMEX 8 X 800 GRS",
+    "total_boxes_sold": 93.87,
+    "total_revenue": 5168.52,
+    "total_kgs": 600.8,
+    "total_utilidad": 1049.94
+  },
+  {
+    "period": "2026-10",
+    "product_id": "177",
+    "product_name": "SALCHICHA VIENA ALIMEX 16 X 450 GRS",
+    "total_boxes_sold": 82.69,
+    "total_revenue": 5358.79,
+    "total_kgs": 595.35,
+    "total_utilidad": 1122.42
+  },
+  {
+    "period": "2026-10",
+    "product_id": "184",
+    "product_name": "NECTAR DE DURAZNO EL TUNAL 1X12LTRS",
+    "total_boxes_sold": 51,
+    "total_revenue": 1221.47,
+    "total_kgs": 612,
+    "total_utilidad": 388.64
+  },
+  {
+    "period": "2026-10",
+    "product_id": "1446",
+    "product_name": "CHULETA FRESCA ASTURIAS POR KG",
+    "total_boxes_sold": 1811,
+    "total_revenue": 12032.48,
+    "total_kgs": 1815.38,
+    "total_utilidad": 2469.84
+  },
+  {
+    "period": "2026-10",
+    "product_id": "393",
+    "product_name": "MOLLEJA (EMPACADA)",
+    "total_boxes_sold": 401,
+    "total_revenue": 1039.79,
+    "total_kgs": 399.92,
+    "total_utilidad": 161.19
+  },
+  {
+    "period": "2026-10",
+    "product_id": "1459",
+    "product_name": "FS QUESO MOZZARELA EL LUCERO POR KG",
+    "total_boxes_sold": 8,
+    "total_revenue": 108.11,
+    "total_kgs": 8.19,
+    "total_utilidad": 26.21
+  },
+  {
+    "period": "2026-10",
+    "product_id": "1579",
+    "product_name": "LECHE EN POLVO VENCAMPO 10X500GR",
+    "total_boxes_sold": -4,
+    "total_revenue": -216,
+    "total_kgs": -20,
+    "total_utilidad": -51.99
+  },
+  {
+    "period": "2026-10",
+    "product_id": "1576",
+    "product_name": "QUESO CREMA KRAFT 1.36 KG X 6 UND",
+    "total_boxes_sold": 9.01,
+    "total_revenue": 757,
+    "total_kgs": 73.44,
+    "total_utilidad": 203.59
+  },
+  {
+    "period": "2026-10",
+    "product_id": "1251",
+    "product_name": "Prod 1251",
+    "total_boxes_sold": 3,
+    "total_revenue": 47.37,
+    "total_kgs": 18,
+    "total_utilidad": 15.21
+  },
+  {
+    "period": "2026-10",
+    "product_id": "186",
+    "product_name": "TE CON DURAZNO EL TUNAL 1X12LTRS",
+    "total_boxes_sold": 8,
+    "total_revenue": 141.75,
+    "total_kgs": 96,
+    "total_utilidad": 13.03
+  },
+  {
+    "period": "2026-10",
+    "product_id": "704",
+    "product_name": "Prod 704",
+    "total_boxes_sold": 4,
+    "total_revenue": 81.08,
+    "total_kgs": 48,
+    "total_utilidad": 16.72
+  },
+  {
+    "period": "2026-10",
+    "product_id": "1181",
+    "product_name": "NECTAR DE DURAZNO EL TUNAL 27X200ML",
+    "total_boxes_sold": 22,
+    "total_revenue": 373.56,
+    "total_kgs": 118.8,
+    "total_utilidad": 84.31
+  },
+  {
+    "period": "2026-10",
+    "product_id": "1623",
+    "product_name": "Prod 1623",
+    "total_boxes_sold": 329,
+    "total_revenue": 1961.61,
+    "total_kgs": 326.94,
+    "total_utilidad": 556.66
+  },
+  {
+    "period": "2026-10",
+    "product_id": "1536",
+    "product_name": "LECHE EN POLVO VENCAMPO 10X1KG",
+    "total_boxes_sold": -2,
+    "total_revenue": -230,
+    "total_kgs": -20,
+    "total_utilidad": -67.71
+  },
+  {
+    "period": "2026-10",
+    "product_id": "272",
+    "product_name": "Prod 272",
+    "total_boxes_sold": 20441,
+    "total_revenue": 129611.32,
+    "total_kgs": 20449.4,
+    "total_utilidad": 37622.07
+  },
+  {
+    "period": "2026-10",
     "product_id": "1553",
-    "product_name": "PRODUCTO 1553",
+    "product_name": "Prod 1553",
     "total_boxes_sold": -804,
     "total_revenue": -2010,
     "total_kgs": -804,
     "total_utilidad": -53.66
+  },
+  {
+    "period": "2026-10",
+    "product_id": "1250",
+    "product_name": "NECTAR DE PERA EL TUNAL12 X 500ML",
+    "total_boxes_sold": 9,
+    "total_revenue": 147.58,
+    "total_kgs": 54,
+    "total_utilidad": 51.17
+  },
+  {
+    "period": "2026-10",
+    "product_id": "1409",
+    "product_name": "FILET DE PECHUGA LOS LLANOS POR KG",
+    "total_boxes_sold": -10,
+    "total_revenue": -58,
+    "total_kgs": -10,
+    "total_utilidad": -10.73
+  },
+  {
+    "period": "2026-10",
+    "product_id": "1642",
+    "product_name": "Prod 1642",
+    "total_boxes_sold": 370,
+    "total_revenue": 7424.4,
+    "total_kgs": 3700,
+    "total_utilidad": 3347.82
+  },
+  {
+    "period": "2026-10",
+    "product_id": "1143",
+    "product_name": "Prod 1143",
+    "total_boxes_sold": 0.33,
+    "total_revenue": 119.39,
+    "total_kgs": 2.94,
+    "total_utilidad": 28.9
+  },
+  {
+    "period": "2026-10",
+    "product_id": "1088",
+    "product_name": "CHULETA FRESCA IBERICO POR KG",
+    "total_boxes_sold": 28377,
+    "total_revenue": 161712.57,
+    "total_kgs": 28376.39,
+    "total_utilidad": 45382.1
+  },
+  {
+    "period": "2026-10",
+    "product_id": "1456",
+    "product_name": "FS TOCINETA FRESCA ASTURIAS POR KG",
+    "total_boxes_sold": 30,
+    "total_revenue": 320.69,
+    "total_kgs": 30.56,
+    "total_utilidad": 161.47
+  },
+  {
+    "period": "2026-10",
+    "product_id": "1468",
+    "product_name": "Prod 1468",
+    "total_boxes_sold": 101,
+    "total_revenue": 530.53,
+    "total_kgs": 101.11,
+    "total_utilidad": 94.75
+  },
+  {
+    "period": "2026-10",
+    "product_id": "1600",
+    "product_name": "FS QUESO AMARILLO TIPO EDAM BARRA DE MI FINCA X KG",
+    "total_boxes_sold": 46,
+    "total_revenue": 584.46,
+    "total_kgs": 46.02,
+    "total_utilidad": 115.06
+  },
+  {
+    "period": "2026-10",
+    "product_id": "1575",
+    "product_name": "QUESO MOZZARELLA CORLASA 3.5KG X 4 UND",
+    "total_boxes_sold": 77.75,
+    "total_revenue": 11131.95,
+    "total_kgs": 1096,
+    "total_utilidad": 4001.89
+  },
+  {
+    "period": "2026-10",
+    "product_id": "1644",
+    "product_name": "Prod 1644",
+    "total_boxes_sold": 618.96,
+    "total_revenue": 12845.35,
+    "total_kgs": 6189.6,
+    "total_utilidad": 4229.62
+  },
+  {
+    "period": "2026-10",
+    "product_id": "1643",
+    "product_name": "Prod 1643",
+    "total_boxes_sold": 5140,
+    "total_revenue": 34734.62,
+    "total_kgs": 5152.09,
+    "total_utilidad": 13614.02
+  },
+  {
+    "period": "2026-10",
+    "product_id": "1467",
+    "product_name": "Prod 1467",
+    "total_boxes_sold": 20,
+    "total_revenue": 109.67,
+    "total_kgs": 20.31,
+    "total_utilidad": 21.32
+  },
+  {
+    "period": "2026-10",
+    "product_id": "1339",
+    "product_name": "Prod 1339",
+    "total_boxes_sold": 24,
+    "total_revenue": 218.96,
+    "total_kgs": 23.8,
+    "total_utilidad": 61.1
+  },
+  {
+    "period": "2026-10",
+    "product_id": "1614",
+    "product_name": "FILET DE PECHUGA A GRANEL TROPICAL POR KG",
+    "total_boxes_sold": 8777,
+    "total_revenue": 60188.13,
+    "total_kgs": 8764.25,
+    "total_utilidad": 21187.27
+  },
+  {
+    "period": "2026-10",
+    "product_id": "1479",
+    "product_name": "ACEITE DE SOYA DIANA 12X900ML",
+    "total_boxes_sold": 2461,
+    "total_revenue": 98354.47,
+    "total_kgs": 24363.9,
+    "total_utilidad": 41766.22
+  },
+  {
+    "period": "2026-10",
+    "product_id": "151",
+    "product_name": "QUESO MOZARELLA EN BARRA DOÑA FLORA",
+    "total_boxes_sold": -2,
+    "total_revenue": -81.54,
+    "total_kgs": -6.8,
+    "total_utilidad": 18.91
   }
 ]

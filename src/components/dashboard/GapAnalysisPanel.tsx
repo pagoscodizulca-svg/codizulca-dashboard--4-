@@ -7,9 +7,16 @@ import Papa from 'papaparse';
 interface GapAnalysisPanelProps {
   kpiId: string;
   kpiLabel: string;
+  octoberKpis?: {
+    facturacion: number;
+    utilidad: number;
+    cajas: number;
+    kg: number;
+  };
+  syncKey?: string | null;
 }
 
-export const GapAnalysisPanel: React.FC<GapAnalysisPanelProps> = ({ kpiId, kpiLabel }) => {
+export const GapAnalysisPanel: React.FC<GapAnalysisPanelProps> = ({ kpiId, kpiLabel, octoberKpis, syncKey }) => {
   const [selectedMonths, setSelectedMonths] = useState<string[]>([]);
   const [allSalesData, setAllSalesData] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -104,25 +111,12 @@ export const GapAnalysisPanel: React.FC<GapAnalysisPanelProps> = ({ kpiId, kpiLa
         const skuToName = await fetchProductMap();
         const idToName = skuToName; // Using the same mapping since Google Sheets uses 'Cód. Producto'
 
-        // 2. Fetch current month (October) from Google Sheets & local cache
+        // 2. Fetch current month (October) from Google Sheets live data first
         const fetchOctoberData = async () => {
           try {
-            // Try pre-aggregated October data first for speed and precision
-            try {
-              const octRes = await fetch('/october_gap_products.json');
-              if (octRes.ok) {
-                const octJson = await octRes.json();
-                if (Array.isArray(octJson) && octJson.length > 0) {
-                  return octJson;
-                }
-              }
-            } catch {
-              // fallback to sheet parsing
-            }
-
             let text = '';
             try {
-              const res = await fetch('/api/sheets');
+              const res = await fetch(syncKey ? '/api/sheets?refresh=true' : '/api/sheets');
               if (res.ok) text = await res.text();
             } catch {
               // fallback
@@ -137,45 +131,65 @@ export const GapAnalysisPanel: React.FC<GapAnalysisPanelProps> = ({ kpiId, kpiLa
               }
             }
 
-            if (!text) return [];
-
-            const result = Papa.parse(text, { header: true, skipEmptyLines: true });
-            const productMap = new Map();
-            
-            result.data.forEach((row: any) => {
-              let sku = row['Id Articulo'] || '';
-              sku = sku.replace(/^["']|["']$/g, '').trim(); // Remove quotes for exact matching
+            if (text) {
+              const result = Papa.parse(text, { header: true, skipEmptyLines: true });
+              const productMap = new Map();
               
-              const amountStr = row['Monto'] || '';
-              const boxesStr = row['Cajas'] || '';
-              const kgStr = row['Kg'] || row['Kgs'] || row['KGS'] || '';
-              const utilStr = row['Utilidad'] || '';
-              
-              const amount = parseFloat(amountStr.replace(/["',]/g, ''));
-              const boxes = parseFloat(boxesStr.replace(/["',]/g, ''));
-              const kgs = parseFloat(kgStr.replace(/["',]/g, ''));
-              const utilidad = parseFloat(utilStr.replace(/["',]/g, ''));
-              
-              if (!isNaN(amount) && sku) {
-                if (!productMap.has(sku)) {
-                  productMap.set(sku, {
-                    period: '2026-10',
-                    product_id: sku, // Using sku as ID for uniqueness in this context
-                    product_name: skuToName[sku] || row['Articulo'] || `Prod ${sku}`,
-                    total_boxes_sold: 0,
-                    total_revenue: 0,
-                    total_kgs: 0,
-                    total_utilidad: 0
-                  });
+              result.data.forEach((row: any) => {
+                let rawSku = String(row['Id Articulo'] || '').replace(/^["']|["']$/g, '').trim();
+                const sku = rawSku || 'SIN-SKU';
+                
+                const amountStr = String(row['Monto'] || '');
+                const boxesStr = String(row['Cajas'] || '');
+                const kgStr = String(row['Kg'] || row['Kgs'] || row['KGS'] || '');
+                const utilStr = String(row['Utilidad'] || '');
+                
+                const amount = parseFloat(amountStr.replace(/["',]/g, '')) || 0;
+                const boxes = parseFloat(boxesStr.replace(/["',]/g, '')) || 0;
+                const kgs = parseFloat(kgStr.replace(/["',]/g, '')) || 0;
+                const utilidad = parseFloat(utilStr.replace(/["',]/g, '')) || 0;
+                
+                if (amount !== 0 || boxes !== 0 || kgs !== 0 || utilidad !== 0) {
+                  if (!productMap.has(sku)) {
+                    const cleanSku = sku.replace(/^0+/, '');
+                    productMap.set(sku, {
+                      period: '2026-10',
+                      product_id: sku,
+                      product_name: skuToName[sku] || skuToName[cleanSku] || row['Articulo'] || `Prod ${sku}`,
+                      total_boxes_sold: 0,
+                      total_revenue: 0,
+                      total_kgs: 0,
+                      total_utilidad: 0
+                    });
+                  }
+                  const p = productMap.get(sku);
+                  p.total_revenue += amount;
+                  p.total_boxes_sold += boxes;
+                  p.total_kgs += kgs;
+                  p.total_utilidad += utilidad;
                 }
-                const p = productMap.get(sku);
-                p.total_revenue += amount;
-                p.total_boxes_sold += (isNaN(boxes) ? 0 : boxes);
-                p.total_kgs += (isNaN(kgs) ? 0 : kgs);
-                p.total_utilidad += (isNaN(utilidad) ? 0 : utilidad);
+              });
+
+              const parsedOct = Array.from(productMap.values());
+              if (parsedOct.length > 0) {
+                return parsedOct;
               }
-            });
-            return Array.from(productMap.values());
+            }
+
+            // Last-resort offline fallback
+            try {
+              const octRes = await fetch('/october_gap_products.json');
+              if (octRes.ok) {
+                const octJson = await octRes.json();
+                if (Array.isArray(octJson) && octJson.length > 0) {
+                  return octJson;
+                }
+              }
+            } catch {
+              // ignore
+            }
+
+            return [];
           } catch (e) {
             console.error("Error fetching Google Sheet for October:", e);
             return [];
@@ -283,7 +297,7 @@ export const GapAnalysisPanel: React.FC<GapAnalysisPanelProps> = ({ kpiId, kpiLa
       }
     }
     fetchAllData();
-  }, []);
+  }, [syncKey]);
 
   const getValue = (row: any) => {
     switch (kpiId) {
@@ -296,6 +310,17 @@ export const GapAnalysisPanel: React.FC<GapAnalysisPanelProps> = ({ kpiId, kpiLa
     }
   };
 
+  const getOctoberLiveTotal = (): number | null => {
+    if (!octoberKpis || octoberKpis.facturacion <= 0) return null;
+    switch (kpiId) {
+      case 'facturacion': return octoberKpis.facturacion;
+      case 'utilidad': return octoberKpis.utilidad;
+      case 'cajas': return octoberKpis.cajas;
+      case 'kilogramos': return octoberKpis.kg;
+      default: return octoberKpis.facturacion;
+    }
+  };
+
   const monthTotals = useMemo(() => {
     const totals: Record<string, number> = {};
     monthsList.forEach(m => totals[m.id] = 0);
@@ -304,8 +329,12 @@ export const GapAnalysisPanel: React.FC<GapAnalysisPanelProps> = ({ kpiId, kpiLa
         totals[row.period] += getValue(row);
       }
     });
+    const octLive = getOctoberLiveTotal();
+    if (octLive !== null) {
+      totals['2026-10'] = octLive;
+    }
     return totals;
-  }, [allSalesData, kpiId]);
+  }, [allSalesData, kpiId, octoberKpis]);
 
   const formatVal = (val: number, showLabel = true) => {
     if (kpiId === 'facturacion' || kpiId === 'utilidad') {
@@ -343,6 +372,12 @@ export const GapAnalysisPanel: React.FC<GapAnalysisPanelProps> = ({ kpiId, kpiLa
         }
       }
     });
+
+    const octLive = getOctoberLiveTotal();
+    if (octLive !== null) {
+      if (m1 === '2026-10') v1 = octLive;
+      if (m2 === '2026-10') v2 = octLive;
+    }
 
     const diff = v2 - v1;
     const percent = v1 === 0 ? (v2 > 0 ? 100 : 0) : (diff / v1) * 100;
@@ -384,7 +419,7 @@ export const GapAnalysisPanel: React.FC<GapAnalysisPanelProps> = ({ kpiId, kpiLa
       topDecline,
       chartData
     };
-  }, [selectedMonths, allSalesData, kpiId]);
+  }, [selectedMonths, allSalesData, kpiId, octoberKpis]);
 
   return (
     <div className="bg-zinc-950/80 border border-white/10 rounded-xl mt-2 overflow-hidden shadow-2xl animate-in slide-in-from-top-4 duration-300">

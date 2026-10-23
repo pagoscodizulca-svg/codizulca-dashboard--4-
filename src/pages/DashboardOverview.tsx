@@ -1592,7 +1592,17 @@ export const DashboardOverview: React.FC = () => {
 
       {/* Gap Analysis Panel */}
       {selectedKpi && (
-        <GapAnalysisPanel kpiId={selectedKpi.id} kpiLabel={selectedKpi.label} />
+        <GapAnalysisPanel
+          kpiId={selectedKpi.id}
+          kpiLabel={selectedKpi.label}
+          octoberKpis={{
+            facturacion: kpiData.facturacion,
+            utilidad: kpiData.utilidad,
+            cajas: kpiData.cajas,
+            kg: kpiData.kg,
+          }}
+          syncKey={lastSheetSync}
+        />
       )}
 
       {/* Chart 1: Tendencia por Fecha */}
