@@ -3,6 +3,14 @@ import { supabase } from '../../lib/supabase';
 import { ArrowUpRight, ArrowDownRight, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { ComposedChart, Line, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer } from 'recharts';
 import Papa from 'papaparse';
+import {
+  PRODUCT_CATALOG_BY_SKU,
+  isGenericProductLabel,
+  resolveCatalogProductName,
+} from '../../data/productCatalog';
+
+const KNOWN_PRODUCT_NAMES_BY_SKU = PRODUCT_CATALOG_BY_SKU;
+const resolveBestProductName = resolveCatalogProductName;
 
 interface GapAnalysisPanelProps {
   kpiId: string;
@@ -51,13 +59,22 @@ export const GapAnalysisPanel: React.FC<GapAnalysisPanelProps> = ({ kpiId, kpiLa
       setIsLoading(true);
       
       try {
-        // 1. Fetch Product Map from Google Sheets (Productos sheet)
+        // 1. Fetch Product Map from Google Sheets (Productos sheet) + Known Catalog
         const fetchProductMap = async () => {
-          let mapping: Record<string, string> = {};
+          let mapping: Record<string, string> = { ...KNOWN_PRODUCT_NAMES_BY_SKU };
           try {
             const cachedMap = localStorage.getItem('app_product_map_cache');
             if (cachedMap) {
-              mapping = JSON.parse(cachedMap);
+              const parsedCache = JSON.parse(cachedMap);
+              if (parsedCache && typeof parsedCache === 'object') {
+                Object.entries(parsedCache).forEach(([k, v]) => {
+                  const val = String(v || '').trim();
+                  if (k && val && !isGenericProductLabel(val)) {
+                    mapping[k] = val;
+                    mapping[k.replace(/^0+/, '')] = val;
+                  }
+                });
+              }
             }
           } catch {
             // ignore
@@ -84,14 +101,11 @@ export const GapAnalysisPanel: React.FC<GapAnalysisPanelProps> = ({ kpiId, kpiLa
             if (text) {
               const result = Papa.parse(text, { header: true, skipEmptyLines: true });
               result.data.forEach((row: any) => {
-                let cod = row['Cód. Producto'] || '';
-                cod = cod.replace(/^["']|["']$/g, '').trim();
-                
-                let name = row['Producto'] || '';
-                name = name.replace(/^["']|["']$/g, '').trim();
-                
-                if (cod && name) {
+                let cod = String(row['Cód. Producto'] || '').replace(/^["']|["']$/g, '').trim();
+                let name = String(row['Producto'] || '').replace(/^["']|["']$/g, '').trim();
+                if (cod && name && !isGenericProductLabel(name)) {
                   mapping[cod] = name;
+                  mapping[cod.replace(/^0+/, '')] = name;
                 }
               });
 
@@ -109,9 +123,76 @@ export const GapAnalysisPanel: React.FC<GapAnalysisPanelProps> = ({ kpiId, kpiLa
         };
 
         const skuToName = await fetchProductMap();
-        const idToName = skuToName; // Using the same mapping since Google Sheets uses 'Cód. Producto'
+        const idToName = skuToName;
 
-        // 2. Fetch current month (October) from Google Sheets live data first
+        // 2. Fetch past months from Supabase historical sales API FIRST so we also enrich skuToName with all historical product names
+        const historyMonthIds = monthsList.map(m => m.id).filter(id => id !== '2026-10');
+        let supabaseData: any[] = [];
+        
+        try {
+          const historyRes = await fetch('/api/historical-sales');
+          if (historyRes.ok) {
+            const historyRaw = await historyRes.json();
+            const MONTH_NAMES = ['ENERO', 'FEBRERO', 'MARZO', 'ABRIL', 'MAYO', 'JUNIO', 'JULIO', 'AGOSTO', 'SEPTIEMBRE', 'OCTUBRE', 'NOVIEMBRE', 'DICIEMBRE'];
+            const rawMap = new Map();
+
+            // Primero enriquecer el catálogo skuToName con todos los nombres reales del historial (incluyendo Octubre)
+            (historyRaw as any[]).forEach((row: any) => {
+              const rawId = String(row.id_articulo || '').trim();
+              const cleanId = rawId.replace(/^0+/, '');
+              const artName = String(row.articulo || '').trim();
+              if (rawId && artName && !isGenericProductLabel(artName)) {
+                skuToName[rawId] = artName;
+                if (cleanId) skuToName[cleanId] = artName;
+              }
+            });
+
+            try {
+              localStorage.setItem('app_product_map_cache', JSON.stringify(skuToName));
+            } catch {
+              // ignore
+            }
+            
+            (historyRaw as any[]).forEach((row: any) => {
+              const rawMes = String(row.mes || '').trim().toUpperCase();
+              const monthIndex = MONTH_NAMES.indexOf(rawMes);
+              if (monthIndex === -1) return;
+              const period = `${row.ano}-${(monthIndex + 1).toString().padStart(2, '0')}`;
+              if (!historyMonthIds.includes(period)) return;
+              
+              const prodId = String(row.id_articulo || '').trim();
+              const key = `${period}_${prodId}`;
+              if (!rawMap.has(key)) {
+                rawMap.set(key, {
+                  period,
+                  product_id: prodId,
+                  product_name: resolveBestProductName(prodId, row.articulo, idToName),
+                  total_boxes_sold: 0,
+                  total_revenue: 0,
+                  total_kgs: 0,
+                  total_fa: 0,
+                  total_dv: 0
+                });
+              } else {
+                const existing = rawMap.get(key);
+                if (isGenericProductLabel(existing.product_name)) {
+                  existing.product_name = resolveBestProductName(prodId, row.articulo, idToName);
+                }
+              }
+              const p = rawMap.get(key);
+              p.total_revenue += Number(row.monto) || 0;
+              p.total_boxes_sold += Number(row.cajas) || 0;
+              p.total_kgs += Number(row.kgs_lts) || 0;
+              p.total_fa += Number(row.montoFA) || Number(row.monto) || 0;
+              p.total_dv += Number(row.montoDV) || 0;
+            });
+            supabaseData = Array.from(rawMap.values());
+          }
+        } catch (err) {
+          console.warn('Failed to load historical data in GapAnalysisPanel:', err);
+        }
+
+        // 3. Fetch current month (October) from Google Sheets live data using the enriched skuToName map
         const fetchOctoberData = async () => {
           try {
             let text = '';
@@ -151,11 +232,10 @@ export const GapAnalysisPanel: React.FC<GapAnalysisPanelProps> = ({ kpiId, kpiLa
                 
                 if (amount !== 0 || boxes !== 0 || kgs !== 0 || utilidad !== 0) {
                   if (!productMap.has(sku)) {
-                    const cleanSku = sku.replace(/^0+/, '');
                     productMap.set(sku, {
                       period: '2026-10',
                       product_id: sku,
-                      product_name: skuToName[sku] || skuToName[cleanSku] || row['Articulo'] || `Prod ${sku}`,
+                      product_name: resolveBestProductName(sku, row['Articulo'] || row['Producto'], skuToName),
                       total_boxes_sold: 0,
                       total_revenue: 0,
                       total_kgs: 0,
@@ -182,7 +262,10 @@ export const GapAnalysisPanel: React.FC<GapAnalysisPanelProps> = ({ kpiId, kpiLa
               if (octRes.ok) {
                 const octJson = await octRes.json();
                 if (Array.isArray(octJson) && octJson.length > 0) {
-                  return octJson;
+                  return octJson.map((item: any) => ({
+                    ...item,
+                    product_name: resolveBestProductName(item.product_id, item.product_name, skuToName),
+                  }));
                 }
               }
             } catch {
@@ -196,51 +279,7 @@ export const GapAnalysisPanel: React.FC<GapAnalysisPanelProps> = ({ kpiId, kpiLa
           }
         };
 
-        const sheetDataPromise = fetchOctoberData();
-
-        // 3. Fetch past months from Supabase historical sales API
-        const historyMonthIds = monthsList.map(m => m.id).filter(id => id !== '2026-10');
-        let supabaseData: any[] = [];
-        
-        try {
-          const historyRes = await fetch('/api/historical-sales');
-          if (historyRes.ok) {
-            const historyRaw = await historyRes.json();
-            const MONTH_NAMES = ['ENERO', 'FEBRERO', 'MARZO', 'ABRIL', 'MAYO', 'JUNIO', 'JULIO', 'AGOSTO', 'SEPTIEMBRE', 'OCTUBRE', 'NOVIEMBRE', 'DICIEMBRE'];
-            const rawMap = new Map();
-            
-            (historyRaw as any[]).forEach((row: any) => {
-              const rawMes = String(row.mes || '').trim().toUpperCase();
-              const monthIndex = MONTH_NAMES.indexOf(rawMes);
-              if (monthIndex === -1) return;
-              const period = `${row.ano}-${(monthIndex + 1).toString().padStart(2, '0')}`;
-              if (!historyMonthIds.includes(period)) return;
-              
-              const key = `${period}_${row.id_articulo}`;
-              if (!rawMap.has(key)) {
-                rawMap.set(key, {
-                  period,
-                  product_id: String(row.id_articulo),
-                  product_name: row.articulo?.trim() || idToName[String(row.id_articulo)] || `Prod ${row.id_articulo}`,
-                  total_boxes_sold: 0,
-                  total_revenue: 0,
-                  total_kgs: 0,
-                  total_fa: 0,
-                  total_dv: 0
-                });
-              }
-              const p = rawMap.get(key);
-              p.total_revenue += Number(row.monto) || 0;
-              p.total_boxes_sold += Number(row.cajas) || 0;
-              p.total_kgs += Number(row.kgs_lts) || 0;
-              p.total_fa += Number(row.montoFA) || Number(row.monto) || 0;
-              p.total_dv += Number(row.montoDV) || 0;
-            });
-            supabaseData = Array.from(rawMap.values());
-          }
-        } catch (err) {
-          console.warn('Failed to load historical data in GapAnalysisPanel:', err);
-        }
+        const sheetData = await fetchOctoberData();
 
         // Fallback for historical baseline from exact monthly totals using real Codizulca SKUs
         if (supabaseData.length === 0) {
@@ -288,7 +327,6 @@ export const GapAnalysisPanel: React.FC<GapAnalysisPanelProps> = ({ kpiId, kpiLa
           });
         }
 
-        const sheetData = await sheetDataPromise;
         setAllSalesData([...sheetData, ...supabaseData]);
       } catch (err) {
         console.error("General error fetching data:", err);
@@ -357,11 +395,13 @@ export const GapAnalysisPanel: React.FC<GapAnalysisPanelProps> = ({ kpiId, kpiLa
 
     allSalesData.forEach(row => {
       const val = getValue(row);
-      const prodName = row.product_name || 'Producto Desconocido';
+      const prodName = resolveBestProductName(row.product_id, row.product_name, {});
       
       if (row.period === m1 || row.period === m2) {
         if (!productStats[row.product_id]) {
           productStats[row.product_id] = { name: prodName, v1: 0, v2: 0 };
+        } else if (isGenericProductLabel(productStats[row.product_id].name) && !isGenericProductLabel(prodName)) {
+          productStats[row.product_id].name = prodName;
         }
         if (row.period === m1) {
           v1 += val;
@@ -506,9 +546,13 @@ export const GapAnalysisPanel: React.FC<GapAnalysisPanelProps> = ({ kpiId, kpiLa
                   </div>
                   <div className="space-y-3">
                     {analysis.topGrowth.length > 0 ? analysis.topGrowth.map((prod, i) => (
-                      <div key={i} className="flex justify-between items-center bg-black/40 p-3 rounded-lg border border-green-900/20">
-                        <span className="text-xs font-bold text-zinc-300 truncate max-w-[150px]">{prod.name}</span>
-                        <span className="text-xs font-bold text-green-500 bg-green-950/40 px-2 py-1 rounded">+{formatVal(prod.diff)}</span>
+                      <div key={i} className="flex justify-between items-center gap-3 bg-black/40 p-3 rounded-lg border border-green-900/20">
+                        <span className="text-xs font-bold text-zinc-200 flex-1 min-w-0 leading-snug break-words" title={prod.name}>
+                          {prod.name}
+                        </span>
+                        <span className="text-xs font-bold text-green-500 bg-green-950/40 px-2.5 py-1 rounded shrink-0">
+                          +{formatVal(prod.diff)}
+                        </span>
                       </div>
                     )) : (
                       <p className="text-xs text-zinc-500 italic">No hubo productos con crecimiento.</p>
@@ -524,9 +568,13 @@ export const GapAnalysisPanel: React.FC<GapAnalysisPanelProps> = ({ kpiId, kpiLa
                   </div>
                   <div className="space-y-3">
                     {analysis.topDecline.length > 0 ? analysis.topDecline.map((prod, i) => (
-                      <div key={i} className="flex justify-between items-center bg-black/40 p-3 rounded-lg border border-red-900/20">
-                        <span className="text-xs font-bold text-zinc-300 truncate max-w-[150px]">{prod.name}</span>
-                        <span className="text-xs font-bold text-red-500 bg-red-950/40 px-2 py-1 rounded">-{formatVal(Math.abs(prod.diff))}</span>
+                      <div key={i} className="flex justify-between items-center gap-3 bg-black/40 p-3 rounded-lg border border-red-900/20">
+                        <span className="text-xs font-bold text-zinc-200 flex-1 min-w-0 leading-snug break-words" title={prod.name}>
+                          {prod.name}
+                        </span>
+                        <span className="text-xs font-bold text-red-500 bg-red-950/40 px-2.5 py-1 rounded shrink-0">
+                          -{formatVal(Math.abs(prod.diff))}
+                        </span>
                       </div>
                     )) : (
                       <p className="text-xs text-zinc-500 italic">No hubo productos con caída.</p>

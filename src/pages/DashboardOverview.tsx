@@ -1,6 +1,11 @@
 import React, { useState } from 'react';
 import { Card, CardContent } from '../components/ui/card';
 import { GapAnalysisPanel } from '../components/dashboard/GapAnalysisPanel';
+import {
+  PRODUCT_CATALOG_BY_SKU,
+  isGenericProductLabel,
+  resolveCatalogProductName,
+} from '../data/productCatalog';
 import { supabase } from '../lib/supabase';
 import { 
   DollarSign, 
@@ -240,7 +245,12 @@ export const DashboardOverview: React.FC = () => {
       const cached = localStorage.getItem('app_historical_sales_cache_v4');
       if (cached) {
         const parsed = JSON.parse(cached);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed.map((p: any) => ({
+            ...p,
+            baseName: resolveCatalogProductName(p.idArt, p.baseName),
+          }));
+        }
       }
     } catch {
       // ignore
@@ -429,7 +439,7 @@ export const DashboardOverview: React.FC = () => {
                       const gDate = `${row.ano}-${(monthIndex + 1).toString().padStart(2, '0')}`;
                       return {
                           idArt: String(row.id_articulo),
-                          baseName: row.articulo?.trim() || `Product ${row.id_articulo}`,
+                          baseName: resolveCatalogProductName(row.id_articulo, row.articulo),
                           facturado: Number(row.monto) || 0,
                           montoFA: Number(row.montoFA) || Number(row.monto) || 0,
                           montoDV: Number(row.montoDV) || 0,
@@ -505,8 +515,23 @@ export const DashboardOverview: React.FC = () => {
 
       const result = Papa.parse(text, { header: true, skipEmptyLines: true });
       
-      // Fetch product mapping first
-      let productMap = new Map<string, string>();
+      // Fetch product mapping first (including full 332-SKU catalog & cached historical names)
+      let productMap = new Map<string, string>(Object.entries(PRODUCT_CATALOG_BY_SKU));
+      try {
+        const cachedMap = localStorage.getItem('app_product_map_cache');
+        if (cachedMap) {
+          const parsedCache = JSON.parse(cachedMap);
+          if (parsedCache && typeof parsedCache === 'object') {
+            Object.entries(parsedCache).forEach(([k, v]) => {
+              const val = String(v || '').trim();
+              if (k && val && !isGenericProductLabel(val)) {
+                productMap.set(k, val);
+                productMap.set(k.replace(/^0+/, ''), val);
+              }
+            });
+          }
+        }
+      } catch {}
       try {
         let pText = '';
         const pRes = await fetch(`/api/sheets?sheet=Productos${forceRefresh ? '&refresh=true' : ''}`);
@@ -524,6 +549,7 @@ export const DashboardOverview: React.FC = () => {
                 name = name.replace(/^["']|["']$/g, '').trim();
                 if (cod && name) {
                     productMap.set(cod, name);
+                    productMap.set(cod.replace(/^0+/, ''), name);
                 }
             });
         }
@@ -653,7 +679,7 @@ export const DashboardOverview: React.FC = () => {
 
         const pArr = Array.from(prodAgg.values())
           .map((p) => {
-            const baseName = productMap.get(p.idArt) || productMap.get(p.idArt.replace(/^0+/, '')) || `Producto ${p.idArt}`;
+            const baseName = resolveCatalogProductName(p.idArt, undefined, productMap);
             return {
                 idArt: p.idArt,
                 baseName,

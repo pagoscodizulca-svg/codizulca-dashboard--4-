@@ -5561,7 +5561,26 @@ Responde con un JSON estructurado con:
         throw new Error(`Google Sheets responded with status ${response.status}`);
       }
 
-      const csvText = await response.text();
+      let csvText = await response.text();
+      if (sheetName.toLowerCase() === 'productos' && Array.isArray(historicalAllCache) && historicalAllCache.length > 0) {
+        const extraMap = new Map<string, string>();
+        for (const r of historicalAllCache) {
+          const id = String(r.id_articulo || '').trim();
+          const name = String(r.articulo || '').replace(/"/g, '').trim();
+          if (id && name && !/^(Prod\s|Producto\s|ART[IÍ]CULO\s*#)/i.test(name)) {
+            extraMap.set(id, name);
+          }
+        }
+        const extraLines: string[] = [];
+        for (const [id, name] of extraMap.entries()) {
+          if (!csvText.includes(`"${id}",`)) {
+            extraLines.push(`"${id}","${name}","GENERAL"`);
+          }
+        }
+        if (extraLines.length > 0) {
+          csvText = csvText.trimEnd() + '\n' + extraLines.join('\n') + '\n';
+        }
+      }
       sheetCache.set(cacheKey, { data: csvText, timestamp: now });
 
       res.setHeader('Content-Type', 'text/csv; charset=utf-8');
