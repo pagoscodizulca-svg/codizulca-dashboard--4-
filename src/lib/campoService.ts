@@ -321,8 +321,8 @@ export function addCustomStoreToCatalog(storeName: string): string[] {
 }
 
 // Tasa Oficial BCV de Referencia (Actualizada en vivo desde BCV / DolarAPI; respaldo vigente BCV)
-export const OFFICIAL_BCV_RATE = 886.23;
-const BCV_RATE_STORAGE_KEY = 'codizulca_bcv_rate_v2';
+export const OFFICIAL_BCV_RATE = 887.30;
+const BCV_RATE_STORAGE_KEY = 'codizulca_bcv_rate_v3';
 
 export function getCurrentBcvRate(): number {
   try {

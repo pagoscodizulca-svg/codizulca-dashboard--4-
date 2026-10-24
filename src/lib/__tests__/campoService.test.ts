@@ -425,26 +425,26 @@ describe('campoService - Offline-First & Sync Test Suite', () => {
       expect(Number.isNaN(tsDmyOlder)).toBe(false);
     });
 
-    it('utiliza la tasa oficial vigente del BCV (886.23 Bs/$) y corrige cualquier registro con tasa antigua (36.85)', () => {
-      expect(OFFICIAL_BCV_RATE).toBe(886.23);
-      expect(getCurrentBcvRate()).toBe(886.23);
+    it('utiliza la tasa oficial vigente del BCV (887.30 Bs/$) y corrige cualquier registro con tasa antigua (36.85)', () => {
+      expect(OFFICIAL_BCV_RATE).toBe(887.30);
+      expect(getCurrentBcvRate()).toBe(887.30);
 
-      // Ejemplo real: Azúcar Vencampo 1kg a $1.20 USD -> Bs. 1,063.48 (no Bs. 44.22)
+      // Ejemplo real: Leche Vencampo 500gr a $5.79 USD -> Bs. 5,137.47 (no Bs. 974.85)
       const mapped = mapSupabasePriceRowToPayload({
         id: '8f14e45f-ceea-467a-a13c-999999999999',
-        date: '2026-10-23T12:00:00.000Z',
-        store: 'COMERCIAL HERMANOS MORILLO',
+        date: '2026-10-24T15:00:00.000Z',
+        store: 'FARMAK',
         promoter: 'TANIA CARDENAS',
-        productName: 'Azúcar Vencampo 1kg',
-        ownPriceUsd: 1.2,
-        ownPriceBs: 44.22,
+        productName: 'Leche Vencampo 500gr',
+        ownPriceUsd: 5.79,
+        ownPriceBs: 974.85,
         bcvRate: 36.85,
-        competitors: [{ name: 'Plumrose', priceUsd: 1.19, priceBs: 43.85, diffPercent: -0.8 }]
+        competitors: [{ name: 'Plumrose', priceUsd: 5.95, priceBs: 219.26, diffPercent: 2.8 }]
       });
 
-      expect(mapped.bcvRate).toBe(886.23);
-      expect(mapped.ownPriceBs).toBe(1063.48);
-      expect(mapped.competitors[0].priceBs).toBe(1054.61);
+      expect(mapped.bcvRate).toBe(887.30);
+      expect(mapped.ownPriceBs).toBe(5137.47);
+      expect(mapped.competitors[0].priceBs).toBe(5279.43);
     });
   });
 });

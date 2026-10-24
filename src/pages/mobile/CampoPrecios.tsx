@@ -86,14 +86,30 @@ export const CampoPrecios: React.FC<{ activePromoterName?: string }> = ({
   const [isOfflineSaved, setIsOfflineSaved] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
-  // Al cambiar producto, actualiza precio sugerido
+  // Al cambiar producto, actualiza precio sugerido y referencias base de competidores
   const handleProductChange = (prodId: string) => {
     const prod = CODIZULCA_PRODUCTS.find((p) => p.id === prodId) || CODIZULCA_PRODUCTS[0];
+    const prevDefault = selectedProduct?.defaultPriceUsd || 0;
     setSelectedProduct(prod);
     setOwnPriceUsd(prod.defaultPriceUsd);
+    setCompetitors((prev) =>
+      prev.map((c, idx) => {
+        const expectedPrev =
+          idx === 0
+            ? Number((prevDefault * 1.08).toFixed(2))
+            : idx === 1
+            ? Number((prevDefault * 0.95).toFixed(2))
+            : prevDefault;
+        if (prevDefault > 0 && Math.abs(c.priceUsd - expectedPrev) <= 0.05) {
+          const factor = idx === 0 ? 1.08 : idx === 1 ? 0.95 : 1;
+          return { ...c, priceUsd: Number((prod.defaultPriceUsd * factor).toFixed(2)) };
+        }
+        return c;
+      })
+    );
   };
 
-  const ownPriceBs = Number((ownPriceUsd * bcvRate).toFixed(2));
+  const ownPriceBs = Number(((Number(ownPriceUsd) || 0) * (Number(bcvRate) || OFFICIAL_BCV_RATE)).toFixed(2));
 
   // Manejo de competidores
   const addCompetitor = () => {
@@ -197,7 +213,7 @@ export const CampoPrecios: React.FC<{ activePromoterName?: string }> = ({
   };
 
   return (
-    <div className="space-y-4 animate-in fade-in duration-300">
+    <div translate="no" className="notranslate space-y-4 animate-in fade-in duration-300">
       
       {/* Encabezado */}
       <div className="bg-[#0d0d0d] border border-neutral-800 rounded-2xl p-4 shadow-xl">
@@ -215,8 +231,8 @@ export const CampoPrecios: React.FC<{ activePromoterName?: string }> = ({
               </p>
             </div>
           </div>
-          <span className="px-2 py-0.5 rounded-full bg-neutral-900 border border-neutral-700 text-neutral-300 text-[10px] font-mono font-bold">
-            BCV: {bcvRate} Bs/$
+          <span className="notranslate px-2 py-0.5 rounded-full bg-neutral-900 border border-neutral-700 text-neutral-300 text-[10px] font-mono font-bold">
+            {`BCV: ${bcvRate.toFixed(2)} Bs/$`}
           </span>
         </div>
 
@@ -307,9 +323,16 @@ export const CampoPrecios: React.FC<{ activePromoterName?: string }> = ({
                 <label className="text-[9px] font-bold uppercase tracking-wider text-neutral-400 block mb-1">
                   Equivalente en Bs.:
                 </label>
-                <div className="w-full bg-[#171717] border border-neutral-800 rounded-xl px-3 py-2 text-xs text-emerald-400 font-mono font-bold flex items-center justify-between">
-                  <span>Bs. {ownPriceBs}</span>
-                  <span className="text-[9px] text-neutral-500 font-normal">BCV</span>
+                <div className="relative w-full bg-[#171717] border border-neutral-800 rounded-xl px-3 py-2 flex items-center justify-between">
+                  <input
+                    type="text"
+                    readOnly
+                    tabIndex={-1}
+                    aria-label="Equivalente en bolívares BCV"
+                    value={`Bs. ${ownPriceBs.toFixed(2)}`}
+                    className="notranslate w-full bg-transparent text-xs text-emerald-400 font-mono font-bold focus:outline-none pointer-events-none"
+                  />
+                  <span className="notranslate text-[9px] text-neutral-500 font-normal shrink-0 ml-1">BCV</span>
                 </div>
               </div>
             </div>
@@ -404,9 +427,13 @@ export const CampoPrecios: React.FC<{ activePromoterName?: string }> = ({
                       </div>
                       <div>
                         <span className="text-[9px] text-neutral-500 block">Equivalente Bs:</span>
-                        <div className="bg-neutral-900/60 border border-neutral-800/80 rounded-lg px-2 py-1 text-xs text-neutral-300 font-mono">
-                          Bs. {compBs}
-                        </div>
+                        <input
+                          type="text"
+                          readOnly
+                          tabIndex={-1}
+                          value={`Bs. ${compBs.toFixed(2)}`}
+                          className="notranslate w-full bg-neutral-900/60 border border-neutral-800/80 rounded-lg px-2 py-1 text-xs text-neutral-300 font-mono focus:outline-none pointer-events-none"
+                        />
                       </div>
                     </div>
                   </div>

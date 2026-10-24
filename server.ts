@@ -3,6 +3,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 import path from 'path';
 import fs from 'fs';
+import https from 'https';
 import { GoogleGenAI, Type } from '@google/genai';
 import { createClient } from '@supabase/supabase-js';
 import Papa from 'papaparse';
@@ -5530,8 +5531,45 @@ Responde con un JSON estructurado con:
   });
 
 
-  // Official BCV Exchange Rate Endpoint (with 30-min cache and multi-source fallback)
+  // Official BCV Exchange Rate Endpoint (with 30-min cache and direct BCV + multi-source fallback)
   let bcvCache: { rate: number; exactRate: number; updatedAt: string; timestamp: number } | null = null;
+
+  const fetchDirectBcvWebsiteRate = (): Promise<number> =>
+    new Promise((resolve) => {
+      try {
+        const req = https.get(
+          'https://www.bcv.org.ve',
+          {
+            rejectUnauthorized: false,
+            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
+            timeout: 5500,
+          },
+          (resp) => {
+            let html = '';
+            resp.on('data', (chunk) => {
+              html += chunk;
+            });
+            resp.on('end', () => {
+              const m = html.match(/<span>\s*USD\s*<\/span>[\s\S]{0,400}?<strong[^>]*>\s*([0-9]+,[0-9]+)\s*<\/strong>/i);
+              if (m && m[1]) {
+                const parsed = parseFloat(m[1].replace(',', '.'));
+                if (!Number.isNaN(parsed) && parsed > 50) {
+                  return resolve(parsed);
+                }
+              }
+              resolve(0);
+            });
+          }
+        );
+        req.on('error', () => resolve(0));
+        req.on('timeout', () => {
+          req.destroy();
+          resolve(0);
+        });
+      } catch {
+        resolve(0);
+      }
+    });
 
   app.get('/api/bcv-rate', async (req, res) => {
     const forceRefresh = req.query.refresh === 'true';
@@ -5543,27 +5581,35 @@ Responde con un JSON estructurado con:
     let exactRate = 0;
     let updatedAt = new Date().toISOString();
 
-    // 1. Primary source: ve.dolarapi.com (Official BCV USD rate)
+    // 1. Primary source: Direct Banco Central de Venezuela (bcv.org.ve)
+    try {
+      const bcvDirect = await fetchDirectBcvWebsiteRate();
+      if (bcvDirect > 50) {
+        exactRate = bcvDirect;
+      }
+    } catch {}
+
+    // 2. Secondary source: ve.dolarapi.com (Official BCV USD rate)
     try {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 6000);
+      const timeout = setTimeout(() => controller.abort(), 5000);
       const r1 = await fetch('https://ve.dolarapi.com/v1/dolares/oficial', { signal: controller.signal });
       clearTimeout(timeout);
       if (r1.ok) {
         const j1 = (await r1.json()) as any;
         const val = Number(j1?.promedio);
-        if (val > 50) {
+        if (val > 50 && val > exactRate) {
           exactRate = val;
           if (j1?.fechaActualizacion) updatedAt = String(j1.fechaActualizacion);
         }
       }
     } catch {}
 
-    // 2. Fallback: open.er-api.com (VES official rate)
+    // 3. Fallback: open.er-api.com (VES official rate)
     if (!exactRate) {
       try {
         const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 6000);
+        const timeout = setTimeout(() => controller.abort(), 5000);
         const r2 = await fetch('https://open.er-api.com/v6/latest/USD', { signal: controller.signal });
         clearTimeout(timeout);
         if (r2.ok) {
@@ -5577,7 +5623,7 @@ Responde con un JSON estructurado con:
     }
 
     if (!exactRate) {
-      exactRate = bcvCache?.exactRate || 886.2271;
+      exactRate = bcvCache?.exactRate || 887.302;
     }
 
     const rate = Number(exactRate.toFixed(2));
