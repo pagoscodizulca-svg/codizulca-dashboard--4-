@@ -10,12 +10,20 @@ import { AuthGuard } from './components/layout/AuthGuard';
 import { MainLayout } from './components/layout/MainLayout';
 import { Login } from './pages/Login';
 import { CampoLayout } from './components/layout/CampoLayout';
+import { PortalLogin } from './pages/mobile/PortalLogin';
+import { CampoRuta } from './pages/mobile/CampoRuta';
+import { CampoAsistencia } from './pages/mobile/CampoAsistencia';
+import { CampoEncuestas } from './pages/mobile/CampoEncuestas';
+import { CampoInventario } from './pages/mobile/CampoInventario';
+import { CampoPrecios } from './pages/mobile/CampoPrecios';
+import { CampoMerchandising } from './pages/mobile/CampoMerchandising';
+import { PortalPerfil } from './pages/mobile/PortalPerfil';
 
 function lazyWithRetry<T extends React.ComponentType<any>>(
   factory: () => Promise<{ default: T }>
 ) {
   return lazy(async () => {
-    const reloadKey = 'codizulca_chunk_retry_reload';
+    const reloadKey = 'codizulca_chunk_retry_reload_ts';
     try {
       const mod = await factory();
       try {
@@ -23,13 +31,16 @@ function lazyWithRetry<T extends React.ComponentType<any>>(
       } catch {}
       return mod;
     } catch (error) {
-      let hasReloaded = false;
+      let shouldReload = true;
       try {
-        hasReloaded = Boolean(sessionStorage.getItem(reloadKey));
+        const lastReloadTs = Number(sessionStorage.getItem(reloadKey) || '0');
+        if (lastReloadTs > 0 && Date.now() - lastReloadTs < 15000) {
+          shouldReload = false;
+        }
       } catch {}
-      if (!hasReloaded) {
+      if (shouldReload) {
         try {
-          sessionStorage.setItem(reloadKey, 'true');
+          sessionStorage.setItem(reloadKey, String(Date.now()));
           if ('caches' in window) {
             await caches.keys().then((names) => Promise.all(names.map((n) => caches.delete(n))));
           }
@@ -40,20 +51,12 @@ function lazyWithRetry<T extends React.ComponentType<any>>(
           }
         } catch {}
         window.location.reload();
+        return await new Promise<{ default: T }>(() => {});
       }
       throw error;
     }
   });
 }
-
-const PortalLogin = lazyWithRetry(() => import('./pages/mobile/PortalLogin').then(m => ({ default: m.PortalLogin })));
-const CampoRuta = lazyWithRetry(() => import('./pages/mobile/CampoRuta').then(m => ({ default: m.CampoRuta })));
-const CampoAsistencia = lazyWithRetry(() => import('./pages/mobile/CampoAsistencia').then(m => ({ default: m.CampoAsistencia })));
-const CampoEncuestas = lazyWithRetry(() => import('./pages/mobile/CampoEncuestas').then(m => ({ default: m.CampoEncuestas })));
-const CampoInventario = lazyWithRetry(() => import('./pages/mobile/CampoInventario').then(m => ({ default: m.CampoInventario })));
-const CampoPrecios = lazyWithRetry(() => import('./pages/mobile/CampoPrecios').then(m => ({ default: m.CampoPrecios })));
-const CampoMerchandising = lazyWithRetry(() => import('./pages/mobile/CampoMerchandising').then(m => ({ default: m.CampoMerchandising })));
-const PortalPerfil = lazyWithRetry(() => import('./pages/mobile/PortalPerfil').then(m => ({ default: m.PortalPerfil })));
 
 const DashboardOverview = lazyWithRetry(() => import('./pages/DashboardOverview').then(m => ({ default: m.DashboardOverview })));
 const Cuotas = lazyWithRetry(() => import('./pages/Cuotas').then(m => ({ default: m.Cuotas })));

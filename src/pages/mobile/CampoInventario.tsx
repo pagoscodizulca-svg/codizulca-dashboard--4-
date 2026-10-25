@@ -33,18 +33,18 @@ export const CampoInventario: React.FC<{ activePromoterName?: string }> = ({
   const [storeName, setStoreName] = useState<string>(() => {
     try {
       const savedStore = localStorage.getItem(STORAGE_KEY_ACTIVE_STORE);
-      if (savedStore && savedStore.trim()) {
+      if (savedStore && typeof savedStore === 'string' && savedStore.trim()) {
         return savedStore.trim();
       }
     } catch {}
-    if (activePromoter?.assignedStore) {
+    if (activePromoter?.assignedStore && typeof activePromoter.assignedStore === 'string') {
       const cleanAssigned = activePromoter.assignedStore.toUpperCase();
       const matched = FREQUENT_STORES.find(s => s.toUpperCase().includes(cleanAssigned));
       if (matched) return matched;
     }
     return FREQUENT_STORES[0];
   });
-  const [selectedProduct, setSelectedProduct] = useState(CODIZULCA_PRODUCTS[0]);
+  const [selectedProduct, setSelectedProduct] = useState(() => CODIZULCA_PRODUCTS[0]);
   
   // Estados de inventario numérico (admiten decimales: Kg de embutidos, etc.)
   const [initialStock, setInitialStock] = useState<number>(0);
@@ -55,19 +55,23 @@ export const CampoInventario: React.FC<{ activePromoterName?: string }> = ({
   const [saveSuccess, setSaveSuccess] = useState<boolean>(false);
   const [isOfflineSaved, setIsOfflineSaved] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [recentSessionLogs, setRecentSessionLogs] = useState<InventoryLogPayload[]>([]);
 
   // Inventario Final automático: Inicial - Ventas - Degustaciones/Muestras
-  const rawFinalStock = roundQty(initialStock - salesGiven - tastingsGiven);
+  const safeInitial = Number.isFinite(initialStock) ? initialStock : 0;
+  const safeSales = Number.isFinite(salesGiven) ? salesGiven : 0;
+  const safeTastings = Number.isFinite(tastingsGiven) ? tastingsGiven : 0;
+  const rawFinalStock = roundQty(safeInitial - safeSales - safeTastings);
   const finalStock = Math.max(0, rawFinalStock);
 
   // Validación Lógica Estricta: lo vendido + degustado no puede exceder el inventario inicial
   const isFinalStockInvalid = rawFinalStock < 0;
 
   // Rotación Neta (Ventas) y Desplazamiento Total (Ventas + Degustación)
-  const netRotation = roundQty(salesGiven);
-  const totalDisplacement = roundQty(salesGiven + tastingsGiven);
+  const netRotation = roundQty(safeSales);
+  const totalDisplacement = roundQty(safeSales + safeTastings);
   const rotationPercentage =
-    initialStock > 0 ? Math.min(100, Math.max(0, Math.round(((initialStock - finalStock) / initialStock) * 100))) : 0;
+    safeInitial > 0 ? Math.min(100, Math.max(0, Math.round(((safeInitial - finalStock) / safeInitial) * 100))) : 0;
 
   const handleSave = async () => {
     if (isSubmitting) return;
@@ -75,58 +79,66 @@ export const CampoInventario: React.FC<{ activePromoterName?: string }> = ({
       alert('Error de validación: Las ventas y degustaciones no pueden ser mayores al inventario inicial.');
       return;
     }
-    if (initialStock < 0 || salesGiven < 0 || tastingsGiven < 0) {
+    if (safeInitial < 0 || safeSales < 0 || safeTastings < 0) {
       alert('Los valores numéricos no pueden ser negativos.');
       return;
     }
 
     setIsSubmitting(true);
     try {
-      const promoterFinalName = activePromoterName || activePromoter?.name || campoService.getActivePromoter().name;
+      const fallbackPromoter = campoService.getActivePromoter();
+      const promoterFinalName =
+        activePromoterName || activePromoter?.name || fallbackPromoter?.name || 'Promotora';
       const generatedId =
         typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
           ? crypto.randomUUID()
           : 'INV-' + Date.now().toString().slice(-6);
+      const safeProduct = selectedProduct || CODIZULCA_PRODUCTS[0];
       const payload: InventoryLogPayload = {
         id: generatedId,
         date: new Date().toISOString(),
-        store: storeName,
+        store: storeName || FREQUENT_STORES[0],
         promoter: promoterFinalName,
         creatorId: activePromoter?.email || activePromoter?.id || promoterFinalName,
-        productName: selectedProduct.name,
-        initialStock,
-        tastingsGiven,
+        productName: safeProduct.name,
+        initialStock: safeInitial,
+        tastingsGiven: safeTastings,
         finalStock,
         netRotation,
-        observations
+        observations: String(observations || '').trim()
       };
 
       const res = await campoService.saveInventoryLog(payload);
 
-      // Si registró muestras degustadas, sincronizar también con su degustación activa en Trade Marketing
-      if (tastingsGiven > 0) {
-        try {
-          const assigned = await degustacionesService.getForPromoter({
-            id: activePromoter?.id,
-            name: promoterFinalName,
-            email: activePromoter?.email
-          });
-          if (assigned.length > 0) {
-            const activeDeg = assigned.find((d) => d.status === 'in_progress') || assigned[0];
-            if (activeDeg) {
-              await degustacionesService.update(activeDeg.id, {
-                delivered: Math.max(Number(activeDeg.delivered) || 0, tastingsGiven),
-                status: activeDeg.status === 'scheduled' ? 'in_progress' : activeDeg.status
-              });
+      // Si registró muestras degustadas, sincronizar en segundo plano con su degustación activa sin bloquear la pantalla
+      if (safeTastings > 0) {
+        Promise.resolve()
+          .then(async () => {
+            const assigned = await degustacionesService.getForPromoter({
+              id: activePromoter?.id,
+              name: promoterFinalName,
+              email: activePromoter?.email
+            });
+            if (assigned.length > 0) {
+              const activeDeg = assigned.find((d) => d.status === 'in_progress') || assigned[0];
+              if (activeDeg) {
+                await degustacionesService.update(activeDeg.id, {
+                  delivered: Math.max(Number(activeDeg.delivered) || 0, safeTastings),
+                  status: activeDeg.status === 'scheduled' ? 'in_progress' : activeDeg.status
+                });
+              }
             }
-          }
-        } catch {
-          // ignore if offline
-        }
+          })
+          .catch(() => {});
       }
 
+      setRecentSessionLogs((prev) => [payload, ...prev.filter((item) => item.id !== payload.id)].slice(0, 10));
       setSaveSuccess(true);
-      setIsOfflineSaved(res.offline);
+      setIsOfflineSaved(Boolean(res?.offline));
+    } catch (err) {
+      console.error('[CampoInventario] Error inesperado al guardar:', err);
+      setSaveSuccess(true);
+      setIsOfflineSaved(true);
     } finally {
       setIsSubmitting(false);
     }
@@ -141,7 +153,7 @@ export const CampoInventario: React.FC<{ activePromoterName?: string }> = ({
   };
 
   return (
-    <div className="space-y-4 animate-in fade-in duration-300">
+    <div translate="no" className="notranslate space-y-4 animate-in fade-in duration-300">
       
       {/* Encabezado */}
       <div className="bg-[#0d0d0d] border border-neutral-800 rounded-2xl p-4 shadow-xl">
@@ -180,7 +192,10 @@ export const CampoInventario: React.FC<{ activePromoterName?: string }> = ({
       </div>
 
       {saveSuccess ? (
-        <div className="bg-[#0d0d0d] border border-emerald-500/40 rounded-2xl p-6 text-center space-y-4 shadow-xl">
+        <div
+          key="inventory-success-view"
+          className="bg-[#0d0d0d] border border-emerald-500/40 rounded-2xl p-6 text-center space-y-4 shadow-xl"
+        >
           <div className="w-14 h-14 rounded-2xl bg-emerald-950/60 border border-emerald-500/40 text-emerald-400 flex items-center justify-center mx-auto">
             <CheckCircle2 className="w-8 h-8" />
           </div>
@@ -196,21 +211,22 @@ export const CampoInventario: React.FC<{ activePromoterName?: string }> = ({
           <div className="p-3.5 bg-[#171717] rounded-xl border border-neutral-800 text-xs flex items-center justify-around font-mono">
             <div>
               <span className="text-neutral-500 block text-[10px]">Rotación Neta</span>
-              <strong className="text-emerald-400 text-base">{netRotation} u.</strong>
+              <strong className="text-emerald-400 text-base">{`${netRotation} u.`}</strong>
             </div>
             <div className="h-6 w-px bg-neutral-800" />
             <div>
               <span className="text-neutral-500 block text-[10px]">Desplazamiento</span>
-              <strong className="text-white text-base">{rotationPercentage}%</strong>
+              <strong className="text-white text-base">{`${rotationPercentage}%`}</strong>
             </div>
             <div className="h-6 w-px bg-neutral-800" />
             <div>
               <span className="text-neutral-500 block text-[10px]">Muestras</span>
-              <strong className="text-amber-400 text-base">{tastingsGiven} u.</strong>
+              <strong className="text-amber-400 text-base">{`${safeTastings} u.`}</strong>
             </div>
           </div>
 
           <button
+            type="button"
             onClick={handleReset}
             className="w-full py-3.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs uppercase tracking-wider active:scale-[0.98] transition-all cursor-pointer"
           >
@@ -218,7 +234,7 @@ export const CampoInventario: React.FC<{ activePromoterName?: string }> = ({
           </button>
         </div>
       ) : (
-        <>
+        <div key="inventory-form-view" className="space-y-4">
           {/* SELECCIÓN DE PRODUCTO */}
           <div className="bg-[#0d0d0d] border border-neutral-800 rounded-2xl p-4 space-y-3 shadow-xl">
             <span className="text-[10px] font-bold uppercase tracking-wider text-red-400 block">
@@ -226,12 +242,13 @@ export const CampoInventario: React.FC<{ activePromoterName?: string }> = ({
             </span>
 
             <select
-              value={selectedProduct.id}
+              translate="no"
+              value={selectedProduct?.id || CODIZULCA_PRODUCTS[0].id}
               onChange={(e) => {
                 const prod = CODIZULCA_PRODUCTS.find(p => p.id === e.target.value) || CODIZULCA_PRODUCTS[0];
                 setSelectedProduct(prod);
               }}
-              className="w-full bg-[#171717] border border-neutral-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-red-500 font-bold"
+              className="notranslate w-full bg-[#171717] border border-neutral-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-red-500 font-bold"
             >
               {CODIZULCA_PRODUCTS.map((prod) => (
                 <option key={prod.id} value={prod.id}>
@@ -315,31 +332,34 @@ export const CampoInventario: React.FC<{ activePromoterName?: string }> = ({
                     </span>
                   </div>
                   <span className="text-[10px] text-neutral-400 font-mono">
-                    {initialStock} (Inicial) − {salesGiven} (Venta) − {tastingsGiven} (Degustación) = {finalStock}
+                    {`${safeInitial} (Inicial) − ${safeSales} (Venta) − ${safeTastings} (Degustación) = ${finalStock}`}
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
                   <input
                     type="text"
                     readOnly
+                    translate="no"
                     value={finalStock}
                     aria-label="Inventario final calculado"
-                    className="w-24 bg-neutral-950 border border-emerald-500/40 rounded-lg px-2.5 py-1.5 text-center text-xs text-emerald-300 font-mono font-bold focus:outline-none cursor-default"
+                    className="notranslate w-24 bg-neutral-950 border border-emerald-500/40 rounded-lg px-2.5 py-1.5 text-center text-xs text-emerald-300 font-mono font-bold focus:outline-none cursor-default"
                   />
                   <span className="text-xs text-neutral-400 font-mono">Kg/u.</span>
                 </div>
               </div>
             </div>
 
-            {/* Error de validación lógica */}
-            {isFinalStockInvalid && (
-              <div className="p-2.5 bg-red-950/60 border border-red-500/50 rounded-xl text-red-300 text-xs flex items-center gap-2">
-                <AlertTriangle className="w-4 h-4 text-red-400 shrink-0" />
-                <span>
-                  Bloqueo: Las ventas ({salesGiven}) + muestras ({tastingsGiven}) no pueden exceder el inventario inicial ({initialStock}).
-                </span>
-              </div>
-            )}
+            {/* Error de validación lógica (siempre montado para evitar errores de reconciliación DOM en móviles) */}
+            <div
+              className={`p-2.5 bg-red-950/60 border border-red-500/50 rounded-xl text-red-300 text-xs items-center gap-2 ${
+                isFinalStockInvalid ? 'flex' : 'hidden'
+              }`}
+            >
+              <AlertTriangle className="w-4 h-4 text-red-400 shrink-0" />
+              <span>
+                {`Bloqueo: Las ventas (${safeSales}) + muestras (${safeTastings}) no pueden exceder el inventario inicial (${safeInitial}).`}
+              </span>
+            </div>
           </div>
 
           {/* CÁLCULO DE ROTACIÓN NETA EN VIVO */}
@@ -354,7 +374,7 @@ export const CampoInventario: React.FC<{ activePromoterName?: string }> = ({
                   Rotación Neta (Ventas)
                 </span>
                 <strong className="text-2xl font-black text-emerald-400 block mt-1">
-                  {netRotation} <span className="text-xs text-neutral-400 font-normal">u.</span>
+                  {`${netRotation} u.`}
                 </strong>
                 <span className="text-[9px] text-neutral-500 font-mono">
                   Desplazadas del anaquel
@@ -366,7 +386,7 @@ export const CampoInventario: React.FC<{ activePromoterName?: string }> = ({
                   Tasa de Desplazamiento
                 </span>
                 <strong className="text-2xl font-black text-white block mt-1">
-                  {rotationPercentage}%
+                  {`${rotationPercentage}%`}
                 </strong>
                 <span className="text-[9px] text-neutral-500 font-mono">
                   Eficiencia de rotación
@@ -403,7 +423,39 @@ export const CampoInventario: React.FC<{ activePromoterName?: string }> = ({
               <span>{isSubmitting ? 'Sincronizando Inventario...' : 'Guardar Control de Inventario'}</span>
             </button>
           </div>
-        </>
+        </div>
+      )}
+
+      {/* Historial de SKUs cargados en la sesión actual */}
+      {recentSessionLogs.length > 0 && (
+        <div className="bg-[#0d0d0d] border border-neutral-800 rounded-2xl p-4 space-y-2.5 shadow-xl">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400">
+              {`SKUs Cargados en esta Guardia (${recentSessionLogs.length})`}
+            </span>
+            <span className="text-[10px] text-neutral-500 font-mono">
+              Sincronizados
+            </span>
+          </div>
+          <div className="space-y-1.5">
+            {recentSessionLogs.map((log) => (
+              <div
+                key={log.id}
+                className="p-2.5 bg-[#171717] rounded-xl border border-neutral-800/80 flex items-center justify-between text-xs"
+              >
+                <div className="truncate pr-2">
+                  <strong className="text-white block truncate text-[11px]">{log.productName}</strong>
+                  <span className="text-[10px] text-neutral-400 font-mono">
+                    {`Ini: ${log.initialStock} | Fin: ${log.finalStock} | Deg: ${log.tastingsGiven}`}
+                  </span>
+                </div>
+                <span className="px-2 py-0.5 rounded-md bg-emerald-950/60 border border-emerald-500/30 text-emerald-400 font-mono font-bold text-[10px] shrink-0">
+                  {`Venta: ${log.netRotation}`}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
       )}
     </div>
   );

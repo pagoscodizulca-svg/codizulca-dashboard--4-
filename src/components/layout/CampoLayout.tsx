@@ -25,8 +25,59 @@ import { matchPromoterName } from '../../lib/degustacionesService';
 import { trazabilidadService } from '../../lib/trazabilidadService';
 import { FueraDeHorarioScreen } from '../mobile/FueraDeHorarioScreen';
 
+class CampoSubViewErrorBoundary extends React.Component<
+  { resetKey: string; children: React.ReactNode },
+  { hasError: boolean }
+> {
+  constructor(props: { resetKey: string; children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidUpdate(prevProps: { resetKey: string }) {
+    if (prevProps.resetKey !== this.props.resetKey && this.state.hasError) {
+      this.setState({ hasError: false });
+    }
+  }
+
+  componentDidCatch(error: Error) {
+    console.error('[CampoSubViewErrorBoundary] Error capturado en vista móvil:', error);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="bg-[#0d0d0d] border border-red-500/40 rounded-2xl p-6 text-center space-y-4 shadow-xl">
+          <div className="w-12 h-12 rounded-2xl bg-red-950/60 border border-red-500/40 text-red-400 flex items-center justify-center mx-auto">
+            <AlertCircle className="w-6 h-6" />
+          </div>
+          <div>
+            <h3 className="text-sm font-black text-white">Vista reiniciada automáticamente</h3>
+            <p className="text-xs text-neutral-400 mt-1">
+              Se detectó una interrupción temporal en el navegador móvil. Tus datos guardados están seguros.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => this.setState({ hasError: false })}
+            className="w-full py-3 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs uppercase tracking-wider cursor-pointer"
+          >
+            Continuar Cargando
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 export const CampoLayout: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
 
   // Verificación de Autenticación de Promotora
@@ -228,7 +279,10 @@ export const CampoLayout: React.FC = () => {
   ];
 
   return (
-    <div className="min-h-[100dvh] bg-[#000000] text-white flex flex-col font-sans selection:bg-red-600 selection:text-white pb-20 pb-safe">
+    <div
+      translate="no"
+      className="notranslate min-h-[100dvh] bg-[#000000] text-white flex flex-col font-sans selection:bg-red-600 selection:text-white pb-20 pb-safe"
+    >
       
       {/* ========================================================================= */}
       {/* 2.A. BARRA SUPERIOR FIJA (STICKY HEADER)                                */}
@@ -419,7 +473,9 @@ export const CampoLayout: React.FC = () => {
       {/* CONTENEDOR DE FORMULARIOS Y CÁMARA (ANCHO MÁXIMO: 512PX EXACTO)         */}
       {/* ========================================================================= */}
       <main className="flex-1 w-full max-w-[512px] mx-auto p-3 sm:p-4">
-        <Outlet context={{ activePromoter, isOnline, pendingQueueCount }} />
+        <CampoSubViewErrorBoundary resetKey={location.pathname}>
+          <Outlet context={{ activePromoter, isOnline, pendingQueueCount }} />
+        </CampoSubViewErrorBoundary>
       </main>
     </div>
   );

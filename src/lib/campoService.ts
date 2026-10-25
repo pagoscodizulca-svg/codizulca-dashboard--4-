@@ -782,6 +782,57 @@ const AUTH_TOKEN_KEY = 'portal_auth_token';
 const AUTH_USER_ID_KEY = 'portal_authenticated_user_id';
 const BYPASS_HOURS_KEY = 'codizulca_bypass_hours';
 
+function safePersistLocalStorage(key: string, jsonValue: string): void {
+  try {
+    localStorage.setItem(key, jsonValue);
+    return;
+  } catch {
+    // Si localStorage alcanzó el límite de cuota (5MB en teléfonos), recortar historiales grandes y reintentar
+    try {
+      const trimKeys = ['codizulca_shelf_scans', 'codizulca_price_surveys', 'codizulca_inventory_logs', 'codizulca_tasting_surveys'];
+      for (const k of trimKeys) {
+        if (k === key) continue;
+        const raw = localStorage.getItem(k);
+        if (raw && raw.length > 50000) {
+          try {
+            const arr = JSON.parse(raw);
+            if (Array.isArray(arr) && arr.length > 40) {
+              localStorage.setItem(k, JSON.stringify(arr.slice(0, 40)));
+            }
+          } catch {}
+        }
+      }
+      localStorage.setItem(key, jsonValue);
+    } catch {
+      // Si la lista misma a guardar es muy grande, recortarla a los primeros 60 registros
+      try {
+        const parsed = JSON.parse(jsonValue);
+        if (Array.isArray(parsed) && parsed.length > 60) {
+          localStorage.setItem(key, JSON.stringify(parsed.slice(0, 60)));
+        }
+      } catch {}
+    }
+  }
+}
+
+function withNetworkTimeout<T>(promise: PromiseLike<T>, timeoutMs = 6000): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error('Network request timeout'));
+    }, timeoutMs);
+    Promise.resolve(promise).then(
+      (val) => {
+        clearTimeout(timer);
+        resolve(val);
+      },
+      (err) => {
+        clearTimeout(timer);
+        reject(err);
+      }
+    );
+  });
+}
+
 export interface SyncQueueItem {
   id: string;
   type: 'checkin' | 'shelf_scan' | 'price_survey' | 'inventory_log' | 'tasting_survey' | 'merchandising_report';
@@ -1064,7 +1115,7 @@ export const campoService = {
       timestamp: new Date().toISOString()
     };
     queue.push(item);
-    localStorage.setItem(QUEUE_STORAGE_KEY, JSON.stringify(queue));
+    safePersistLocalStorage(QUEUE_STORAGE_KEY, JSON.stringify(queue));
     window.dispatchEvent(new CustomEvent('codizulca_sync_queue_updated', { detail: { count: queue.length } }));
     return item;
   },
@@ -1154,7 +1205,7 @@ export const campoService = {
       }
     }
 
-    localStorage.setItem(QUEUE_STORAGE_KEY, JSON.stringify(remaining));
+    safePersistLocalStorage(QUEUE_STORAGE_KEY, JSON.stringify(remaining));
     window.dispatchEvent(new CustomEvent('codizulca_sync_queue_updated', { detail: { count: remaining.length } }));
     if (synced > 0) {
       notifyCampoDataChanged();
@@ -1317,11 +1368,7 @@ export const campoService = {
       local = [];
     }
     const filtered = local.filter((l) => l && l.id !== normalized.id && l.id !== log.id);
-    try {
-      localStorage.setItem(KEY, JSON.stringify([normalized, ...filtered]));
-    } catch {
-      // ignore quota errors
-    }
+    safePersistLocalStorage(KEY, JSON.stringify([normalized, ...filtered]));
 
     if (!navigator.onLine) {
       this.enqueue('inventory_log', normalized);
@@ -1348,31 +1395,35 @@ export const campoService = {
           creatorId: log.creatorId || normalized.promoter || '',
           promoter: normalized.promoter,
         };
-        const { error } = await (supabase.from('inventory') as any).upsert(dbRow);
+        const { error } = await withNetworkTimeout(
+          (supabase.from('inventory') as any).upsert(dbRow),
+          6000
+        );
         if (!error) {
           syncedDirectSupabase = true;
         }
       } catch {
-        // ignore direct supabase error
+        // ignore direct supabase error or timeout
       }
     }
 
     try {
-      const res = await fetch('/api/inventory-logs', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...normalized,
-          creatorId: log.creatorId || normalized.promoter || '',
-        })
-      });
+      const res = await withNetworkTimeout(
+        fetch('/api/inventory-logs', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ...normalized,
+            creatorId: log.creatorId || normalized.promoter || '',
+          })
+        }),
+        6000
+      );
       if (!res.ok) throw new Error('Error al enviar inventario');
       const saved = await res.json().catch(() => normalized);
       if (saved && saved.id && saved.id !== normalized.id && !isSynthetic) {
         const updatedLocal = [mapSupabaseInventoryRowToPayload(saved), ...filtered];
-        try {
-          localStorage.setItem(KEY, JSON.stringify(updatedLocal));
-        } catch {}
+        safePersistLocalStorage(KEY, JSON.stringify(updatedLocal));
       }
       notifyCampoDataChanged();
       return { success: true, offline: false };

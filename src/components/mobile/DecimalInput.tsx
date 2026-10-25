@@ -5,7 +5,7 @@ import React, { useEffect, useState } from 'react';
  * Retorna 0 si el texto está vacío o no es válido.
  */
 export const parseDecimal = (raw: string): number => {
-  const normalized = raw.replace(',', '.').trim();
+  const normalized = String(raw || '').replace(',', '.').trim();
   if (normalized === '' || normalized === '.') return 0;
   const parsed = parseFloat(normalized);
   return Number.isFinite(parsed) ? parsed : 0;
@@ -50,13 +50,14 @@ export const DecimalInput: React.FC<DecimalInputProps> = ({
       type="text"
       inputMode="decimal"
       autoComplete="off"
+      translate="no"
       aria-label={ariaLabel}
       readOnly={readOnly}
       placeholder={placeholder ?? '0'}
       value={text}
       onChange={(e) => {
         if (readOnly) return;
-        const cleaned = e.target.value.replace(/[^0-9.,]/g, '');
+        const cleaned = String(e.target.value || '').replace(/[^0-9.,]/g, '');
         // Permitir solo un separador decimal (coma o punto)
         const parts = cleaned.split(/[.,]/);
         const normalizedText =
@@ -64,7 +65,7 @@ export const DecimalInput: React.FC<DecimalInputProps> = ({
         setText(normalizedText);
         onValueChange(parseDecimal(normalizedText));
       }}
-      className={className}
+      className={`notranslate ${className || ''}`}
     />
   );
 };
