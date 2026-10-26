@@ -1438,6 +1438,37 @@ export const getWeekInfo = (dateStr: string): { weekNumber: number; weekLabel: s
   return { weekNumber: 3, weekLabel: 'Semana 3', rangeLabel: '12 Oct - 18 Oct 2026' };
 };
 
+// Verifica si un registro `DEG-deg-*` o `DEG-HIST-*` pertenece al historial (enviado antes del 26-10-2026 o con fecha pasada)
+const isHistoricalVendorDegustacion = (item: DegustacionItem): boolean => {
+  const idStr = String(item?.id || '').trim();
+  if (idStr.startsWith('DEG-HIST-')) return true;
+  if (!idStr.startsWith('DEG-deg-') && !idStr.startsWith('deg-')) return false;
+
+  if (isPastDegustacionDate(item.date)) return true;
+
+  const m = /(?:^|DEG-)deg-([a-z0-9]{7,10})-/i.exec(idStr);
+  if (m) {
+    const ts = parseInt(m[1], 36);
+    // 2026-10-26T00:00:00-04:00 = 2026-10-26T04:00:00.000Z (1793001600000 ms)
+    if (!isNaN(ts) && ts > 1700000000000 && ts < 1793001600000) {
+      return true;
+    }
+  }
+  return false;
+};
+
+const normalizeHistoricalDegustacionItem = (item: DegustacionItem): DegustacionItem => {
+  if (item.status === 'scheduled' && isHistoricalVendorDegustacion(item)) {
+    return {
+      ...item,
+      status: 'completed',
+      delivered: item.delivered > 0 ? item.delivered : (item.target || 150),
+      acceptanceRate: item.acceptanceRate > 0 ? item.acceptanceRate : 95
+    };
+  }
+  return item;
+};
+
 export const degustacionesService = {
   /**
    * Obtiene la lista completa de degustaciones sincronizada con el backend y localStorage
@@ -1479,7 +1510,7 @@ export const degustacionesService = {
                     promoterRole: loc.promoterRole || d.promoterRole
                   }
                 : d;
-            return enrichPromoterFields(mergedItem);
+            return enrichPromoterFields(normalizeHistoricalDegustacionItem(mergedItem));
           });
 
           if (typeof window !== 'undefined' && window.localStorage) {
@@ -1569,21 +1600,15 @@ export const degustacionesService = {
                   needsSave = true;
                 }
 
-                // Migración única solicitada: pasar únicamente las degustaciones con fecha pasada al Historial sin archivar solicitudes vigentes/futuras
+                // Asegurar que cualquier registro histórico (enviado antes de hoy o con fecha pasada) permanezca en Historial
+                const normalizedWorking = workingItems.map((item: DegustacionItem) => {
+                  const norm = normalizeHistoricalDegustacionItem(item);
+                  if (norm.status !== item.status) needsSave = true;
+                  return norm;
+                });
+                workingItems = normalizedWorking;
+
                 if (!localStorage.getItem(ARCHIVED_TO_HISTORY_KEY)) {
-                  workingItems = workingItems.map((item: DegustacionItem) =>
-                    typeof item.id === 'string' &&
-                    item.id.startsWith('DEG-deg-') &&
-                    item.status === 'scheduled' &&
-                    isPastDegustacionDate(item.date)
-                      ? {
-                          ...item,
-                          status: 'completed' as const,
-                          delivered: item.delivered > 0 ? item.delivered : (item.target || 150),
-                          acceptanceRate: item.acceptanceRate > 0 ? item.acceptanceRate : 95
-                        }
-                      : item
-                  );
                   localStorage.setItem(ARCHIVED_TO_HISTORY_KEY, 'true');
                   needsSave = true;
                 }
