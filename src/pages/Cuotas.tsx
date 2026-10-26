@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Papa from 'papaparse';
 import { MonthProgressBar, MainTab, ViewLevel } from '../components/cuotas/MonthProgressBar';
 import { RubrosActivationTable } from '../components/cuotas/RubrosActivationTable';
+import { ActivacionClientesSubmodule } from '../components/cuotas/ActivacionClientesSubmodule';
 import { MonthlyVolumeHistoryTable } from '../components/cuotas/MonthlyVolumeHistoryTable';
 import { SkuVolumeSubmodule } from '../components/cuotas/SkuVolumeSubmodule';
 import { ParetoSubmodule } from '../components/cuotas/ParetoSubmodule';
@@ -160,6 +161,12 @@ export const Cuotas: React.FC = () => {
           <ParetoSubmodule />
         ) : activeTab === 'volumen_sku' ? (
           <SkuVolumeSubmodule />
+        ) : activeTab === 'activacion_clientes' ? (
+          <ActivacionClientesSubmodule
+            viewLevel={activeView}
+            diasLaborables={diasLaborables}
+            diasTranscurridos={diasTranscurridos}
+          />
         ) : (
           <RegionalManagerAuditSubmodule
             activeTab={activeTab}
@@ -176,6 +183,15 @@ export const Cuotas: React.FC = () => {
             <RubrosActivationTable
               sellers={sellers}
               viewLevel={activeView}
+            />
+          )}
+
+          {/* PESTAÑA ACTIVACIÓN POR CLIENTES */}
+          {activeTab === 'activacion_clientes' && (
+            <ActivacionClientesSubmodule
+              viewLevel={activeView}
+              diasLaborables={diasLaborables}
+              diasTranscurridos={diasTranscurridos}
             />
           )}
 

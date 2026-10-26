@@ -6,7 +6,7 @@ import {
   calculateMonthWorkingProgress,
 } from './volumeQuotasData';
 
-export type MainTab = 'activacion' | 'volumen' | 'volumen_sku' | 'pareto';
+export type MainTab = 'activacion' | 'activacion_clientes' | 'volumen' | 'volumen_sku' | 'pareto';
 export type ViewLevel = 'vendedor' | 'supervisores' | 'gerente';
 
 interface MonthProgressBarProps {
@@ -204,17 +204,28 @@ export const MonthProgressBar: React.FC<MonthProgressBarProps> = ({
       {/* Subtabs & Controls Row */}
       <div className="flex flex-wrap items-center justify-between gap-3 pt-1 border-t border-white/5">
         {/* Subpestañas del Módulo */}
-        <div className="inline-flex items-center p-1 bg-black/50 border border-white/10 rounded-lg text-xs sm:text-sm">
+        <div className="inline-flex flex-wrap items-center p-1 bg-black/50 border border-white/10 rounded-lg text-xs sm:text-sm">
           <button
             type="button"
             onClick={() => onTabChange('activacion')}
-            className={`px-3.5 sm:px-4 py-1.5 rounded-md font-bold transition-all ${
+            className={`px-3.5 sm:px-4 py-1.5 rounded-md font-bold transition-all cursor-pointer ${
               activeTab === 'activacion'
                 ? 'bg-red-600 text-white shadow-md'
                 : 'text-zinc-400 hover:text-white'
             }`}
           >
             Activación
+          </button>
+          <button
+            type="button"
+            onClick={() => onTabChange('activacion_clientes')}
+            className={`px-3.5 sm:px-4 py-1.5 rounded-md font-bold transition-all cursor-pointer ${
+              activeTab === 'activacion_clientes'
+                ? 'bg-red-600 text-white shadow-md'
+                : 'text-zinc-400 hover:text-white'
+            }`}
+          >
+            Activación Clientes
           </button>
           <button
             type="button"

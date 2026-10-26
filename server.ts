@@ -1029,6 +1029,251 @@ async function startServer() {
     }
   });
 
+  // ==========================================
+  // CUOTAS: ACTIVACIÓN POR CLIENTES (MATRIZ 5 RUBROS + FILTRO POR VENDEDOR)
+  // ==========================================
+  const GERENCIA_FDV_SUPABASE_URL =
+    process.env.GERENCIA_SUPABASE_URL ||
+    process.env.VITE_GERENCIA_SUPABASE_URL ||
+    'https://nudltbgyewyiklqdyujk.supabase.co';
+  const GERENCIA_FDV_SUPABASE_KEY =
+    process.env.GERENCIA_SUPABASE_ANON_KEY ||
+    process.env.VITE_GERENCIA_SUPABASE_ANON_KEY ||
+    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im51ZGx0Ymd5ZXd5aWtscWR5dWprIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MTgzMDA3OCwiZXhwIjoyMTA3NDA2MDc4fQ.k92vdZiuVkTzAWNK8Fq71m1Xi_MoWtpx_eRQcZTw1cA';
+
+  let activacionClientesMemoryCache: { data: any[]; timestamp: number } | null = null;
+  const activacionClientesSeedPath = path.join(process.cwd(), 'src', 'data', 'activacionClientesSeed.json');
+  const activacionClientesDiskCachePath = path.join(process.cwd(), 'activacion_clientes_cache.json');
+
+  const loadActivacionClientesFallbackFromDisk = (): any[] => {
+    try {
+      if (fs.existsSync(activacionClientesSeedPath)) {
+        const parsed = JSON.parse(fs.readFileSync(activacionClientesSeedPath, 'utf8'));
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+      if (fs.existsSync(activacionClientesDiskCachePath)) {
+        const raw = JSON.parse(fs.readFileSync(activacionClientesDiskCachePath, 'utf8'));
+        if (Array.isArray(raw) && raw.length > 0) {
+          return raw.map((r: any) => {
+            const hasAceite = Boolean(r.has_aceite) || (Number(r.cajas_aceite) || 0) > 0;
+            const hasAzucar = Boolean(r.has_azucar) || (Number(r.cajas_azucar) || 0) > 0;
+            const hasPollo = Boolean(r.has_pollo) || (Number(r.cajas_pollo) || 0) > 0;
+            const hasAsturias = Boolean(r.has_estandar_asturias) || (Number(r.cajas_estandar_asturias) || 0) > 0;
+            const hasSalpicao = Boolean(r.has_mortadela_salpicao) || (Number(r.cajas_mortadela_salpicao) || 0) > 0;
+            return {
+              id: String(r.cliente_codigo || r.id || '').trim(),
+              cliente: String(r.cliente_nombre || r.cliente || '').trim(),
+              vendedorId: String(r.vendedor_id || r.vendedor_nombre || '').trim(),
+              vendedorNombre: String(r.vendedor_nombre || r.vendedor_id || '').trim(),
+              status:
+                hasAceite || hasAzucar || hasPollo || hasAsturias || hasSalpicao || r.status === 'ACTIVO'
+                  ? 'ACTIVO'
+                  : 'INACTIVO',
+              cajas: {
+                ACEITE: Number(r.cajas_aceite) || 0,
+                AZUCAR: Number(r.cajas_azucar) || 0,
+                POLLO: Number(r.cajas_pollo) || 0,
+                ESTANDAR_ASTURIAS: Number(r.cajas_estandar_asturias) || 0,
+                MORTADELA_SALPICAO: Number(r.cajas_mortadela_salpicao) || 0,
+              },
+              cats: {
+                ACEITE: hasAceite,
+                AZUCAR: hasAzucar,
+                POLLO: hasPollo,
+                ESTANDAR_ASTURIAS: hasAsturias,
+                MORTADELA_SALPICAO: hasSalpicao,
+              },
+            };
+          });
+        }
+      }
+    } catch (e) {
+      console.warn('[ActivacionClientes] Error reading disk fallback:', e);
+    }
+    return [];
+  };
+
+  app.get('/api/cuotas/activacion-clientes', async (req, res) => {
+    try {
+      const force = req.query.force === 'true' || req.query.refresh === 'true';
+      const now = Date.now();
+      if (!force && activacionClientesMemoryCache && now - activacionClientesMemoryCache.timestamp < 60000) {
+        return res.json(activacionClientesMemoryCache.data);
+      }
+
+      if (GERENCIA_FDV_SUPABASE_URL && GERENCIA_FDV_SUPABASE_KEY) {
+        try {
+          const fdvSupabase = createClient(
+            GERENCIA_FDV_SUPABASE_URL.replace('/rest/v1/', ''),
+            GERENCIA_FDV_SUPABASE_KEY,
+            { auth: { persistSession: false } }
+          );
+          const supaRows: any[] = [];
+          let from = 0;
+          const pageSize = 1000;
+          while (from < 10000) {
+            const { data, error } = await fdvSupabase
+              .from('activacion_clientes')
+              .select('*')
+              .order('id')
+              .range(from, from + pageSize - 1);
+            if (error || !data || data.length === 0) break;
+            supaRows.push(...data);
+            if (data.length < pageSize) break;
+            from += pageSize;
+          }
+
+          if (supaRows.length > 0) {
+            const byClientMap = new Map<string, any>();
+            for (const r of supaRows) {
+              const cid = String(r.cliente_codigo || '').trim();
+              if (!cid) continue;
+              const hasAceite = Boolean(r.has_aceite) || (Number(r.cajas_aceite) || 0) > 0;
+              const hasAzucar = Boolean(r.has_azucar) || (Number(r.cajas_azucar) || 0) > 0;
+              const hasPollo = Boolean(r.has_pollo) || (Number(r.cajas_pollo) || 0) > 0;
+              const hasAsturias = Boolean(r.has_estandar_asturias) || (Number(r.cajas_estandar_asturias) || 0) > 0;
+              const hasSalpicao = Boolean(r.has_mortadela_salpicao) || (Number(r.cajas_mortadela_salpicao) || 0) > 0;
+
+              if (!byClientMap.has(cid)) {
+                byClientMap.set(cid, {
+                  id: cid,
+                  cliente: String(r.cliente_nombre || '').trim(),
+                  vendedorId: String(r.vendedor_id || r.vendedor_nombre || '').trim(),
+                  vendedorNombre: String(r.vendedor_nombre || r.vendedor_id || '').trim(),
+                  status:
+                    hasAceite || hasAzucar || hasPollo || hasAsturias || hasSalpicao || r.status === 'ACTIVO'
+                      ? 'ACTIVO'
+                      : 'INACTIVO',
+                  cajas: {
+                    ACEITE: Number(r.cajas_aceite) || 0,
+                    AZUCAR: Number(r.cajas_azucar) || 0,
+                    POLLO: Number(r.cajas_pollo) || 0,
+                    ESTANDAR_ASTURIAS: Number(r.cajas_estandar_asturias) || 0,
+                    MORTADELA_SALPICAO: Number(r.cajas_mortadela_salpicao) || 0,
+                  },
+                  cats: {
+                    ACEITE: hasAceite,
+                    AZUCAR: hasAzucar,
+                    POLLO: hasPollo,
+                    ESTANDAR_ASTURIAS: hasAsturias,
+                    MORTADELA_SALPICAO: hasSalpicao,
+                  },
+                });
+              } else {
+                const prev = byClientMap.get(cid);
+                prev.cats.ACEITE = prev.cats.ACEITE || hasAceite;
+                prev.cats.AZUCAR = prev.cats.AZUCAR || hasAzucar;
+                prev.cats.POLLO = prev.cats.POLLO || hasPollo;
+                prev.cats.ESTANDAR_ASTURIAS = prev.cats.ESTANDAR_ASTURIAS || hasAsturias;
+                prev.cats.MORTADELA_SALPICAO = prev.cats.MORTADELA_SALPICAO || hasSalpicao;
+                prev.cajas.ACEITE = Math.max(prev.cajas.ACEITE, Number(r.cajas_aceite) || 0);
+                prev.cajas.AZUCAR = Math.max(prev.cajas.AZUCAR, Number(r.cajas_azucar) || 0);
+                prev.cajas.POLLO = Math.max(prev.cajas.POLLO, Number(r.cajas_pollo) || 0);
+                prev.cajas.ESTANDAR_ASTURIAS = Math.max(prev.cajas.ESTANDAR_ASTURIAS, Number(r.cajas_estandar_asturias) || 0);
+                prev.cajas.MORTADELA_SALPICAO = Math.max(prev.cajas.MORTADELA_SALPICAO, Number(r.cajas_mortadela_salpicao) || 0);
+                if (
+                  prev.cats.ACEITE ||
+                  prev.cats.AZUCAR ||
+                  prev.cats.POLLO ||
+                  prev.cats.ESTANDAR_ASTURIAS ||
+                  prev.cats.MORTADELA_SALPICAO
+                ) {
+                  prev.status = 'ACTIVO';
+                }
+              }
+            }
+            const mapped = Array.from(byClientMap.values());
+            activacionClientesMemoryCache = { data: mapped, timestamp: now };
+            return res.json(mapped);
+          }
+        } catch (supaErr: any) {
+          console.warn('[ActivacionClientes] Supabase fetch fallback to disk:', supaErr?.message);
+        }
+      }
+
+      const fallback = loadActivacionClientesFallbackFromDisk();
+      activacionClientesMemoryCache = { data: fallback, timestamp: now };
+      return res.json(fallback);
+    } catch (err: any) {
+      console.error('Error serving /api/cuotas/activacion-clientes:', err);
+      const fallback = loadActivacionClientesFallbackFromDisk();
+      return res.json(fallback);
+    }
+  });
+
+  app.post('/api/cuotas/activacion-clientes/toggle-rubro', async (req, res) => {
+    try {
+      const { clienteCodigo, rubro, active } = req.body || {};
+      const cleanCod = String(clienteCodigo || '').replace(/^[#\s]+/, '').trim();
+      const rawRubro = String(rubro || '').toUpperCase().trim();
+      let normRubro = '';
+      if (rawRubro.includes('ACEITE')) normRubro = 'ACEITE';
+      else if (rawRubro.includes('AZUCAR') || rawRubro.includes('AZÚCAR')) normRubro = 'AZUCAR';
+      else if (rawRubro.includes('POLLO')) normRubro = 'POLLO';
+      else if (rawRubro.includes('ESTANDAR') || rawRubro.includes('ASTURIAS') && !rawRubro.includes('MORTADELA')) normRubro = 'ESTANDAR_ASTURIAS';
+      else if (rawRubro.includes('MORTADELA') || rawRubro.includes('SALPICAO')) normRubro = 'MORTADELA_SALPICAO';
+
+      if (!cleanCod || !normRubro) {
+        return res.status(400).json({ error: 'clienteCodigo y rubro son requeridos' });
+      }
+      const boolActive = Boolean(active);
+
+      if (GERENCIA_FDV_SUPABASE_URL && GERENCIA_FDV_SUPABASE_KEY) {
+        try {
+          const fdvSupabase = createClient(
+            GERENCIA_FDV_SUPABASE_URL.replace('/rest/v1/', ''),
+            GERENCIA_FDV_SUPABASE_KEY,
+            { auth: { persistSession: false } }
+          );
+          const { data: rows } = await fdvSupabase
+            .from('activacion_clientes')
+            .select('*')
+            .eq('cliente_codigo', cleanCod);
+
+          if (Array.isArray(rows) && rows.length > 0) {
+            for (const r of rows) {
+              const nextState = {
+                has_aceite: normRubro === 'ACEITE' ? boolActive : Boolean(r.has_aceite),
+                has_azucar: normRubro === 'AZUCAR' ? boolActive : Boolean(r.has_azucar),
+                has_pollo: normRubro === 'POLLO' ? boolActive : Boolean(r.has_pollo),
+                has_estandar_asturias: normRubro === 'ESTANDAR_ASTURIAS' ? boolActive : Boolean(r.has_estandar_asturias),
+                has_mortadela_salpicao: normRubro === 'MORTADELA_SALPICAO' ? boolActive : Boolean(r.has_mortadela_salpicao),
+              };
+              const isActivo = Object.values(nextState).some(Boolean);
+              await fdvSupabase
+                .from('activacion_clientes')
+                .update({
+                  ...nextState,
+                  status: isActivo ? 'ACTIVO' : 'INACTIVO',
+                })
+                .eq('id', r.id);
+            }
+          }
+        } catch (supaErr: any) {
+          console.warn('[ActivacionClientes] Toggle rubro Supabase warning:', supaErr?.message);
+        }
+      }
+
+      if (activacionClientesMemoryCache && Array.isArray(activacionClientesMemoryCache.data)) {
+        activacionClientesMemoryCache.data.forEach((c: any) => {
+          const cid = String(c.id || '').replace(/^[#\s]+/, '').trim();
+          if (cid === cleanCod) {
+            if (!c.cats) c.cats = {};
+            c.cats[normRubro] = boolActive;
+            const anyActive = Boolean(
+              c.cats.ACEITE || c.cats.AZUCAR || c.cats.POLLO || c.cats.ESTANDAR_ASTURIAS || c.cats.MORTADELA_SALPICAO
+            );
+            c.status = anyActive ? 'ACTIVO' : 'INACTIVO';
+          }
+        });
+      }
+
+      return res.json({ success: true, clienteCodigo: cleanCod, rubro: normRubro, active: boolActive });
+    } catch (err: any) {
+      return res.status(500).json({ error: 'Error actualizando rubro del cliente', details: err?.message });
+    }
+  });
+
 
   // ==========================================
   // PARETO: CLIENTES COMPRADORES POR PRODUCTO
