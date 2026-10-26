@@ -5447,148 +5447,391 @@ Responde con un JSON estructurado con:
     console.warn('[Degustaciones] Error leyendo data_degustaciones.json:', e);
   }
 
+  const parseServerDateSortable = (dateStr: string): string => {
+    if (!dateStr) return '0000-00-00';
+    const dmy = /^(\d{2})-(\d{2})-(\d{4})$/.exec(String(dateStr).trim());
+    if (dmy) return `${dmy[3]}-${dmy[2]}-${dmy[1]}`;
+    const ymd = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(dateStr).trim());
+    if (ymd) return `${ymd[1]}-${ymd[2]}-${ymd[3]}`;
+    return '0000-00-00';
+  };
+
+  const getTodayCaracasISO = (): string => {
+    try {
+      return new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'America/Caracas',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+      }).format(new Date());
+    } catch {
+      return new Date().toISOString().split('T')[0];
+    }
+  };
+
+  const resolveVendorTastingStatus = (
+    rawStatusInput: string,
+    createdAt: string | undefined,
+    formattedDateDMY: string
+  ): 'scheduled' | 'in_progress' | 'completed' | 'cancelled' => {
+    const rawStatus = String(rawStatusInput || '').trim().toLowerCase();
+    if (rawStatus.includes('cancelad') || rawStatus.includes('rechazad') || rawStatus === 'cancelled') {
+      return 'cancelled';
+    }
+    if (rawStatus.includes('curso') || rawStatus.includes('progreso') || rawStatus === 'in_progress') {
+      return 'in_progress';
+    }
+    if (rawStatus.includes('completad') || rawStatus.includes('realizad') || rawStatus === 'completed') {
+      return 'completed';
+    }
+
+    // Solicitudes nuevas (creadas después del corte histórico del 21-10-2026) o con fecha vigente/futura van siempre a Cronograma Actual ('scheduled')
+    const sortableDate = parseServerDateSortable(formattedDateDMY);
+    const todayCaracas = getTodayCaracasISO();
+    const isCreatedAfterHistoricalCutoff = Boolean(createdAt && String(createdAt) > '2026-10-21T23:59:59Z');
+    const isUpcomingOrToday = sortableDate >= todayCaracas;
+
+    if (isCreatedAfterHistoricalCutoff || isUpcomingOrToday) {
+      return 'scheduled';
+    }
+    return 'completed';
+  };
+
+  const parseDegustacionFromFdvRow = (r: any): any | null => {
+    if (!r || (!r.id && !r.cliente_nombre)) return null;
+    const rawId = String(r.id || '').trim();
+    const id = rawId.startsWith('DEG-') ? rawId : `DEG-${rawId}`;
+    if (deletedDegustacionIds.has(id)) return null;
+
+    const formattedDate = formatServerDateDMY(r.fecha || r.date || r.created_at);
+    const vendorName = String(r.vendedor_nombre || r.vendedor || 'VENDEDOR COMERCIAL').trim();
+    const storeName = String(r.cliente_nombre || r.client || 'Punto de Venta').trim();
+    const productArr = Array.isArray(r.productos)
+      ? r.productos.filter(Boolean).map((p: any) => String(p).trim())
+      : [];
+    const productName =
+      (productArr.length > 0 ? productArr.join(', ') : String(r.productos || r.product || 'MORTADELA').trim()) ||
+      'MORTADELA';
+
+    const target = Number(r.personas_estimadas || r.target) || 150;
+    const turno = String(r.turno || '').toUpperCase();
+    const rawHora = String(r.hora || '').trim();
+    const time =
+      rawHora && rawHora.includes('-')
+        ? rawHora
+        : turno === 'TARDE'
+        ? `${rawHora || '02:00 PM'} - 07:00 PM`
+        : `${rawHora || '09:00 AM'} - 01:00 PM`;
+
+    const contact = r.contacto_punto
+      ? `${r.contacto_punto}${r.telefono_contacto ? ` (${r.telefono_contacto})` : ''}`
+      : '';
+    const kilosInfo = r.kilos_estimados ? `Kilos est.: ${r.kilos_estimados} kg.` : '';
+    const baseNotes =
+      r.observaciones ||
+      r.notas_trade_marketing ||
+      `Agendada por ${vendorName}. ${kilosInfo} Personas: ${target}.`.replace(/\s+/g, ' ').trim();
+
+    const status = resolveVendorTastingStatus(r.estado || r.status || 'SOLICITADA', r.created_at, formattedDate);
+    const assignedPromoter = String(r.promotora_asignada || '').trim();
+
+    return {
+      id,
+      date: formattedDate,
+      time,
+      activity: `Degustación ${productName} - Solicitada por ${vendorName}`,
+      product: productName,
+      promoter: assignedPromoter || 'POR ASIGNAR (Trade Marketing)',
+      promoterEmail: r.promotora_email || '',
+      promoterId: r.promotora_id || '',
+      promoterRole: r.requiere_promotora === false ? 'Impulsadora' : 'Promotora',
+      client: storeName,
+      zone: String(r.ruta || 'Ruta Comercial').trim(),
+      vendedor: vendorName,
+      source: 'vendedor_app',
+      status,
+      delivered: Number(r.delivered) || (status === 'completed' ? target : 0),
+      target,
+      acceptanceRate: Number(r.acceptanceRate) || (status === 'completed' ? 95 : 0),
+      comments: contact ? `Contacto en tienda: ${contact}. ${baseNotes}` : baseNotes,
+      created_at: r.created_at || new Date().toISOString()
+    };
+  };
+
+  const parseDegustacionFromSurveyRow = (s: any): any | null => {
+    try {
+      let c: any = null;
+      if (typeof s.comments === 'string' && s.comments.startsWith('{')) {
+        c = JSON.parse(s.comments);
+      }
+      if (!c || !(c.degustacionId || c.vendedor || c.salesRep || c.source === 'vendedor_app')) {
+        return null;
+      }
+
+      const formattedDate = formatServerDateDMY(c.date || s.date);
+      const vendorName = String(c.vendedor || c.salesRep || s.promoter || 'VENDEDOR COMERCIAL').trim();
+      const storeName = String(s.store || c.client || c.cliente || c.store || 'Punto de Venta').trim();
+      const productName = String(c.product || c.products || s.product || 'MORTADELA').trim();
+      const rawId = String(c.degustacionId || c.id || s.id);
+      const id = rawId.startsWith('DEG-') ? rawId : `DEG-${rawId}`;
+
+      if (deletedDegustacionIds.has(id)) return null;
+
+      const target = Number(c.personas || c.personasEstimadas || c.target) || 150;
+      const time = c.time || c.shift || (c.turno === 'TARDE' ? '02:00 PM - 07:00 PM' : '09:00 AM - 01:00 PM');
+      const contact = c.contactoPunto ? `${c.contactoPunto}${c.telefonoContacto ? ` (${c.telefonoContacto})` : ''}` : '';
+      const notes = c.notes || c.originalComments || `Solicitud enviada por ${vendorName} desde la app móvil.`;
+
+      const status = resolveVendorTastingStatus(c.status || c.estado || '', s.created_at, formattedDate);
+
+      return {
+        id,
+        date: formattedDate,
+        time,
+        activity: `Degustación ${productName} - Solicitada por ${vendorName}`,
+        product: productName,
+        promoter: c.promotoraAsignada || 'POR ASIGNAR (Trade Marketing)',
+        promoterEmail: c.promotoraEmail || '',
+        promoterId: c.promotoraId || '',
+        promoterRole: c.promoterRole || (c.promoterType === 'Eventual' ? 'Promotora' : 'Impulsadora'),
+        client: storeName,
+        zone: c.ruta || 'Ruta Comercial',
+        vendedor: vendorName,
+        source: 'vendedor_app',
+        status,
+        delivered: Number(c.delivered) || (status === 'completed' ? target : 0),
+        target,
+        acceptanceRate: Number(c.acceptanceRate) || (status === 'completed' ? (s.rating ? s.rating * 20 : 95) : 0),
+        comments: contact ? `Contacto en tienda: ${contact}. ${notes}` : notes,
+        created_at: s.created_at || new Date().toISOString()
+      };
+    } catch {
+      return null;
+    }
+  };
+
   const syncVendorTastingsFromSupabase = async (forceRefresh: boolean = false): Promise<any[]> => {
     const now = Date.now();
-    if (!forceRefresh && now - lastSupabaseDegustacionSync < 30000 && memoryDegustaciones.length > 0) {
+    // TTL corto de 5 segundos para reflejar casi al instante las nuevas solicitudes enviadas por los vendedores
+    if (!forceRefresh && now - lastSupabaseDegustacionSync < 5000 && memoryDegustaciones.length > 0) {
       return memoryDegustaciones;
     }
 
-    const supabaseUrl = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || 'https://uterioexpfweghxfbvoa.supabase.co/rest/v1/').replace(/\/?$/, '/');
-    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV0ZXJpb2V4cGZ3ZWdoeGZidm9hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc5NTg3ODYsImV4cCI6MjEwMzUzNDc4Nn0.bZnN4vrXUDlcoIaI7l39O-bU4GQp05SvJdio_cn6niI';
+    const campoUrl = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || DEFAULT_SUPABASE_URL).replace(/\/$/, '');
+    const campoKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || DEFAULT_SUPABASE_KEY;
+
+    const fdvUrl = (process.env.GERENCIA_FDV_SUPABASE_URL || GERENCIA_FDV_SUPABASE_URL).replace(/\/$/, '');
+    const fdvKey = process.env.GERENCIA_FDV_SUPABASE_KEY || GERENCIA_FDV_SUPABASE_KEY;
 
     try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 8000);
-      const response = await fetch(`${supabaseUrl}surveys?select=*&type=eq.Degustacion&order=date.desc&limit=1000`, {
-        headers: {
-          apikey: supabaseKey,
-          Authorization: `Bearer ${supabaseKey}`
-        },
-        signal: controller.signal
-      });
-      clearTimeout(timeout);
+      const fetchWithTimeout = async (url: string, key: string) => {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 7500);
+        try {
+          const res = await fetch(url, {
+            headers: {
+              apikey: key,
+              Authorization: `Bearer ${key}`
+            },
+            signal: controller.signal
+          });
+          if (!res.ok) return [];
+          const json = await res.json();
+          return Array.isArray(json) ? json : [];
+        } finally {
+          clearTimeout(timeout);
+        }
+      };
 
-      if (response.ok) {
-        const surveys = await response.json();
-        if (Array.isArray(surveys)) {
-          const remoteVendorTastings: any[] = [];
-          for (const s of surveys) {
-            try {
-              let c: any = null;
-              if (typeof s.comments === 'string' && s.comments.startsWith('{')) {
-                c = JSON.parse(s.comments);
-              }
-              if (c && (c.degustacionId || c.vendedor || c.salesRep || c.source === 'vendedor_app')) {
-                const formattedDate = formatServerDateDMY(c.date || s.date);
-                const vendorName = String(c.vendedor || c.salesRep || s.promoter || 'VENDEDOR COMERCIAL').trim();
-                const storeName = String(s.store || c.client || c.cliente || c.store || 'Punto de Venta').trim();
-                const productName = String(c.product || c.products || s.product || 'MORTADELA').trim();
-                const rawId = String(c.degustacionId || c.id || s.id);
-                const id = rawId.startsWith('DEG-') ? rawId : `DEG-${rawId}`;
+      // Consultar en paralelo la App de Ventas (tabla `degustaciones` + `surveys`) y la BD de Trade Marketing (`surveys`)
+      const [fdvDegustacionesRes, fdvSurveysRes, campoSurveysRes] = await Promise.allSettled([
+        fetchWithTimeout(`${fdvUrl}/rest/v1/degustaciones?select=*&order=fecha.desc,created_at.desc&limit=500`, fdvKey),
+        fetchWithTimeout(`${fdvUrl}/rest/v1/surveys?select=*&type=eq.Degustacion&order=date.desc&limit=500`, fdvKey),
+        fetchWithTimeout(`${campoUrl}/rest/v1/surveys?select=*&type=eq.Degustacion&order=date.desc&limit=1000`, campoKey)
+      ]);
 
-                if (deletedDegustacionIds.has(id)) continue;
+      const remoteById = new Map<string, any>();
 
-                const target = Number(c.personas || c.personasEstimadas || c.target) || 150;
-                const time = c.time || c.shift || (c.turno === 'TARDE' ? '02:00 PM - 07:00 PM' : '09:00 AM - 01:00 PM');
-                const contact = c.contactoPunto ? `${c.contactoPunto}${c.telefonoContacto ? ` (${c.telefonoContacto})` : ''}` : '';
-                const notes = c.notes || c.originalComments || `Solicitud enviada por ${vendorName} desde la app móvil.`;
+      const mergeRemoteCandidate = (candidate: any | null) => {
+        if (!candidate || isTestOrFakeDegustacion(candidate) || deletedDegustacionIds.has(candidate.id)) return;
+        const existing = remoteById.get(candidate.id);
+        if (!existing) {
+          remoteById.set(candidate.id, candidate);
+          return;
+        }
+        const existingHasPromoter =
+          existing.promoter && !String(existing.promoter).toUpperCase().includes('POR ASIGNAR');
+        const candidateHasPromoter =
+          candidate.promoter && !String(candidate.promoter).toUpperCase().includes('POR ASIGNAR');
 
-                const isHistoricalCutoff = !s.created_at || String(s.created_at) <= '2026-10-21T23:59:59Z';
-                let status: 'scheduled' | 'in_progress' | 'completed' | 'cancelled' = isHistoricalCutoff ? 'completed' : 'scheduled';
-                const rawStatus = String(c.status || c.estado || '').toLowerCase();
-                if (rawStatus.includes('completad') || rawStatus.includes('realizad') || rawStatus === 'completed') {
-                  status = 'completed';
-                } else if (rawStatus.includes('curso') || rawStatus.includes('progreso') || rawStatus === 'in_progress') {
-                  status = 'in_progress';
-                } else if (rawStatus.includes('cancelad') || rawStatus.includes('rechazad') || rawStatus === 'cancelled') {
-                  status = 'cancelled';
-                }
+        remoteById.set(candidate.id, {
+          ...existing,
+          ...candidate,
+          promoter: candidateHasPromoter ? candidate.promoter : existingHasPromoter ? existing.promoter : candidate.promoter,
+          promoterEmail: candidate.promoterEmail || existing.promoterEmail || '',
+          promoterId: candidate.promoterId || existing.promoterId || '',
+          status:
+            existing.status !== 'scheduled' && candidate.status === 'scheduled'
+              ? existing.status
+              : candidate.status
+        });
+      };
 
-                remoteVendorTastings.push({
-                  id,
-                  date: formattedDate,
-                  time,
-                  activity: `Degustación ${productName} - Solicitada por ${vendorName}`,
-                  product: productName,
-                  promoter: c.promotoraAsignada || 'POR ASIGNAR (Trade Marketing)',
-                  promoterEmail: c.promotoraEmail || '',
-                  promoterId: c.promotoraId || '',
-                  promoterRole: c.promoterRole || (c.promoterType === 'Eventual' ? 'Promotora' : 'Impulsadora'),
-                  client: storeName,
-                  zone: c.ruta || 'Ruta Comercial',
-                  vendedor: vendorName,
-                  source: 'vendedor_app',
-                  status,
-                  delivered: Number(c.delivered) || (status === 'completed' ? target : 0),
-                  target,
-                  acceptanceRate: Number(c.acceptanceRate) || (status === 'completed' ? (s.rating ? s.rating * 20 : 95) : 0),
-                  comments: contact ? `Contacto en tienda: ${contact}. ${notes}` : notes
-                });
-              }
-            } catch (err) {}
-          }
+      // 1. Fuente primaria: tabla `degustaciones` de la App de Ventas (Fuerza de Ventas)
+      if (fdvDegustacionesRes.status === 'fulfilled') {
+        for (const row of fdvDegustacionesRes.value) {
+          mergeRemoteCandidate(parseDegustacionFromFdvRow(row));
+        }
+      }
 
-          // Deduplicar las remotas y combinar con cambios locales (preservando asignaciones de Trade Marketing)
-          if (remoteVendorTastings.length > 0) {
-            const localById = new Map<string, any>();
-            for (const loc of memoryDegustaciones) {
-              if (!isTestOrFakeDegustacion(loc) && !deletedDegustacionIds.has(loc.id)) {
-                localById.set(loc.id, loc);
-              }
-            }
+      // 2. Fuente secundaria: `surveys` de la App de Ventas
+      if (fdvSurveysRes.status === 'fulfilled') {
+        for (const row of fdvSurveysRes.value) {
+          mergeRemoteCandidate(parseDegustacionFromSurveyRow(row));
+        }
+      }
 
-            const seenKey = new Set<string>();
-            const mergedList: any[] = [];
-
-            // Primero agregar registros creados localmente (que no están en el set remoto)
-            const remoteIds = new Set(remoteVendorTastings.map((r) => r.id));
-            for (const loc of memoryDegustaciones) {
-              if (!isTestOrFakeDegustacion(loc) && !deletedDegustacionIds.has(loc.id) && !remoteIds.has(loc.id)) {
-                const key = `${loc.date}-${loc.client}-${loc.product}-${loc.vendedor}`;
-                if (!seenKey.has(key)) {
-                  seenKey.add(key);
-                  mergedList.push(loc);
-                }
-              }
-            }
-
-            // Luego agregar los registros de Supabase preservando ediciones locales de Trade Marketing
-            for (const rem of remoteVendorTastings) {
-              const key = `${rem.date}-${rem.client}-${rem.product}-${rem.vendedor}`;
-              if (seenKey.has(key)) continue;
-              seenKey.add(key);
-
-              const existingLocal = localById.get(rem.id);
-              if (existingLocal) {
-                const hasLocalPromoter =
-                  existingLocal.promoter && existingLocal.promoter !== 'POR ASIGNAR (Trade Marketing)';
-                mergedList.push({
-                  ...rem,
-                  promoter: hasLocalPromoter ? existingLocal.promoter : rem.promoter,
-                  promoterEmail: hasLocalPromoter
-                    ? existingLocal.promoterEmail || rem.promoterEmail || ''
-                    : rem.promoterEmail || '',
-                  promoterId: hasLocalPromoter
-                    ? existingLocal.promoterId || rem.promoterId || ''
-                    : rem.promoterId || '',
-                  promoterRole: existingLocal.promoterRole || rem.promoterRole,
-                  status: existingLocal.status !== 'scheduled' ? existingLocal.status : rem.status,
-                  delivered: existingLocal.delivered > 0 ? existingLocal.delivered : rem.delivered,
-                  acceptanceRate: existingLocal.acceptanceRate > 0 ? existingLocal.acceptanceRate : rem.acceptanceRate,
-                  comments: existingLocal.comments || rem.comments
-                });
-              } else {
-                mergedList.push(rem);
-              }
-            }
-
-            memoryDegustaciones = mergedList;
-            lastSupabaseDegustacionSync = now;
-            try {
-              fs.writeFileSync(degustacionesPath, JSON.stringify(memoryDegustaciones, null, 2), 'utf8');
-            } catch (e) {}
+      // 3. Fuente espejo: `surveys` de Trade Marketing / Campo (donde también se guardan asignaciones de promotoras)
+      const campoSurveyDegIds = new Set<string>();
+      if (campoSurveysRes.status === 'fulfilled') {
+        for (const row of campoSurveysRes.value) {
+          const parsed = parseDegustacionFromSurveyRow(row);
+          if (parsed) {
+            campoSurveyDegIds.add(parsed.id);
+            mergeRemoteCandidate(parsed);
           }
         }
+      }
+
+      const remoteVendorTastings = Array.from(remoteById.values());
+
+      // Si hay solicitudes en la App de Ventas que aún no están reflejadas en el espejo de Campo (`surveys`), sincronizarlas en background
+      if (fdvDegustacionesRes.status === 'fulfilled' && campoSurveysRes.status === 'fulfilled') {
+        const missingInCampo = remoteVendorTastings.filter((item) => !campoSurveyDegIds.has(item.id));
+        if (missingInCampo.length > 0) {
+          (async () => {
+            for (const item of missingInCampo.slice(0, 25)) {
+              try {
+                const rawDegId = String(item.id).replace(/^DEG-/, '');
+                const isoDate = parseServerDateSortable(item.date);
+                const payload = {
+                  store: item.client,
+                  product: item.product,
+                  rating: item.status === 'completed' ? 5 : 5,
+                  comments: JSON.stringify({
+                    source: 'vendedor_app',
+                    degustacionId: rawDegId,
+                    vendedor: item.vendedor,
+                    ruta: item.zone,
+                    time: item.time,
+                    personas: item.target,
+                    status: item.status,
+                    promotoraAsignada: !String(item.promoter).toUpperCase().includes('POR ASIGNAR') ? item.promoter : '',
+                    promotoraEmail: item.promoterEmail || '',
+                    promotoraId: item.promoterId || '',
+                    promoterRole: item.promoterRole || 'Promotora',
+                    notes: item.comments
+                  }),
+                  date: isoDate !== '0000-00-00' ? `${isoDate}T12:00:00Z` : new Date().toISOString(),
+                  promoter: item.vendedor,
+                  type: 'Degustacion'
+                };
+                await fetch(`${campoUrl}/rest/v1/surveys`, {
+                  method: 'POST',
+                  headers: {
+                    apikey: campoKey,
+                    Authorization: `Bearer ${campoKey}`,
+                    'Content-Type': 'application/json'
+                  },
+                  body: JSON.stringify(payload)
+                });
+              } catch {}
+            }
+          })();
+        }
+      }
+
+      if (remoteVendorTastings.length > 0) {
+        const localById = new Map<string, any>();
+        for (const loc of memoryDegustaciones) {
+          if (!isTestOrFakeDegustacion(loc) && !deletedDegustacionIds.has(loc.id)) {
+            localById.set(loc.id, loc);
+          }
+        }
+
+        const seenId = new Set<string>();
+        const seenCompositeKey = new Set<string>();
+        const mergedList: any[] = [];
+
+        const makeCompositeKey = (item: any) =>
+          `${String(item.date || '').trim()}|${String(item.time || '').trim()}|${String(item.client || '').trim().toUpperCase()}|${String(item.product || '').trim().toUpperCase()}|${String(item.vendedor || '').trim().toUpperCase()}`;
+
+        // 1. Agregar los registros remotos preservando asignaciones y ediciones locales de Trade Marketing
+        for (const rem of remoteVendorTastings) {
+          if (seenId.has(rem.id)) continue;
+          const compKey = makeCompositeKey(rem);
+          if (seenCompositeKey.has(compKey)) continue;
+
+          seenId.add(rem.id);
+          seenCompositeKey.add(compKey);
+
+          const existingLocal = localById.get(rem.id);
+          if (existingLocal) {
+            const hasLocalPromoter =
+              existingLocal.promoter && !String(existingLocal.promoter).toUpperCase().includes('POR ASIGNAR');
+            mergedList.push({
+              ...rem,
+              promoter: hasLocalPromoter ? existingLocal.promoter : rem.promoter,
+              promoterEmail: hasLocalPromoter
+                ? existingLocal.promoterEmail || rem.promoterEmail || ''
+                : rem.promoterEmail || '',
+              promoterId: hasLocalPromoter
+                ? existingLocal.promoterId || rem.promoterId || ''
+                : rem.promoterId || '',
+              promoterRole: existingLocal.promoterRole || rem.promoterRole,
+              status: existingLocal.status !== 'scheduled' ? existingLocal.status : rem.status,
+              delivered: existingLocal.delivered > 0 ? existingLocal.delivered : rem.delivered,
+              acceptanceRate: existingLocal.acceptanceRate > 0 ? existingLocal.acceptanceRate : rem.acceptanceRate,
+              comments: existingLocal.comments || rem.comments
+            });
+          } else {
+            mergedList.push(rem);
+          }
+        }
+
+        // 2. Preservar también los registros creados directamente en el dashboard que aún no estén en el listado remoto
+        for (const loc of memoryDegustaciones) {
+          if (!isTestOrFakeDegustacion(loc) && !deletedDegustacionIds.has(loc.id) && !seenId.has(loc.id)) {
+            const compKey = makeCompositeKey(loc);
+            if (!seenCompositeKey.has(compKey)) {
+              seenId.add(loc.id);
+              seenCompositeKey.add(compKey);
+              mergedList.push(loc);
+            }
+          }
+        }
+
+        // Ordenar: primero solicitudes activas ('scheduled' e 'in_progress') y luego por fecha más reciente
+        const statusPriority: Record<string, number> = {
+          in_progress: 0,
+          scheduled: 1,
+          completed: 2,
+          cancelled: 3
+        };
+        mergedList.sort((a, b) => {
+          const pA = statusPriority[a.status] ?? 2;
+          const pB = statusPriority[b.status] ?? 2;
+          if (pA !== pB) return pA - pB;
+          const dA = parseServerDateSortable(a.date);
+          const dB = parseServerDateSortable(b.date);
+          return dB.localeCompare(dA);
+        });
+
+        memoryDegustaciones = mergedList;
+        lastSupabaseDegustacionSync = now;
+        try {
+          fs.writeFileSync(degustacionesPath, JSON.stringify(memoryDegustaciones, null, 2), 'utf8');
+        } catch (e) {}
       }
     } catch (e) {
       // Fallback silencioso a memoryDegustaciones si no hay red
@@ -5608,6 +5851,7 @@ Responde con un JSON estructurado con:
       }
       const forceSync = req.query.sync === 'true';
       const synced = await syncVendorTastingsFromSupabase(forceSync);
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
       res.json(synced);
     } catch (e) {
       res.json(memoryDegustaciones);
@@ -5619,7 +5863,7 @@ Responde con un JSON estructurado con:
     try {
       const item = req.body || {};
       const rawDate = item.date || item.fecha;
-      const rawClient = item.client || item.cliente || item.store || item.pdv;
+      const rawClient = item.client || item.cliente || item.cliente_nombre || item.store || item.pdv;
 
       if (!rawDate || !rawClient) {
         return res.status(400).json({ error: 'Fecha y Cliente son obligatorios' });
@@ -5627,19 +5871,23 @@ Responde con un JSON estructurado con:
 
       const formattedDate = formatServerDateDMY(rawDate);
       const clientName = String(rawClient).trim();
-      const vendorName = String(item.vendedor || item.salesRep || item.seller || 'VENDEDOR COMERCIAL').trim();
-      const productName = String(item.product || item.producto || item.products || 'MORTADELA').trim();
+      const vendorName = String(item.vendedor || item.vendedor_nombre || item.salesRep || item.seller || 'VENDEDOR COMERCIAL').trim();
+      const productName = Array.isArray(item.productos)
+        ? item.productos.join(', ')
+        : String(item.product || item.producto || item.products || item.productos || 'MORTADELA').trim();
       const timeRange = String(
         item.time ||
           item.hora ||
           item.shift ||
           (item.turno === 'TARDE' ? '02:00 PM - 07:00 PM' : '09:00 AM - 01:00 PM')
       ).trim();
-      const targetNum = Number(item.target || item.personas || item.personasEstimadas || 150) || 150;
-      const contactStr = item.contactoPunto
-        ? `Contacto en tienda: ${item.contactoPunto}${item.telefonoContacto ? ` (${item.telefonoContacto})` : ''}. `
+      const targetNum = Number(item.target || item.personas || item.personasEstimadas || item.personas_estimadas || 150) || 150;
+      const contactPunto = item.contactoPunto || item.contacto_punto || '';
+      const telefonoContacto = item.telefonoContacto || item.telefono_contacto || '';
+      const contactStr = contactPunto
+        ? `Contacto en tienda: ${contactPunto}${telefonoContacto ? ` (${telefonoContacto})` : ''}. `
         : '';
-      const rawNotes = item.comments || item.notas || item.notes || item.originalComments || '';
+      const rawNotes = item.comments || item.observaciones || item.notas || item.notes || item.originalComments || '';
       const fullComments = contactStr
         ? `${contactStr}${rawNotes || `Agendada por ${vendorName}. Personas: ${targetNum}.`}`
         : rawNotes;
@@ -5654,7 +5902,7 @@ Responde con un JSON estructurado con:
         time: timeRange,
         activity: item.activity || `Degustación ${productName} - Solicitada por ${vendorName}`,
         product: productName,
-        promoter: item.promoter || item.promotoraAsignada || 'POR ASIGNAR (Trade Marketing)',
+        promoter: item.promoter || item.promotoraAsignada || item.promotora_asignada || 'POR ASIGNAR (Trade Marketing)',
         promoterEmail: item.promoterEmail || item.promotoraEmail || '',
         promoterId: item.promoterId || item.promotoraId || '',
         promoterRole: item.promoterRole || (item.promoterType === 'Eventual' ? 'Promotora' : 'Impulsadora'),
@@ -5680,13 +5928,93 @@ Responde con un JSON estructurado con:
       try {
         fs.writeFileSync(degustacionesPath, JSON.stringify(memoryDegustaciones, null, 2), 'utf8');
       } catch (err) {}
+
+      // Sincronizar en background tanto con la BD de la App de Ventas (degustaciones) como con la BD de Campo (surveys)
+      (async () => {
+        try {
+          const rawDegId = newRecord.id.replace(/^DEG-/, '');
+          const isoDate = parseServerDateSortable(newRecord.date);
+          const fdvUrl = (process.env.GERENCIA_FDV_SUPABASE_URL || GERENCIA_FDV_SUPABASE_URL).replace(/\/$/, '');
+          const fdvKey = process.env.GERENCIA_FDV_SUPABASE_KEY || GERENCIA_FDV_SUPABASE_KEY;
+          const campoUrl = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || DEFAULT_SUPABASE_URL).replace(/\/$/, '');
+          const campoKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || DEFAULT_SUPABASE_KEY;
+
+          const fdvPayload = {
+            id: rawDegId,
+            cliente_codigo: item.cliente_codigo || 'S/C',
+            cliente_nombre: newRecord.client,
+            vendedor_nombre: newRecord.vendedor,
+            vendedor_id: item.vendedor_id || newRecord.vendedor.toLowerCase().replace(/\s+/g, '_'),
+            vendedor_email: item.vendedor_email || null,
+            ruta: newRecord.zone,
+            fecha: isoDate !== '0000-00-00' ? isoDate : getTodayCaracasISO(),
+            turno: newRecord.time.toUpperCase().includes('PM') && !newRecord.time.toUpperCase().startsWith('09') ? 'TARDE' : 'MAÑANA',
+            hora: newRecord.time.split('-')[0]?.trim() || '09:00 AM',
+            productos: newRecord.product.split(',').map((p: string) => p.trim()).filter(Boolean),
+            kilos_estimados: Number(item.kilos_estimados) || 3,
+            personas_estimadas: newRecord.target,
+            requiere_promotora: true,
+            promotora_asignada: !String(newRecord.promoter).toUpperCase().includes('POR ASIGNAR') ? newRecord.promoter : null,
+            contacto_punto: contactPunto || null,
+            telefono_contacto: telefonoContacto || null,
+            observaciones: newRecord.comments || null,
+            estado: newRecord.status === 'completed' ? 'REALIZADA' : !String(newRecord.promoter).toUpperCase().includes('POR ASIGNAR') ? 'CONFIRMADA' : 'SOLICITADA',
+            created_at: newRecord.created_at,
+            updated_at: new Date().toISOString()
+          };
+
+          await Promise.allSettled([
+            fetch(`${fdvUrl}/rest/v1/degustaciones`, {
+              method: 'POST',
+              headers: {
+                apikey: fdvKey,
+                Authorization: `Bearer ${fdvKey}`,
+                'Content-Type': 'application/json',
+                Prefer: 'resolution=merge-duplicates'
+              },
+              body: JSON.stringify(fdvPayload)
+            }),
+            fetch(`${campoUrl}/rest/v1/surveys`, {
+              method: 'POST',
+              headers: {
+                apikey: campoKey,
+                Authorization: `Bearer ${campoKey}`,
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                store: newRecord.client,
+                product: newRecord.product,
+                rating: 5,
+                comments: JSON.stringify({
+                  source: 'vendedor_app',
+                  degustacionId: rawDegId,
+                  vendedor: newRecord.vendedor,
+                  ruta: newRecord.zone,
+                  time: newRecord.time,
+                  personas: newRecord.target,
+                  status: newRecord.status,
+                  promotoraAsignada: !String(newRecord.promoter).toUpperCase().includes('POR ASIGNAR') ? newRecord.promoter : '',
+                  promotoraEmail: newRecord.promoterEmail || '',
+                  promotoraId: newRecord.promoterId || '',
+                  promoterRole: newRecord.promoterRole || 'Promotora',
+                  notes: newRecord.comments
+                }),
+                date: isoDate !== '0000-00-00' ? `${isoDate}T12:00:00Z` : new Date().toISOString(),
+                promoter: newRecord.vendedor,
+                type: 'Degustacion'
+              })
+            })
+          ]);
+        } catch {}
+      })();
+
       res.status(201).json(newRecord);
     } catch (err: any) {
       res.status(500).json({ error: 'Error al registrar solicitud de degustación', details: err?.message });
     }
   });
 
-  // PUT /api/degustaciones/:id: Asignar promotora (con correo e ID), actualizar estado o resultado y sincronizar en Supabase
+  // PUT /api/degustaciones/:id: Asignar promotora (con correo e ID), actualizar estado o resultado y sincronizar en ambas BDs de Supabase
   app.put('/api/degustaciones/:id', async (req, res) => {
     try {
       const { id } = req.params;
@@ -5702,55 +6030,101 @@ Responde con un JSON estructurado con:
         fs.writeFileSync(degustacionesPath, JSON.stringify(memoryDegustaciones, null, 2), 'utf8');
       } catch (err) {}
 
-      // Sincronizar también en Supabase (tabla surveys) para persistencia en la nube (Render)
+      // Sincronizar también en Supabase (tabla `degustaciones` de App de Ventas y tabla `surveys` de Campo/FDV)
       const rawDegId = id.replace(/^DEG-/, '');
       const supabaseDegUrl = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || DEFAULT_SUPABASE_URL).replace(/\/$/, '');
       const supabaseDegKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || DEFAULT_SUPABASE_KEY;
+      const fdvUrl = (process.env.GERENCIA_FDV_SUPABASE_URL || GERENCIA_FDV_SUPABASE_URL).replace(/\/$/, '');
+      const fdvKey = process.env.GERENCIA_FDV_SUPABASE_KEY || GERENCIA_FDV_SUPABASE_KEY;
+
       (async () => {
         try {
-          const searchUrl = `${supabaseDegUrl}/rest/v1/surveys?select=id,comments&comments=like.*${encodeURIComponent(rawDegId)}*`;
-          const getRes = await fetch(searchUrl, {
-            headers: {
-              apikey: supabaseDegKey,
-              Authorization: `Bearer ${supabaseDegKey}`
-            }
-          });
-          if (getRes.ok) {
-            const rows = await getRes.json();
-            if (Array.isArray(rows)) {
-              for (const row of rows) {
-                try {
-                  const parsed = JSON.parse(row.comments || '{}');
-                  if (parsed && (parsed.degustacionId === rawDegId || `DEG-${parsed.degustacionId}` === id)) {
-                    const updatedComments = {
-                      ...parsed,
-                      promotoraAsignada:
-                        updates.promoter !== undefined
-                          ? !String(updates.promoter).toUpperCase().includes('POR ASIGNAR')
-                            ? updates.promoter
-                            : ''
-                          : parsed.promotoraAsignada,
-                      promotoraEmail: updates.promoterEmail !== undefined ? updates.promoterEmail : parsed.promotoraEmail,
-                      promotoraId: updates.promoterId !== undefined ? updates.promoterId : parsed.promotoraId,
-                      promoterRole: updates.promoterRole || parsed.promoterRole,
-                      status: updates.status || parsed.status,
-                      delivered: updates.delivered !== undefined ? updates.delivered : parsed.delivered,
-                      acceptanceRate: updates.acceptanceRate !== undefined ? updates.acceptanceRate : parsed.acceptanceRate
-                    };
-                    await fetch(`${supabaseDegUrl}/rest/v1/surveys?id=eq.${row.id}`, {
-                      method: 'PATCH',
-                      headers: {
-                        apikey: supabaseDegKey,
-                        Authorization: `Bearer ${supabaseDegKey}`,
-                        'Content-Type': 'application/json'
-                      },
-                      body: JSON.stringify({ comments: JSON.stringify(updatedComments) })
-                    });
-                  }
-                } catch {}
-              }
-            }
+          const cleanPromoter =
+            updates.promoter !== undefined
+              ? !String(updates.promoter).toUpperCase().includes('POR ASIGNAR')
+                ? String(updates.promoter).trim()
+                : null
+              : undefined;
+
+          // 1. Actualizar tabla `degustaciones` en la App de Ventas para que el vendedor vea la promotora asignada y el estado actualizado
+          const fdvPatch: Record<string, any> = {
+            updated_at: new Date().toISOString()
+          };
+          if (cleanPromoter !== undefined) {
+            fdvPatch.promotora_asignada = cleanPromoter;
           }
+          if (updates.status) {
+            if (updates.status === 'completed') fdvPatch.estado = 'REALIZADA';
+            else if (updates.status === 'cancelled') fdvPatch.estado = 'CANCELADA';
+            else if (updates.status === 'in_progress') fdvPatch.estado = 'EN_CURSO';
+            else if (cleanPromoter) fdvPatch.estado = 'CONFIRMADA';
+            else fdvPatch.estado = 'SOLICITADA';
+          } else if (cleanPromoter) {
+            fdvPatch.estado = 'CONFIRMADA';
+          }
+          if (updates.comments) {
+            fdvPatch.notas_trade_marketing = updates.comments;
+          }
+
+          await fetch(`${fdvUrl}/rest/v1/degustaciones?id=eq.${encodeURIComponent(rawDegId)}`, {
+            method: 'PATCH',
+            headers: {
+              apikey: fdvKey,
+              Authorization: `Bearer ${fdvKey}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(fdvPatch)
+          });
+
+          // 2. Actualizar tabla `surveys` en Campo y FDV
+          const patchSurveysInInstance = async (baseUrl: string, apiKey: string) => {
+            const searchUrl = `${baseUrl}/rest/v1/surveys?select=id,comments&comments=like.*${encodeURIComponent(rawDegId)}*`;
+            const getRes = await fetch(searchUrl, {
+              headers: {
+                apikey: apiKey,
+                Authorization: `Bearer ${apiKey}`
+              }
+            });
+            if (!getRes.ok) return;
+            const rows = await getRes.json();
+            if (!Array.isArray(rows)) return;
+            for (const row of rows) {
+              try {
+                const parsed = JSON.parse(row.comments || '{}');
+                if (parsed && (parsed.degustacionId === rawDegId || `DEG-${parsed.degustacionId}` === id)) {
+                  const updatedComments = {
+                    ...parsed,
+                    promotoraAsignada:
+                      updates.promoter !== undefined
+                        ? !String(updates.promoter).toUpperCase().includes('POR ASIGNAR')
+                          ? updates.promoter
+                          : ''
+                        : parsed.promotoraAsignada,
+                    promotoraEmail: updates.promoterEmail !== undefined ? updates.promoterEmail : parsed.promotoraEmail,
+                    promotoraId: updates.promoterId !== undefined ? updates.promoterId : parsed.promotoraId,
+                    promoterRole: updates.promoterRole || parsed.promoterRole,
+                    status: updates.status || parsed.status,
+                    delivered: updates.delivered !== undefined ? updates.delivered : parsed.delivered,
+                    acceptanceRate: updates.acceptanceRate !== undefined ? updates.acceptanceRate : parsed.acceptanceRate
+                  };
+                  await fetch(`${baseUrl}/rest/v1/surveys?id=eq.${row.id}`, {
+                    method: 'PATCH',
+                    headers: {
+                      apikey: apiKey,
+                      Authorization: `Bearer ${apiKey}`,
+                      'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ comments: JSON.stringify(updatedComments) })
+                  });
+                }
+              } catch {}
+            }
+          };
+
+          await Promise.allSettled([
+            patchSurveysInInstance(supabaseDegUrl, supabaseDegKey),
+            patchSurveysInInstance(fdvUrl, fdvKey)
+          ]);
         } catch {}
       })();
 
@@ -5769,6 +6143,23 @@ Responde con un JSON estructurado con:
       try {
         fs.writeFileSync(degustacionesPath, JSON.stringify(memoryDegustaciones, null, 2), 'utf8');
       } catch (err) {}
+
+      // Sincronizar eliminación/cancelación en Supabase en background
+      const rawDegId = id.replace(/^DEG-/, '');
+      const fdvUrl = (process.env.GERENCIA_FDV_SUPABASE_URL || GERENCIA_FDV_SUPABASE_URL).replace(/\/$/, '');
+      const fdvKey = process.env.GERENCIA_FDV_SUPABASE_KEY || GERENCIA_FDV_SUPABASE_KEY;
+      (async () => {
+        try {
+          await fetch(`${fdvUrl}/rest/v1/degustaciones?id=eq.${encodeURIComponent(rawDegId)}`, {
+            method: 'DELETE',
+            headers: {
+              apikey: fdvKey,
+              Authorization: `Bearer ${fdvKey}`
+            }
+          });
+        } catch {}
+      })();
+
       res.json({ success: true, id });
     } catch (err: any) {
       res.status(500).json({ error: 'Error al eliminar degustación', details: err?.message });

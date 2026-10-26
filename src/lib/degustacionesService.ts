@@ -1445,11 +1445,47 @@ export const degustacionesService = {
   async getDegustacionesAsync(forceSync: boolean = false): Promise<DegustacionItem[]> {
     try {
       const endpoint = forceSync ? '/api/degustaciones?sync=true' : '/api/degustaciones';
-      const res = await fetch(endpoint);
+      const res = await fetch(endpoint, { cache: 'no-store' });
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data) && data.length > 0) {
-          const enriched = data.map((d: DegustacionItem) => enrichPromoterFields(d));
+          // Preservar asignaciones de promotora hechas localmente si el servidor aún tiene 'POR ASIGNAR'
+          const localMap = new Map<string, DegustacionItem>();
+          try {
+            if (typeof window !== 'undefined' && window.localStorage) {
+              const rawLocal = localStorage.getItem(STORAGE_KEY);
+              if (rawLocal) {
+                const parsedLocal = JSON.parse(rawLocal);
+                if (Array.isArray(parsedLocal)) {
+                  parsedLocal.forEach((loc: DegustacionItem) => {
+                    if (loc && loc.id) localMap.set(loc.id, loc);
+                  });
+                }
+              }
+            }
+          } catch {}
+
+          const enriched = data.map((d: DegustacionItem) => {
+            const loc = localMap.get(d.id);
+            const serverHasPromoter = d.promoter && !String(d.promoter).toUpperCase().includes('POR ASIGNAR');
+            const localHasPromoter = loc?.promoter && !String(loc.promoter).toUpperCase().includes('POR ASIGNAR');
+            const mergedItem: DegustacionItem =
+              !serverHasPromoter && localHasPromoter && loc
+                ? {
+                    ...d,
+                    promoter: loc.promoter,
+                    promoterEmail: loc.promoterEmail || d.promoterEmail,
+                    promoterId: loc.promoterId || d.promoterId,
+                    promoterRole: loc.promoterRole || d.promoterRole
+                  }
+                : d;
+            return enrichPromoterFields(mergedItem);
+          });
+
+          if (typeof window !== 'undefined' && window.localStorage) {
+            localStorage.setItem(SEED_ASSIGNMENTS_CLEARED_KEY, 'true');
+            localStorage.setItem(ARCHIVED_TO_HISTORY_KEY, 'true');
+          }
           this.saveDegustaciones(enriched);
           return enriched;
         }
@@ -1533,10 +1569,13 @@ export const degustacionesService = {
                   needsSave = true;
                 }
 
-                // Migración única solicitada: pasar las degustaciones del Cronograma Actual a Historial y dejar limpio Cronograma Actual
+                // Migración única solicitada: pasar únicamente las degustaciones con fecha pasada al Historial sin archivar solicitudes vigentes/futuras
                 if (!localStorage.getItem(ARCHIVED_TO_HISTORY_KEY)) {
                   workingItems = workingItems.map((item: DegustacionItem) =>
-                    typeof item.id === 'string' && item.id.startsWith('DEG-deg-') && item.status === 'scheduled'
+                    typeof item.id === 'string' &&
+                    item.id.startsWith('DEG-deg-') &&
+                    item.status === 'scheduled' &&
+                    isPastDegustacionDate(item.date)
                       ? {
                           ...item,
                           status: 'completed' as const,

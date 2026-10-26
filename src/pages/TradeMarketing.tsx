@@ -474,18 +474,42 @@ export const TradeMarketing: React.FC = () => {
   const [merchandising, setMerchandising] = useState<MerchandisingItem[]>(initialMerchandising);
   const [personal, setPersonal] = useState<PersonalItem[]>(initialPersonal);
 
-  // Sincronización en tiempo real con degustacionesService y API de Vendedores
+  // Sincronización en tiempo real con degustacionesService y API de Vendedores (Fuerza de Ventas + Campo)
   useEffect(() => {
-    degustacionesService.getDegustacionesAsync().then((items) => {
-      if (Array.isArray(items) && items.length > 0) {
-        setDegustaciones(items);
-      }
-    });
+    const syncDegustacionesLive = (force: boolean = true) => {
+      degustacionesService.getDegustacionesAsync(force).then((items) => {
+        if (Array.isArray(items) && items.length > 0) {
+          setDegustaciones(items);
+        }
+      });
+    };
+
+    syncDegustacionesLive(true);
 
     const unsubscribe = degustacionesService.subscribe((items) => {
       setDegustaciones(items);
     });
-    return () => unsubscribe();
+
+    const pollDegustaciones = window.setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        syncDegustacionesLive(true);
+      }
+    }, 20000);
+
+    const onDegustacionesFocus = () => {
+      if (document.visibilityState === 'visible') {
+        syncDegustacionesLive(true);
+      }
+    };
+    window.addEventListener('focus', onDegustacionesFocus);
+    document.addEventListener('visibilitychange', onDegustacionesFocus);
+
+    return () => {
+      unsubscribe();
+      window.clearInterval(pollDegustaciones);
+      window.removeEventListener('focus', onDegustacionesFocus);
+      document.removeEventListener('visibilitychange', onDegustacionesFocus);
+    };
   }, []);
 
   // Estados de Filtros Generales
@@ -1104,6 +1128,7 @@ export const TradeMarketing: React.FC = () => {
         .on('postgres_changes', { event: '*', schema: 'public', table: 'surveys' }, () => {
           loadMerchandisingReports();
           loadCampoSynchronizedData(true);
+          degustacionesService.getDegustacionesAsync(true);
         })
         .subscribe();
     } catch {
@@ -1139,12 +1164,14 @@ export const TradeMarketing: React.FC = () => {
     };
   }, []);
 
-  // Refrescar inmediatamente al cambiar al submódulo de Informes o cambiar entre Precios / Inventario / Visitas
+  // Refrescar inmediatamente al cambiar al submódulo de Informes o Degustaciones
   useEffect(() => {
     if (activeSubmodule === 'informes') {
       loadCampoSynchronizedData(true);
+    } else if (activeSubmodule === 'degustaciones') {
+      degustacionesService.getDegustacionesAsync(true);
     }
-  }, [activeSubmodule, informesTab]);
+  }, [activeSubmodule, informesTab, degustacionSubtab]);
 
   const handleDeleteMerchReport = async (id: string) => {
     await merchandisingService.delete(id);
