@@ -5,6 +5,8 @@ export interface SellerOption {
   name: string;
   supervisor?: string;
   zona?: string;
+  badgeText?: string;
+  badgeHighlight?: boolean;
 }
 
 interface SellerMultiSelectProps {
@@ -94,13 +96,17 @@ export const SellerMultiSelect: React.FC<SellerMultiSelectProps> = ({
       return 'Ningún vendedor seleccionado';
     }
     if (selectedSellers.length === 1) {
+      const found = sellers.find((s) => s.name === selectedSellers[0]);
+      if (found?.badgeText) {
+        return `${found.name} (${found.badgeText})`;
+      }
       return selectedSellers[0];
     }
     if (selectedSellers.length === sellers.length) {
       return `Todos (${sellers.length})`;
     }
     return `${selectedSellers.length} de ${sellers.length} Vendedores`;
-  }, [selectedSellers, sellers.length]);
+  }, [selectedSellers, sellers]);
 
   return (
     <div className={`relative ${className}`} ref={dropdownRef}>
@@ -227,10 +233,21 @@ export const SellerMultiSelect: React.FC<SellerMultiSelectProps> = ({
                         {isChecked && <Check className="w-3 h-3 stroke-[3]" />}
                       </div>
 
-                      <div className="flex flex-col min-w-0">
+                      <div className="flex items-center gap-2 min-w-0">
                         <span className={`truncate font-medium ${isChecked ? 'text-zinc-100 font-semibold' : 'text-zinc-300'}`}>
                           {seller.name}
                         </span>
+                        {seller.badgeText && (
+                          <span
+                            className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded-full shrink-0 ${
+                              seller.badgeHighlight
+                                ? 'bg-emerald-950/80 text-emerald-400 border border-emerald-800/60'
+                                : 'bg-zinc-800 text-zinc-400'
+                            }`}
+                          >
+                            {seller.badgeText}
+                          </span>
+                        )}
                       </div>
                     </div>
 

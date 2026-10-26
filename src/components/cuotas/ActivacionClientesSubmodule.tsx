@@ -386,27 +386,7 @@ export const ActivacionClientesSubmodule: React.FC<ActivacionClientesSubmodulePr
     });
   }, [enrichedRawList]);
 
-  // Vendedores disponibles para el SellerMultiSelect (según supervisor activo)
-  const availableSellers = useMemo<SellerOption[]>(() => {
-    const filteredBySup =
-      supervisorFilter === 'ALL'
-        ? enrichedRawList
-        : enrichedRawList.filter((r) => r.supervisor === supervisorFilter);
-
-    const map = new Map<string, SellerOption>();
-    filteredBySup.forEach((r) => {
-      if (!map.has(r.canonicalSeller)) {
-        map.set(r.canonicalSeller, {
-          name: r.canonicalSeller,
-          supervisor: r.supervisor,
-          zona: r.zona,
-        });
-      }
-    });
-    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
-  }, [enrichedRawList, supervisorFilter]);
-
-  // Opciones detalladas para el Selector Directo de Vendedor / Ruta (con conteo de clientes y rutas específicas)
+  // Opciones detalladas para el Selector de Vendedor (con conteo de clientes activos/total)
   const directVendorDropdownOptions = useMemo(() => {
     const filteredBySup =
       supervisorFilter === 'ALL'
@@ -417,6 +397,8 @@ export const ActivacionClientesSubmodule: React.FC<ActivacionClientesSubmodulePr
       string,
       {
         canonical: string;
+        supervisor: string;
+        zona: string;
         total: number;
         activos: number;
         routes: Map<string, { total: number; activos: number }>;
@@ -437,6 +419,8 @@ export const ActivacionClientesSubmodule: React.FC<ActivacionClientesSubmodulePr
       if (!sellerStats.has(key)) {
         sellerStats.set(key, {
           canonical: key,
+          supervisor: r.supervisor,
+          zona: r.zona,
           total: 0,
           activos: 0,
           routes: new Map(),
@@ -492,6 +476,20 @@ export const ActivacionClientesSubmodule: React.FC<ActivacionClientesSubmodulePr
       sellerPills: sortedSellers,
     };
   }, [enrichedRawList, supervisorFilter, manualOverrides]);
+
+  // Vendedores disponibles para el SellerMultiSelect (desplegable y multiselección con badge activos/total)
+  const availableSellers = useMemo<SellerOption[]>(() => {
+    return directVendorDropdownOptions.sellerPills.map((s) => {
+      const pct = s.total > 0 ? Math.round((s.activos / s.total) * 100) : 0;
+      return {
+        name: s.canonical,
+        supervisor: s.supervisor,
+        zona: s.zona,
+        badgeText: `${s.activos}/${s.total}`,
+        badgeHighlight: pct >= 60,
+      };
+    });
+  }, [directVendorDropdownOptions.sellerPills]);
 
   // Limpiar vendedores que no pertenezcan al supervisor cuando cambia supervisorFilter
   useEffect(() => {
@@ -1333,42 +1331,13 @@ export const ActivacionClientesSubmodule: React.FC<ActivacionClientesSubmodulePr
               </select>
             </div>
 
-            {/* Selector Directo por Vendedor / Ruta */}
-            <div className="relative flex items-center bg-neutral-900 border border-red-500/40 hover:border-red-500 rounded-lg px-3 py-1.5 text-xs shadow-[0_0_12px_rgba(220,38,38,0.12)]">
-              <User className="w-3.5 h-3.5 text-red-400 mr-1.5 shrink-0" />
-              <select
-                value={directVendorFilter}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  setDirectVendorFilter(val);
-                  if (val !== 'ALL') {
-                    setSelectedSellers([]);
-                  }
-                }}
-                aria-label="Filtrar por Vendedor"
-                className="bg-transparent text-white font-bold focus:outline-none cursor-pointer text-xs pr-5 max-w-[230px] sm:max-w-[270px] truncate"
-              >
-                <option value="ALL" className="bg-neutral-950 text-white font-bold">
-                  Todos los Vendedores ({enrichedRawList.length} cli)
-                </option>
-                {directVendorDropdownOptions.options.map((opt) => (
-                  <option key={opt.value} value={opt.value} className="bg-neutral-950 text-white">
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="w-3.5 h-3.5 text-red-400 pointer-events-none absolute right-2.5" />
-            </div>
-
-            {/* Multi-Select de Vendedores (Consistente con las demás pestañas de Cuotas) */}
+            {/* Menú Desplegable y Multiselección de Vendedores */}
             <SellerMultiSelect
               sellers={availableSellers}
               selectedSellers={selectedSellers}
               onChange={(next) => {
                 setSelectedSellers(next);
-                if (next.length > 0) {
-                  setDirectVendorFilter('ALL');
-                }
+                setDirectVendorFilter('ALL');
               }}
               supervisorLabel={supervisorFilter !== 'ALL' ? supervisorFilter : undefined}
             />
@@ -1460,62 +1429,44 @@ export const ActivacionClientesSubmodule: React.FC<ActivacionClientesSubmodulePr
           </div>
         </div>
 
-        {/* Barra de Píldoras Rápidas por Vendedor para filtrar en 1 clic */}
-        <div className="px-4 py-2.5 bg-neutral-900/40 border-b border-neutral-800 flex items-center gap-2 overflow-x-auto scrollbar-hide">
-          <span className="text-[10px] font-sans font-bold text-neutral-400 uppercase tracking-wider shrink-0 flex items-center gap-1">
-            <Users className="w-3 h-3 text-red-500" /> Vendedores:
-          </span>
-          <button
-            type="button"
-            onClick={() => {
-              setDirectVendorFilter('ALL');
-              setSelectedSellers([]);
-            }}
-            className={`px-2.5 py-1 rounded-full text-[11px] font-sans font-bold border shrink-0 transition-all cursor-pointer ${
-              directVendorFilter === 'ALL' && selectedSellers.length === 0
-                ? 'bg-red-600 text-white border-red-500 shadow'
-                : 'bg-neutral-900 text-neutral-400 border-neutral-800 hover:text-white hover:border-neutral-700'
-            }`}
-          >
-            Todos ({enrichedRawList.length})
-          </button>
-          {directVendorDropdownOptions.sellerPills.map((s) => {
-            const isSelected =
-              directVendorFilter === `SELLER:${s.canonical}` ||
-              (selectedSellers.length === 1 && selectedSellers[0] === s.canonical);
-            const pct = s.total > 0 ? Math.round((s.activos / s.total) * 100) : 0;
-            return (
-              <button
-                key={s.canonical}
-                type="button"
-                onClick={() => {
-                  setSelectedSellers([]);
-                  setDirectVendorFilter((prev) =>
-                    prev === `SELLER:${s.canonical}` ? 'ALL' : `SELLER:${s.canonical}`
-                  );
-                }}
-                className={`px-2.5 py-1 rounded-full text-[11px] font-sans font-bold border shrink-0 transition-all cursor-pointer flex items-center gap-1.5 ${
-                  isSelected
-                    ? 'bg-red-600 text-white border-red-400 shadow'
-                    : 'bg-neutral-900/90 text-neutral-300 border-neutral-800 hover:text-white hover:border-neutral-600'
-                }`}
-              >
-                <span>{s.canonical}</span>
-                <span
-                  className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full ${
-                    isSelected
-                      ? 'bg-black/30 text-white'
-                      : pct >= 60
-                      ? 'bg-emerald-950/70 text-emerald-400'
-                      : 'bg-neutral-800 text-neutral-400'
-                  }`}
+        {/* Etiquetas de Vendedores Seleccionados (cuando hay filtro multiselección activo) */}
+        {selectedSellers.length > 0 && selectedSellers[0] !== '__NONE__' && (
+          <div className="px-4 py-2.5 bg-neutral-900/40 border-b border-neutral-800 flex flex-wrap items-center gap-2">
+            <span className="text-[10px] font-sans font-bold text-neutral-400 uppercase tracking-wider shrink-0 flex items-center gap-1">
+              <Users className="w-3 h-3 text-red-500" /> Filtrado ({selectedSellers.length}):
+            </span>
+            {selectedSellers.map((sellerName) => {
+              const st = directVendorDropdownOptions.sellerPills.find((p) => p.canonical === sellerName);
+              return (
+                <button
+                  key={sellerName}
+                  type="button"
+                  onClick={() => {
+                    const next = selectedSellers.filter((n) => n !== sellerName);
+                    setSelectedSellers(next);
+                  }}
+                  title="Quitar vendedor del filtro"
+                  className="px-2.5 py-1 rounded-full text-[11px] font-sans font-bold border bg-red-600/20 text-red-200 border-red-500/40 hover:bg-red-600/30 transition-all cursor-pointer inline-flex items-center gap-1.5"
                 >
-                  {s.activos}/{s.total}
-                </span>
-              </button>
-            );
-          })}
-        </div>
+                  <span>{sellerName}</span>
+                  {st && (
+                    <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-black/40 text-white">
+                      {st.activos}/{st.total}
+                    </span>
+                  )}
+                  <X className="w-3 h-3 text-red-300 hover:text-white" />
+                </button>
+              );
+            })}
+            <button
+              type="button"
+              onClick={() => setSelectedSellers([])}
+              className="px-2.5 py-1 rounded-full text-[11px] font-sans font-bold border border-neutral-700 bg-neutral-900 text-neutral-300 hover:text-white hover:border-neutral-500 transition-colors cursor-pointer"
+            >
+              Ver Todos
+            </button>
+          </div>
+        )}
 
         {/* Métricas Header */}
         <div className="p-4 md:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-neutral-800 bg-neutral-950">
