@@ -87,6 +87,7 @@ import {
   getDefaultScheduleDateStr,
   getWeekInfo
 } from '../lib/degustacionesService';
+import { TradeGeneralReportModal } from '../components/trade-marketing/TradeGeneralReportModal';
 
 export {
   getWeekBounds,
@@ -571,6 +572,7 @@ export const TradeMarketing: React.FC = () => {
   }, [degustaciones]);
   const [copiedLink, setCopiedLink] = useState<boolean>(false);
   const [isCredentialsModalOpen, setIsCredentialsModalOpen] = useState<boolean>(false);
+  const [isGeneralReportModalOpen, setIsGeneralReportModalOpen] = useState<boolean>(false);
   const [revealedPasswords, setRevealedPasswords] = useState<{ [id: string]: boolean }>({});
   const [credentialsSearchTerm, setCredentialsSearchTerm] = useState<string>('');
   const [copiedCredentialId, setCopiedCredentialId] = useState<string | null>(null);
@@ -2202,6 +2204,7 @@ export const TradeMarketing: React.FC = () => {
       ID: d.id,
       Fecha: d.date,
       Horario: d.time,
+      Vendedor_Solicitante: d.vendedor || 'Vendedor Comercial',
       Actividad: d.activity,
       Producto: d.product,
       Promotora: d.promoter,
@@ -2217,12 +2220,13 @@ export const TradeMarketing: React.FC = () => {
     const wsActual = XLSX.utils.json_to_sheet(actualRows);
     XLSX.utils.book_append_sheet(wb, wsActual, 'Cronograma Actual');
 
-    // Hoja 2: Historial por Semanas (Semana 1, 2, 3, 4)
+    // Hoja 2: Historial por Semanas (Todas las Semanas Archivadas)
     const histRows = historicalDegustaciones.map((d) => {
       const info = getWeekInfo(d.date);
       return {
         Encabezado_Semana: info.weekLabel,
         Rango_Fecha: info.rangeLabel,
+        Vendedor_Solicitante: d.vendedor || 'Vendedor Comercial',
         ID: d.id,
         Fecha: d.date,
         Horario: d.time,
@@ -2231,6 +2235,7 @@ export const TradeMarketing: React.FC = () => {
         Promotora: d.promoter,
         Cliente_PDV: d.client,
         Zona: d.zone,
+        Condicion: 'ARCHIVADA',
         Estado: d.status.toUpperCase(),
         Muestras_Entregadas: d.delivered,
         Meta_Muestras: d.target,
@@ -2239,7 +2244,7 @@ export const TradeMarketing: React.FC = () => {
       };
     });
     const wsHist = XLSX.utils.json_to_sheet(histRows);
-    XLSX.utils.book_append_sheet(wb, wsHist, 'Historial Semanas 1-4');
+    XLSX.utils.book_append_sheet(wb, wsHist, 'Historial por Semanas');
 
     // Hoja 3: Historial de Visitas
     const infRows = informes.map((inf) => ({
@@ -2580,12 +2585,22 @@ export const TradeMarketing: React.FC = () => {
           </div>
 
           {/* Botones de Acción Derecha */}
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <button
+              type="button"
+              onClick={() => setIsGeneralReportModalOpen(true)}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold transition-all cursor-pointer shadow-md shadow-red-600/20"
+              title="Emitir Informe General con todas las semanas de planificación y degustaciones archivadas organizadas por vendedor"
+            >
+              <FileText className="w-3.5 h-3.5" />
+              <span>Exportar Informe General</span>
+            </button>
+
             <button
               type="button"
               onClick={handleExportExcel}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-white/10 text-xs font-bold text-emerald-400 transition-colors cursor-pointer"
-              title="Exportar base completa a Excel (Cronograma Actual e Historial)"
+              title="Exportar base consolidada de Trade Marketing a Excel"
             >
               <Download className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Exportar Excel</span>
@@ -2638,6 +2653,7 @@ export const TradeMarketing: React.FC = () => {
                   className="bg-transparent text-white font-bold focus:outline-none cursor-pointer"
                 >
                   <option value="todas" className="bg-zinc-900 text-white">Todas las Semanas ({historicalDegustaciones.length})</option>
+                  <option value="semana-5" className="bg-zinc-900 text-white">Semana 5 (26 Oct - 31 Oct)</option>
                   <option value="semana-4" className="bg-zinc-900 text-white">Semana 4 (19 Oct - 25 Oct)</option>
                   <option value="semana-3" className="bg-zinc-900 text-white">Semana 3 (12 Oct - 18 Oct)</option>
                   <option value="semana-2" className="bg-zinc-900 text-white">Semana 2 (05 Oct - 11 Oct)</option>
@@ -3073,7 +3089,7 @@ export const TradeMarketing: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-4 text-xs font-mono text-zinc-300">
+                <div className="flex items-center gap-3 flex-wrap text-xs font-mono text-zinc-300">
                   <div className="bg-zinc-900 px-3 py-1.5 rounded-xl border border-white/5">
                     Total Histórico: <strong className="text-white">{historicalDegustaciones.length}</strong> eventos
                   </div>
@@ -3082,6 +3098,15 @@ export const TradeMarketing: React.FC = () => {
                       {historicalDegustaciones.reduce((acc, curr) => acc + curr.delivered, 0)}
                     </strong>
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsGeneralReportModalOpen(true)}
+                    className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-sans font-bold text-xs transition-all cursor-pointer shadow-md shadow-red-600/20"
+                    title="Emitir Informe General de todas las semanas organizado por vendedor"
+                  >
+                    <FileText className="w-3.5 h-3.5" />
+                    <span>Exportar Informe por Vendedor</span>
+                  </button>
                 </div>
               </div>
 
@@ -8436,6 +8461,13 @@ export const TradeMarketing: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Modal de Informe General de Planificación Semanal y Degustaciones Archivadas por Vendedor */}
+      <TradeGeneralReportModal
+        isOpen={isGeneralReportModalOpen}
+        onClose={() => setIsGeneralReportModalOpen(false)}
+        degustaciones={degustaciones}
+      />
     </div>
   );
 };
