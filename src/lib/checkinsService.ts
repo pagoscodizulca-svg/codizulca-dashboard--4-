@@ -92,6 +92,123 @@ const SYNTHETIC_CHECKIN_PROMOTERS = new Set([
   'maria gonzalez',
 ]);
 
+export interface KnownPdvGeofence {
+  store: string;
+  address: string;
+  lat: number;
+  lng: number;
+  radiusMeters?: number;
+  isAlkosto?: boolean;
+}
+
+/**
+ * Geocercas reales verificadas en campo de PDVs de Merchandising y Degustación (Maracaibo / San Francisco / Zulia).
+ * Permite corregir automáticamente el nombre del PDV cuando el selector móvil quedó en el valor por defecto
+ * ("ALKOSTO DONDE COMPRAR ES GANAR, C.A.") pero el GPS real confirma otro establecimiento a pocos metros.
+ */
+export const KNOWN_PDV_GEOFENCES: KnownPdvGeofence[] = [
+  { store: 'Fiorella La Curva', address: 'La Curva de Molina, Av. La Limpia • Maracaibo', lat: 10.683187, lng: -71.680152, radiusMeters: 220 },
+  { store: 'Fiorella Cumbre', address: 'Urb. La Cumbre, Av. Panamericana • Maracaibo', lat: 10.657369, lng: -71.662129, radiusMeters: 220 },
+  { store: 'Farma Express C2', address: 'Av. Circunvalación 2 • Maracaibo', lat: 10.639094, lng: -71.663363, radiusMeters: 220 },
+  { store: 'FARMACIA FARMAEXPRESS LA LIMPIA, C.A.', address: 'Av. Principal La Limpia • Maracaibo', lat: 10.682034, lng: -71.666688, radiusMeters: 200 },
+  { store: 'Fiorella Amparo', address: 'Sector Amparo, Av. Principal • Maracaibo', lat: 10.663859, lng: -71.659445, radiusMeters: 220 },
+  { store: 'Fiorella Los Olivos', address: 'Urb. Los Olivos • Maracaibo', lat: 10.682331, lng: -71.654105, radiusMeters: 180 },
+  { store: 'Familia 6 Los Olivos', address: 'Urb. Los Olivos • Maracaibo', lat: 10.684313, lng: -71.654418, radiusMeters: 180 },
+  { store: 'Familia Center La Lago', address: 'Sector La Lago, Calle 72/75 • Maracaibo', lat: 10.669468, lng: -71.601895, radiusMeters: 220 },
+  { store: 'Familia La Lago', address: 'Zona Norte / La Picola • Maracaibo', lat: 10.699751, lng: -71.636821, radiusMeters: 220 },
+  { store: 'Farma Express Delicias', address: 'Av. Las Delicias • Maracaibo', lat: 10.674169, lng: -71.621545, radiusMeters: 220 },
+  { store: 'Farma Venezuela 5 de Julio', address: 'Av. 5 de Julio • Maracaibo', lat: 10.663806, lng: -71.625598, radiusMeters: 220 },
+  { store: 'Alkosto La Limpia', address: 'Av. Principal La Limpia • Maracaibo', lat: 10.679571, lng: -71.663844, radiusMeters: 240, isAlkosto: true },
+  { store: 'ALKOSTO DONDE COMPRAR ES GANAR, C.A. (Delicias)', address: 'Av. Universidad con Delicias • Maracaibo', lat: 10.680451, lng: -71.622898, radiusMeters: 240, isAlkosto: true },
+  { store: 'ALKOSTO DONDE COMPRAR ES GANAR, C.A. (Bella Vista)', address: 'Av. Bella Vista • Maracaibo', lat: 10.665162, lng: -71.607936, radiusMeters: 240, isAlkosto: true },
+  { store: 'ALKOSTO DONDE COMPRAR ES GANAR, C.A. (SAN FELIPE)', address: 'Urb. San Felipe, San Francisco • Zulia', lat: 10.642185, lng: -71.617545, radiusMeters: 240, isAlkosto: true },
+  { store: 'ALKOSTO DONDE COMPRAR ES GANAR, C.A. (LA COROMOTO)', address: 'Urb. La Coromoto, San Francisco • Zulia', lat: 10.557650, lng: -71.636480, radiusMeters: 240, isAlkosto: true },
+];
+
+export function calculateHaversineMeters(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+  const R = 6371000;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  return 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+export function isGenericDefaultStoreName(rawStore?: string): boolean {
+  const clean = String(rawStore || '').trim().toUpperCase();
+  return (
+    !clean ||
+    clean === 'PUNTO DE VENTA' ||
+    clean === 'ALKOSTO DONDE COMPRAR ES GANAR, C.A.' ||
+    clean === 'ALKOSTO DONDE COMPRAR ES GANAR, C.A. (BELLA VISTA)'
+  );
+}
+
+export function resolveStoreByGpsIfGenericDefault(
+  rawStore?: string,
+  location?: { lat?: number; lng?: number } | null
+): { store: string; address?: string; resolvedByGps: boolean; distanceMeters?: number } {
+  const fallbackStore = String(rawStore || 'Punto de Venta').trim() || 'Punto de Venta';
+  const lat = Number(location?.lat);
+  const lng = Number(location?.lng);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng) || (lat === 0 && lng === 0)) {
+    return { store: fallbackStore, resolvedByGps: false };
+  }
+
+  let bestMatch: KnownPdvGeofence | null = null;
+  let bestDist = Infinity;
+  for (const pdv of KNOWN_PDV_GEOFENCES) {
+    const dist = calculateHaversineMeters(lat, lng, pdv.lat, pdv.lng);
+    const maxRadius = pdv.radiusMeters ?? 220;
+    if (dist <= maxRadius && dist < bestDist) {
+      bestDist = dist;
+      bestMatch = pdv;
+    }
+  }
+
+  if (!bestMatch) {
+    return { store: fallbackStore, resolvedByGps: false };
+  }
+
+  if (isGenericDefaultStoreName(rawStore)) {
+    // Si el selector quedó en el Alkosto genérico por defecto pero el GPS coincide con otro PDV real
+    if (!bestMatch.isAlkosto || fallbackStore.toUpperCase() === 'PUNTO DE VENTA' || !rawStore) {
+      return {
+        store: bestMatch.store,
+        address: bestMatch.address,
+        resolvedByGps: true,
+        distanceMeters: Math.round(bestDist),
+      };
+    }
+  }
+
+  return {
+    store: fallbackStore,
+    address: bestMatch.address,
+    resolvedByGps: false,
+    distanceMeters: Math.round(bestDist),
+  };
+}
+
+const MERCHANDISING_ROUTE_PROMOTERS = new Set([
+  'ZIORELI GRANGGER',
+  'JOSE BARROSO',
+]);
+
+export function isMerchandisingRoutePromoter(promoterName?: string, roleOrEmail?: string): boolean {
+  const norm = String(promoterName || '')
+    .trim()
+    .toUpperCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+  if (MERCHANDISING_ROUTE_PROMOTERS.has(norm)) return true;
+  if (norm.includes('ZIORELI') || norm.includes('JOSE BARROSO')) return true;
+  const extra = String(roleOrEmail || '').toLowerCase();
+  return extra.includes('merchandising') || extra.includes('mercaderista') || extra.includes('zioreli') || extra.includes('barroso');
+}
+
 export function normalizeAndDeduplicateCheckIns(records: CheckInRecord[]): CheckInRecord[] {
   const validNormalized: CheckInRecord[] = [];
 
@@ -116,6 +233,17 @@ export function normalizeAndDeduplicateCheckIns(records: CheckInRecord[]): Check
         ? c.photoBase64
         : `/api/checkins/${encodeURIComponent(idStr)}/photo`;
 
+    const normLocation = c.location && typeof c.location === 'object'
+      ? {
+          lat: Number(c.location.lat) || 0,
+          lng: Number(c.location.lng) || 0,
+          accuracy: Number(c.location.accuracy) || 0,
+          ...(c.location.error ? { error: c.location.error } : {}),
+        }
+      : { lat: 0, lng: 0, accuracy: 0 };
+
+    const gpsResolved = resolveStoreByGpsIfGenericDefault(c.store, normLocation);
+
     validNormalized.push({
       ...c,
       id: idStr,
@@ -123,25 +251,34 @@ export function normalizeAndDeduplicateCheckIns(records: CheckInRecord[]): Check
       created_at: c.created_at || dateIso,
       type: normalizedType,
       promoter: canonicalPromoter,
-      store: String(c.store || 'Punto de Venta').trim(),
+      store: gpsResolved.store,
       photoBase64: photo,
-      location: c.location && typeof c.location === 'object'
-        ? {
-            lat: Number(c.location.lat) || 0,
-            lng: Number(c.location.lng) || 0,
-            accuracy: Number(c.location.accuracy) || 0,
-            ...(c.location.error ? { error: c.location.error } : {}),
-          }
-        : { lat: 0, lng: 0, accuracy: 0 },
+      location: normLocation,
     });
   }
 
-  // Deduplicar por (Día en Caracas | Promotora Canónica | Tipo de Marcaje)
-  // para eliminar marcajes duplicados del mismo hito en el mismo día.
+  // Deduplicar por (Día en Caracas | Promotora Canónica | Tipo de Marcaje [| PDV para mercaderistas de ruta])
+  // para eliminar marcajes duplicados del mismo hito en el mismo PDV sin colapsar rutas multi-tienda de merchandising.
   const grouped = new Map<string, CheckInRecord[]>();
   for (const rec of validNormalized) {
     const dayKey = getCaracasDayKey(rec.date);
-    const groupKey = `${dayKey}|${rec.promoter.toUpperCase()}|${rec.type}`;
+    const isRouteMerch = isMerchandisingRoutePromoter(rec.promoter, rec.creatorId);
+    let placeScope = '';
+    if (isRouteMerch && rec.type === 'Ingreso') {
+      const cleanStoreKey = rec.store
+        .trim()
+        .toUpperCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/\s+/g, ' ');
+      if (!isGenericDefaultStoreName(cleanStoreKey)) {
+        placeScope = `|${cleanStoreKey}`;
+      } else if (rec.location && rec.location.lat !== 0 && rec.location.lng !== 0) {
+        // Agrupar coordenadas dentro de ~200m (3 decimales ~110m) si aún es tienda genérica
+        placeScope = `|GPS:${rec.location.lat.toFixed(3)},${rec.location.lng.toFixed(3)}`;
+      }
+    }
+    const groupKey = `${dayKey}|${rec.promoter.toUpperCase()}|${rec.type}${placeScope}`;
     const bucket = grouped.get(groupKey);
     if (bucket) {
       bucket.push(rec);

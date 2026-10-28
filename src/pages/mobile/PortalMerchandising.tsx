@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useOutletContext } from 'react-router-dom';
 import { Card, CardContent } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import {
@@ -35,8 +35,12 @@ import {
   STORE_MANAGER_ROLES,
   MerchandisingReport
 } from '../../lib/merchandisingService';
-import { STORAGE_KEY_ACTIVE_STORE } from '../../lib/checkinsService';
-import { campoService } from '../../lib/campoService';
+import {
+  STORAGE_KEY_ACTIVE_STORE,
+  isGenericDefaultStoreName,
+  resolveStoreByGpsIfGenericDefault,
+} from '../../lib/checkinsService';
+import { campoService, PromoterProfile, resolvePromoterNameFromRaw } from '../../lib/campoService';
 import { ClientSearchAutocomplete } from '../../components/mobile/ClientSearchAutocomplete';
 
 const FREQUENT_STORES = [
@@ -58,33 +62,77 @@ const SPECIALIZED_PROMOTERS = [
   'Scarleth Piña'
 ];
 
-export const PortalMerchandising: React.FC = () => {
+export const PortalMerchandising: React.FC<{ activePromoterName?: string }> = ({
+  activePromoterName,
+}) => {
   const { profile } = useAuth();
   const [searchParams] = useSearchParams();
+  const outletCtx = useOutletContext<{ activePromoter?: PromoterProfile } | null>();
 
-  // 1. Promotor y Rol Especializado (sincronizado con sesión personal)
+  // 1. Promotor y Rol Especializado (sincronizado estrictamente con la sesión autenticada)
   const userParam = searchParams.get('user');
   const [promoterName, setPromoterName] = useState<string>(() => {
-    if (userParam?.toLowerCase().includes('jose')) return 'Jose Barroso';
-    if (userParam?.toLowerCase().includes('zioreli')) return 'Zioreli Grangger';
-    const activeProm = campoService.getActivePromoter();
-    return activeProm?.name || profile?.full_name || localStorage.getItem('portal_active_promoter') || 'Jose Barroso';
+    const activeProm = outletCtx?.activePromoter || campoService.getActivePromoter();
+    if (activePromoterName && activePromoterName.trim()) {
+      return resolvePromoterNameFromRaw(activePromoterName, activeProm?.email);
+    }
+    if (campoService.isAuthenticatedPromoter() && activeProm?.name) {
+      return resolvePromoterNameFromRaw(activeProm.name, activeProm.email);
+    }
+    if (userParam?.toLowerCase().includes('zioreli')) return 'ZIORELI GRANGGER';
+    if (userParam?.toLowerCase().includes('jose')) return 'JOSE BARROSO';
+    const rawFallback =
+      activeProm?.name ||
+      profile?.full_name ||
+      localStorage.getItem('portal_active_promoter') ||
+      'JOSE BARROSO';
+    return resolvePromoterNameFromRaw(rawFallback, activeProm?.email);
   });
+
+  useEffect(() => {
+    if (activePromoterName && activePromoterName.trim()) {
+      setPromoterName(resolvePromoterNameFromRaw(activePromoterName));
+    }
+  }, [activePromoterName]);
 
   useEffect(() => {
     const syncPromoter = () => {
       const activeProm = campoService.getActivePromoter();
-      if (activeProm?.name) setPromoterName(activeProm.name);
+      if (activeProm?.name) {
+        setPromoterName(resolvePromoterNameFromRaw(activeProm.name, activeProm.email));
+      }
     };
     window.addEventListener('codizulca_promoter_changed', syncPromoter);
     return () => window.removeEventListener('codizulca_promoter_changed', syncPromoter);
   }, []);
 
-  // 2. Punto de Venta y Ubicación
+  // 2. Punto de Venta y Ubicación (con autodetección GPS si permanece en el valor por defecto)
   const [storeName, setStoreName] = useState<string>(() => {
     return searchParams.get('store') || localStorage.getItem(STORAGE_KEY_ACTIVE_STORE) || "ALKOSTO DONDE COMPRAR ES GANAR, C.A. (Bella Vista)";
   });
   const [address, setAddress] = useState<string>('Pasillo 3 (Charcutería & Cava de Refrigerados)');
+
+  useEffect(() => {
+    if (typeof navigator === 'undefined' || !navigator.geolocation) return;
+    if (!isGenericDefaultStoreName(storeName)) return;
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const gpsResolved = resolveStoreByGpsIfGenericDefault(storeName, {
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+        });
+        if (gpsResolved.resolvedByGps) {
+          setStoreName(gpsResolved.store);
+          localStorage.setItem(STORAGE_KEY_ACTIVE_STORE, gpsResolved.store);
+          if (gpsResolved.address) {
+            setAddress(gpsResolved.address);
+          }
+        }
+      },
+      () => {},
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 }
+    );
+  }, []);
 
   // 3. Fecha y Hora de Visita
   const todayStr = new Date().toISOString().split('T')[0];
@@ -353,13 +401,16 @@ export const PortalMerchandising: React.FC = () => {
     try {
       const signatureBase64 = signatureCanvasRef.current.toDataURL('image/png');
 
+      const activeProm = outletCtx?.activePromoter || campoService.getActivePromoter();
+      const canonicalPromoter = resolvePromoterNameFromRaw(promoterName.trim(), activeProm?.email);
       const payload = {
         type: 'Merchandising' as const,
         date,
         time,
         store: storeName.trim(),
         address: address.trim(),
-        promoter: promoterName.trim(),
+        promoter: canonicalPromoter || promoterName.trim(),
+        creatorId: activeProm?.email || activeProm?.id || canonicalPromoter || promoterName.trim(),
         storeManagerName: storeManagerName.trim(),
         storeManagerRole,
         storeManagerPhone: storeManagerPhone.trim(),

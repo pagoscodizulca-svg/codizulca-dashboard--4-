@@ -814,10 +814,10 @@ export const TradeMarketing: React.FC = () => {
   const [isRefreshingMerch, setIsRefreshingMerch] = useState<boolean>(false);
   const [copiedAiSummaryId, setCopiedAiSummaryId] = useState<string | null>(null);
 
-  const loadMerchandisingReports = async () => {
+  const loadMerchandisingReports = async (forceRefresh: boolean = false) => {
     setIsRefreshingMerch(true);
     try {
-      const data = await merchandisingService.getAll();
+      const data = await merchandisingService.getAll(forceRefresh);
       setMerchandisingReports(data);
     } finally {
       setIsRefreshingMerch(false);
@@ -830,11 +830,39 @@ export const TradeMarketing: React.FC = () => {
       const [priceSurveys, invLogs, tastingSurveys, shelfScans, merchList, checkinList] = await Promise.all([
         campoService.getPriceSurveys(forceRefresh),
         campoService.getInventoryLogs(forceRefresh),
-        campoService.getTastingSurveys(),
-        campoService.getShelfScans(),
-        merchandisingService.getAll(),
-        checkinsService.getAllCheckIns()
+        campoService.getTastingSurveys(forceRefresh),
+        campoService.getShelfScans(forceRefresh),
+        merchandisingService.getAll(forceRefresh),
+        checkinsService.getAllCheckIns(forceRefresh)
       ]);
+
+      // 0. Mantener sincronizadas las pestañas de Merchandising y Asistencia en cada ciclo en vivo
+      setMerchandisingReports(merchList);
+      setCheckIns(checkinList);
+      setLastCheckInSync(new Date());
+      setAttendances(
+        checkinList.map((rec) => {
+          const staffMatch = resolvePromoterIdentity(rec.promoter);
+          const timeFormatted = rec.date && rec.date.includes('T')
+            ? new Date(rec.date).toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit' })
+            : '08:30 AM';
+          return {
+            id: rec.id,
+            promoter: rec.promoter || 'Promotora',
+            promoterRole: (staffMatch?.role as any) || 'Impulsadora',
+            client: rec.store || 'Punto de Venta',
+            zone: staffMatch?.zone || 'Zulia / Falcón',
+            date: normalizeDateToDMY(rec.date),
+            checkInTime: timeFormatted,
+            checkOutTime: rec.type === 'Salida' ? timeFormatted : null,
+            hoursRendered: rec.type === 'Salida' ? 'Jornada Completa' : 'En Guardia Activa',
+            gpsVerified: Boolean(rec.location && rec.location.lat && rec.location.lng),
+            distanceMeters: rec.location?.accuracy ? Math.round(rec.location.accuracy) : 12,
+            status: rec.type === 'Salida' ? 'completado' : 'en_tienda',
+            batteryLevel: rec.batteryLevel || '92%'
+          };
+        })
+      );
 
       // 1. Sincronizar Monitoreo de Precios (CampoPrecios / Supabase prices -> Trade Marketing Precios)
       const mappedPrices: PriceComparisonItem[] = priceSurveys.map((ps, idx) => {
@@ -1098,17 +1126,17 @@ export const TradeMarketing: React.FC = () => {
   };
 
   useEffect(() => {
-    loadMerchandisingReports();
+    loadMerchandisingReports(true);
     loadCampoSynchronizedData(true);
     const unsubMerch = merchandisingService.subscribe(() => {
-      loadMerchandisingReports();
+      loadMerchandisingReports(true);
       loadCampoSynchronizedData(true);
     });
     const unsubCampo = campoService.subscribe(() => {
       loadCampoSynchronizedData(true);
     });
     const unsubCheckins = checkinsService.subscribe(() => {
-      loadCampoSynchronizedData();
+      loadCampoSynchronizedData(true);
     });
 
     // Suscripción en tiempo real a Supabase (tablas `prices` e `inventory`) para reflejar al instante
@@ -1124,11 +1152,11 @@ export const TradeMarketing: React.FC = () => {
           loadCampoSynchronizedData(true);
         })
         .on('postgres_changes', { event: '*', schema: 'public', table: 'checkins' }, () => {
-          loadCheckIns();
+          loadCheckIns(true);
           loadCampoSynchronizedData(true);
         })
         .on('postgres_changes', { event: '*', schema: 'public', table: 'surveys' }, () => {
-          loadMerchandisingReports();
+          loadMerchandisingReports(true);
           loadCampoSynchronizedData(true);
           degustacionesService.getDegustacionesAsync(true);
         })
@@ -1872,7 +1900,7 @@ export const TradeMarketing: React.FC = () => {
         inf.comments.toLowerCase().includes(searchTerm.toLowerCase());
 
       const matchesPromoter =
-        promoterFilter === 'todos' || inf.promoter === promoterFilter;
+        promoterFilter === 'todos' || matchPromoterName(inf.promoter, promoterFilter);
 
       return matchesSearch && matchesPromoter;
     });
@@ -2015,7 +2043,7 @@ export const TradeMarketing: React.FC = () => {
         inventoryStatusFilter === 'todos' || item.stockStatus === inventoryStatusFilter;
 
       const matchesPromoter =
-        promoterFilter === 'todos' || item.promoter === promoterFilter;
+        promoterFilter === 'todos' || matchPromoterName(item.promoter, promoterFilter);
 
       return matchesSearch && matchesStatus && matchesPromoter;
     });
@@ -2030,7 +2058,7 @@ export const TradeMarketing: React.FC = () => {
         item.zone.toLowerCase().includes(searchTerm.toLowerCase());
 
       const matchesPromoter =
-        promoterFilter === 'todos' || item.promoter === promoterFilter;
+        promoterFilter === 'todos' || matchPromoterName(item.promoter, promoterFilter);
 
       return matchesSearch && matchesPromoter;
     });
@@ -2181,10 +2209,11 @@ export const TradeMarketing: React.FC = () => {
         (item.aiRecommendations?.marketPositionStatus && item.aiRecommendations.marketPositionStatus.toLowerCase().includes(term));
 
       const matchesPromoter =
-        promoterFilter === 'todos' || item.promoter === promoterFilter;
+        promoterFilter === 'todos' || matchPromoterName(item.promoter, promoterFilter);
 
       const matchesDate =
-        merchandisingDateFilter === 'todos' || item.date === merchandisingDateFilter;
+        merchandisingDateFilter === 'todos' ||
+        normalizeDateToDMY(item.date) === normalizeDateToDMY(merchandisingDateFilter);
 
       const matchesType =
         merchFilterType === 'todos' ||
@@ -4620,7 +4649,7 @@ export const TradeMarketing: React.FC = () => {
                           type="button"
                           onClick={() => setPromoterFilter(p.name)}
                           className={`px-2.5 py-1 rounded-lg font-bold text-[11px] whitespace-nowrap transition cursor-pointer flex items-center gap-1 ${
-                            promoterFilter === p.name
+                            promoterFilter !== 'todos' && matchPromoterName(p.name, promoterFilter)
                               ? 'bg-red-600 text-white shadow-sm'
                               : 'bg-zinc-900 text-zinc-400 hover:text-white border border-white/5'
                           }`}
@@ -5528,7 +5557,7 @@ export const TradeMarketing: React.FC = () => {
               <div className="flex items-center gap-2 flex-wrap">
                 <button
                   type="button"
-                  onClick={loadMerchandisingReports}
+                  onClick={() => loadMerchandisingReports(true)}
                   disabled={isRefreshingMerch}
                   className="px-3 py-1.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-white/10 text-zinc-300 hover:text-white text-xs font-bold inline-flex items-center gap-1.5 transition-colors cursor-pointer"
                   title="Recargar informes"
@@ -5537,7 +5566,7 @@ export const TradeMarketing: React.FC = () => {
                   <span>Sincronizar</span>
                 </button>
                 <a
-                  href="/portal/merchandising?role=merchandising&user=jose"
+                  href="/portal/merchandising"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white font-bold text-xs inline-flex items-center gap-1.5 shadow-lg shadow-red-600/30 transition-all cursor-pointer"
@@ -5646,9 +5675,15 @@ export const TradeMarketing: React.FC = () => {
                     <option value="todos" className="bg-zinc-900">Todos los Mercaderistas y Promotoras</option>
                     <option value="Jose Barroso" className="bg-zinc-900">Jose Barroso (Mercaderista)</option>
                     <option value="Zioreli Grangger" className="bg-zinc-900">Zioreli Grangger (Mercaderista)</option>
-                    {personal.filter(p => p.name !== 'Jose Barroso' && p.name !== 'Zioreli Grangger').map((p) => (
-                      <option key={p.id} value={p.name} className="bg-zinc-900">{p.name} ({p.role})</option>
-                    ))}
+                    {personal
+                      .filter(
+                        (p) =>
+                          !matchPromoterName(p.name, 'Jose Barroso') &&
+                          !matchPromoterName(p.name, 'Zioreli Grangger')
+                      )
+                      .map((p) => (
+                        <option key={p.id} value={p.name} className="bg-zinc-900">{p.name} ({p.role})</option>
+                      ))}
                   </select>
                 </div>
 

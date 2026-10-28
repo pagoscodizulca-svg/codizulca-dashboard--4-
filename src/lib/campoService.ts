@@ -1078,6 +1078,21 @@ export const campoService = {
           };
         }
       }
+      // Respaldo por ID de sesión autenticada o nombre activo si el objeto principal fue limpiado
+      const allProfiles = [TRADE_COORDINATOR_PROFILE, ...PROMOTERS_LIST];
+      const authId = localStorage.getItem(AUTH_USER_ID_KEY);
+      if (authId) {
+        const byId = allProfiles.find((p) => p.id === authId);
+        if (byId) return byId;
+      }
+      const savedName = localStorage.getItem('portal_active_promoter');
+      if (savedName && savedName.trim()) {
+        const cleanSaved = resolvePromoterNameFromRaw(savedName).toUpperCase();
+        const byName = allProfiles.find(
+          (p) => resolvePromoterNameFromRaw(p.name).toUpperCase() === cleanSaved
+        );
+        if (byName) return byName;
+      }
     } catch {
       // Fallback seguro si el JSON está corrupto
     }
@@ -1143,12 +1158,14 @@ export const campoService = {
         else if (item.type === 'tasting_survey') endpoint = '/api/tasting-surveys';
         else if (item.type === 'merchandising_report') endpoint = '/api/merchandising';
 
+        let directSupabaseOk = false;
+
         if (!isTestEnv && item.type === 'price_survey' && item.payload && !isSyntheticPriceOrInventoryRow(item.payload)) {
           try {
             const norm = mapSupabasePriceRowToPayload(item.payload);
             const dbId = ensureCampoUuid(norm.id, `${norm.date}|${norm.promoter}|${norm.store}|${norm.productName}`);
             const comps = Array.isArray(norm.competitors) ? norm.competitors : [];
-            await (supabase.from('prices') as any).upsert({
+            const { error } = await (supabase.from('prices') as any).upsert({
               id: dbId,
               date: norm.date,
               store: norm.store,
@@ -1166,6 +1183,7 @@ export const campoService = {
               creatorId: item.payload.creatorId || norm.promoter || '',
               promoter: norm.promoter,
             });
+            if (!error) directSupabaseOk = true;
           } catch {}
         }
 
@@ -1173,7 +1191,7 @@ export const campoService = {
           try {
             const norm = mapSupabaseInventoryRowToPayload(item.payload);
             const dbId = ensureCampoUuid(norm.id, `${norm.date}|${norm.promoter}|${norm.store}|${norm.productName}`);
-            await (supabase.from('inventory') as any).upsert({
+            const { error } = await (supabase.from('inventory') as any).upsert({
               id: dbId,
               date: norm.date,
               store: norm.store,
@@ -1185,19 +1203,167 @@ export const campoService = {
               creatorId: item.payload.creatorId || norm.promoter || '',
               promoter: norm.promoter,
             });
+            if (!error) directSupabaseOk = true;
+          } catch {}
+        }
+
+        if (!isTestEnv && item.type === 'merchandising_report' && item.payload) {
+          try {
+            const p = item.payload;
+            const canonicalPromoter = resolvePromoterNameFromRaw(p.promoter, p.creatorId);
+            const dbId = ensureCampoUuid(p.id, `${p.date || ''}|${canonicalPromoter}|${p.store || ''}`);
+            const { error } = await (supabase.from('surveys') as any).upsert({
+              id: dbId,
+              type: 'Merchandising',
+              date: String(p.date || new Date().toISOString()).split('T')[0],
+              store: p.store,
+              promoter: canonicalPromoter,
+              product: p.product || 'General',
+              creatorId: p.creatorId || canonicalPromoter,
+              comments: JSON.stringify({
+                isMerchandising: true,
+                address: p.address || '',
+                time: p.time || '',
+                storeManagerName: p.storeManagerName || 'Encargado de Tienda',
+                storeManagerRole: p.storeManagerRole || 'Encargado de PDV',
+                storeManagerPhone: p.storeManagerPhone || '',
+                visitReason: p.visitReason || 'Certificación de Labores de Merchandising en Anaquel',
+                activities: Array.isArray(p.activities) ? p.activities : ['Exhibición y Ajuste de Planograma'],
+                observations: p.observations || '',
+                signature: p.signature || '',
+                signedAt: p.signedAt || p.created_at || new Date().toISOString(),
+                certified: p.certified !== undefined ? Boolean(p.certified) : true,
+                photos: Array.isArray(p.photos) ? p.photos : [],
+                category: p.category,
+                metrics: p.metrics,
+                alerts: p.alerts,
+                aiRecommendations: p.aiRecommendations,
+              }),
+            });
+            if (!error) directSupabaseOk = true;
+          } catch {}
+        }
+
+        if (!isTestEnv && item.type === 'shelf_scan' && item.payload && !/^SCAN-TEST-/i.test(String(item.payload.id || ''))) {
+          try {
+            const s = item.payload;
+            const canonicalPromoter = resolvePromoterNameFromRaw(s.promoter, s.creatorId);
+            const dbId = ensureCampoUuid(s.id, `scan|${s.date || ''}|${canonicalPromoter}|${s.store || ''}`);
+            const rawDateStr = String(s.date || new Date().toISOString());
+            const { error } = await (supabase.from('surveys') as any).upsert({
+              id: dbId,
+              type: 'Merchandising',
+              date: rawDateStr.split('T')[0],
+              store: s.store,
+              promoter: canonicalPromoter,
+              product: s.category || 'Embutidos y Charcutería',
+              creatorId: s.creatorId || canonicalPromoter,
+              comments: JSON.stringify({
+                isMerchandising: true,
+                isShelfScan: true,
+                address: s.address || `Categoría: ${s.category || 'Embutidos y Refrigerados'}`,
+                time: rawDateStr.includes('T')
+                  ? new Date(rawDateStr).toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit' })
+                  : '10:00',
+                storeManagerName: s.storeManagerName || 'Encargado de Tienda',
+                storeManagerRole: s.storeManagerRole || 'Gerente de PDV',
+                visitReason: 'Escaneo Inteligente de Góndola & Diagnóstico IA',
+                activities: [
+                  'Escaneo Inteligente de Góndolas (IA)',
+                  'Auditoría de Planograma & Visibilidad',
+                  'Medición de Share of Shelf',
+                  ...(s.metrics?.outOfStockDetected ? ['Detección de Quiebres de Stock'] : []),
+                  ...(s.metrics?.popDetected ? ['Verificación de Material POP'] : []),
+                ],
+                observations:
+                  s.aiRecommendations?.marketDiagnostic ||
+                  `Auditoría IA de Góndola: Share of Shelf ${s.metrics?.shareOfShelfPercent || 0}%. Frentes propios: ${s.metrics?.ourFacings || 0}.`,
+                certified: true,
+                signedAt: rawDateStr,
+                photos: Array.isArray(s.photos) ? s.photos : [],
+                category: s.category,
+                metrics: s.metrics,
+                alerts: s.alerts,
+                competitorBrandsObserved: s.competitorBrandsObserved,
+                aiRecommendations: s.aiRecommendations,
+              }),
+            });
+            if (!error) directSupabaseOk = true;
+          } catch {}
+        }
+
+        if (!isTestEnv && item.type === 'tasting_survey' && item.payload && !isSyntheticTastingSurveyRow(item.payload)) {
+          try {
+            const norm = mapSupabaseTastingSurveyRowToPayload(item.payload);
+            const dbId = ensureCampoUuid(norm.id, `${norm.date}|${norm.promoter}|${norm.store}|${norm.productName}`);
+            const rating = Number(norm.ratingOverall) || 5;
+            const { error } = await (supabase.from('surveys') as any).upsert({
+              id: dbId,
+              type: norm.type === 'extendida' ? 'Profunda' : 'Breve',
+              date: norm.date,
+              store: norm.store,
+              promoter: norm.promoter,
+              product: norm.productName,
+              rating,
+              intent:
+                norm.purchaseIntent === 'SI'
+                  ? norm.type === 'extendida'
+                    ? 'Muy probable'
+                    : 'Sí, definitivamente'
+                  : norm.purchaseIntent === 'TAL_VEZ'
+                  ? 'Tal vez'
+                  : 'No por ahora',
+              comments: JSON.stringify({
+                originalComments: norm.comments || '',
+                acceptance: rating >= 4 ? 'Alta' : rating === 3 ? 'Media' : 'Baja',
+                isTasting: true,
+                ...(norm.sensoryRatings ? { sensoryRatings: norm.sensoryRatings } : {}),
+              }),
+              creatorId: norm.promoter,
+            });
+            if (!error) directSupabaseOk = true;
+          } catch {}
+        }
+
+        if (!isTestEnv && item.type === 'checkin' && item.payload) {
+          try {
+            const c = item.payload;
+            const canonicalPromoter = resolvePromoterNameFromRaw(c.promoter, c.creatorId);
+            const dbId = ensureCampoUuid(c.id, `chk|${c.date || ''}|${canonicalPromoter}|${c.type || 'Ingreso'}`);
+            const { error } = await (supabase.from('checkins') as any).upsert({
+              id: dbId,
+              date: c.date || new Date().toISOString(),
+              store: c.store || 'Punto de Venta',
+              type: c.type || 'Ingreso',
+              photoBase64: c.photoBase64 || c.photoUrl || '',
+              location: c.location || { lat: 0, lng: 0, accuracy: 0 },
+              creatorId: c.creatorId || canonicalPromoter,
+              promoter: canonicalPromoter,
+            });
+            if (!error) directSupabaseOk = true;
           } catch {}
         }
 
         if (endpoint) {
-          const res = await fetch(endpoint, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(item.payload)
-          });
-          if (res.ok) {
-            synced++;
-            continue;
+          try {
+            const res = await fetch(endpoint, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(item.payload)
+            });
+            if (res.ok || directSupabaseOk) {
+              synced++;
+              continue;
+            }
+          } catch {
+            if (directSupabaseOk) {
+              synced++;
+              continue;
+            }
           }
+        } else if (directSupabaseOk) {
+          synced++;
+          continue;
         }
         remaining.push(item);
       } catch (err) {
@@ -1213,9 +1379,24 @@ export const campoService = {
     return { synced, remaining: remaining.length };
   },
 
-  // Guardado de Escaneo Inteligente de Góndolas
+  // Guardado de Escaneo Inteligente de Góndolas (Persistencia dual: Supabase `surveys` + API `/api/shelf-scans`)
   async saveShelfScan(scan: ShelfScanPayload): Promise<{ success: boolean; offline: boolean }> {
     const KEY = 'codizulca_shelf_scans';
+    const isTestScan = /^SCAN-TEST-/i.test(String(scan?.id || ''));
+    const isTestEnv =
+      typeof process !== 'undefined' &&
+      Boolean(process.env?.NODE_ENV === 'test' || process.env?.VITEST);
+    const canonicalPromoter = resolvePromoterNameFromRaw(scan.promoter, (scan as any).creatorId);
+    const finalId =
+      isTestScan || isTestEnv
+        ? scan.id
+        : ensureCampoUuid(scan.id, `scan|${scan.date}|${canonicalPromoter}|${scan.store}`);
+    const normalizedScan: ShelfScanPayload = {
+      ...scan,
+      id: finalId,
+      promoter: isTestScan ? scan.promoter : (canonicalPromoter || scan.promoter),
+    };
+
     let local: ShelfScanPayload[] = [];
     try {
       const parsed = JSON.parse(localStorage.getItem(KEY) || '[]');
@@ -1223,35 +1404,86 @@ export const campoService = {
     } catch {
       local = [];
     }
-    const filtered = local.filter((s) => s && s.id !== scan.id);
+    const filtered = local.filter((s) => s && s.id !== normalizedScan.id && s.id !== scan.id);
     try {
-      localStorage.setItem(KEY, JSON.stringify([scan, ...filtered]));
+      localStorage.setItem(KEY, JSON.stringify([normalizedScan, ...filtered]));
     } catch {
       // ignore quota errors
     }
 
     if (!navigator.onLine) {
-      this.enqueue('shelf_scan', scan);
+      this.enqueue('shelf_scan', normalizedScan);
       notifyCampoDataChanged();
       window.dispatchEvent(new Event('codizulca_merchandising_changed'));
       return { success: true, offline: true };
+    }
+
+    let syncedDirectSupabase = false;
+    if (!isTestScan && !isTestEnv) {
+      try {
+        const rawDateStr = String(normalizedScan.date || new Date().toISOString());
+        const dbRow: Record<string, any> = {
+          id: finalId,
+          type: 'Merchandising',
+          date: rawDateStr.split('T')[0],
+          store: normalizedScan.store,
+          promoter: normalizedScan.promoter,
+          product: normalizedScan.category || 'Embutidos y Charcutería',
+          creatorId: (normalizedScan as any).creatorId || normalizedScan.promoter,
+          comments: JSON.stringify({
+            isMerchandising: true,
+            isShelfScan: true,
+            address: (normalizedScan as any).address || `Categoría: ${normalizedScan.category || 'Embutidos y Refrigerados'}`,
+            time: rawDateStr.includes('T')
+              ? new Date(rawDateStr).toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit' })
+              : '10:00',
+            storeManagerName: (normalizedScan as any).storeManagerName || 'Encargado de Tienda',
+            storeManagerRole: (normalizedScan as any).storeManagerRole || 'Gerente de PDV',
+            visitReason: 'Escaneo Inteligente de Góndola & Diagnóstico IA',
+            activities: [
+              'Escaneo Inteligente de Góndolas (IA)',
+              'Auditoría de Planograma & Visibilidad',
+              'Medición de Share of Shelf',
+              ...(normalizedScan.metrics?.outOfStockDetected ? ['Detección de Quiebres de Stock'] : []),
+              ...(normalizedScan.metrics?.popDetected ? ['Verificación de Material POP'] : []),
+            ],
+            observations:
+              normalizedScan.aiRecommendations?.marketDiagnostic ||
+              `Auditoría IA de Góndola: Share of Shelf ${normalizedScan.metrics?.shareOfShelfPercent || 0}%. Frentes propios: ${normalizedScan.metrics?.ourFacings || 0}.`,
+            certified: true,
+            signedAt: rawDateStr,
+            photos: Array.isArray(normalizedScan.photos) ? normalizedScan.photos : [],
+            category: normalizedScan.category,
+            metrics: normalizedScan.metrics,
+            alerts: normalizedScan.alerts,
+            competitorBrandsObserved: normalizedScan.competitorBrandsObserved,
+            aiRecommendations: normalizedScan.aiRecommendations,
+          }),
+        };
+        const { error } = await (supabase.from('surveys') as any).upsert(dbRow);
+        if (!error) syncedDirectSupabase = true;
+      } catch {
+        // ignore direct Supabase error
+      }
     }
 
     try {
       const res = await fetch('/api/shelf-scans', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(scan)
+        body: JSON.stringify(normalizedScan)
       });
       if (!res.ok) throw new Error('Error al sincronizar con servidor');
       notifyCampoDataChanged();
       window.dispatchEvent(new Event('codizulca_merchandising_changed'));
       return { success: true, offline: false };
     } catch {
-      this.enqueue('shelf_scan', scan);
+      if (!syncedDirectSupabase) {
+        this.enqueue('shelf_scan', normalizedScan);
+      }
       notifyCampoDataChanged();
       window.dispatchEvent(new Event('codizulca_merchandising_changed'));
-      return { success: true, offline: true };
+      return { success: true, offline: !syncedDirectSupabase };
     }
   },
 
@@ -1529,20 +1761,78 @@ export const campoService = {
   },
 
   // Consultas sincronizadas para el módulo de Trade Marketing
-  async getShelfScans(): Promise<ShelfScanPayload[]> {
+  async getShelfScans(forceRefresh: boolean = false): Promise<ShelfScanPayload[]> {
     const KEY = 'codizulca_shelf_scans';
     let serverList: ShelfScanPayload[] = [];
     let serverResponded = false;
     try {
-      const res = await fetch('/api/shelf-scans');
+      const url = forceRefresh ? '/api/shelf-scans?refresh=true' : '/api/shelf-scans';
+      const res = await fetch(url);
       if (res.ok) {
         serverResponded = true;
         const data = await res.json();
         if (Array.isArray(data)) serverList = data;
       }
     } catch {
-      // fallback to localStorage
+      // fallback to direct Supabase / localStorage
     }
+
+    const isTestEnv =
+      typeof process !== 'undefined' &&
+      Boolean(process.env?.NODE_ENV === 'test' || process.env?.VITEST);
+    if (!isTestEnv) {
+      try {
+        const { data: sbRows, error: sbErr } = await supabase
+          .from('surveys')
+          .select('*')
+          .eq('type', 'Merchandising')
+          .order('date', { ascending: false })
+          .limit(500);
+        if (!sbErr && Array.isArray(sbRows)) {
+          serverResponded = true;
+          const fromSupabase: ShelfScanPayload[] = [];
+          for (const row of sbRows as any[]) {
+            let c: any = {};
+            try {
+              c = typeof row.comments === 'string' ? JSON.parse(row.comments) : (row.comments || {});
+            } catch {
+              c = {};
+            }
+            if (c && (c.isShelfScan || c.metrics)) {
+              fromSupabase.push({
+                id: String(row.id),
+                date: row.created_at || row.date,
+                store: row.store,
+                category: c.category || row.product || 'Embutidos y Charcutería',
+                photos: Array.isArray(c.photos) ? c.photos : [],
+                metrics: c.metrics || {
+                  ourFacings: 12,
+                  competitorFacings: 16,
+                  totalFacings: 28,
+                  shareOfShelfPercent: 43,
+                  shelfLevel: 'Nivel Ojos / Manos',
+                  outOfStockDetected: false,
+                  popDetected: true,
+                },
+                alerts: Array.isArray(c.alerts) ? c.alerts : [],
+                competitorBrandsObserved: Array.isArray(c.competitorBrandsObserved) ? c.competitorBrandsObserved : [],
+                promoter: resolvePromoterNameFromRaw(row.promoter, row.creatorId),
+                aiRecommendations: c.aiRecommendations,
+                created_at: row.created_at || row.date,
+              });
+            }
+          }
+          const sbMap = new Map<string, ShelfScanPayload>();
+          [...serverList, ...fromSupabase].forEach((item) => {
+            if (item && item.id) sbMap.set(item.id, item);
+          });
+          serverList = Array.from(sbMap.values());
+        }
+      } catch {
+        // ignore direct Supabase error
+      }
+    }
+
     let localList: ShelfScanPayload[] = [];
     try {
       const parsed = JSON.parse(localStorage.getItem(KEY) || '[]');
@@ -1746,7 +2036,7 @@ export const campoService = {
     const isTestEnv =
       typeof process !== 'undefined' &&
       Boolean(process.env?.NODE_ENV === 'test' || process.env?.VITEST);
-    if (!isTestEnv && (forceRefresh || serverList.length === 0)) {
+    if (!isTestEnv) {
       try {
         const { data: sbData, error: sbErr } = await supabase
           .from('surveys')

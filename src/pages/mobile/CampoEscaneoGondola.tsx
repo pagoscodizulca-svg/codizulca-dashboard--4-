@@ -32,14 +32,47 @@ import {
   campoService,
   ShelfScanPayload,
   FREQUENT_STORES,
-  COMPETITOR_BRANDS
+  COMPETITOR_BRANDS,
+  resolvePromoterNameFromRaw,
 } from '../../lib/campoService';
+import {
+  STORAGE_KEY_ACTIVE_STORE,
+  isGenericDefaultStoreName,
+  resolveStoreByGpsIfGenericDefault,
+} from '../../lib/checkinsService';
 import { ClientSearchAutocomplete } from '../../components/mobile/ClientSearchAutocomplete';
 
 export const CampoEscaneoGondola: React.FC<{ activePromoterName?: string }> = ({
   activePromoterName
 }) => {
-  const [storeName, setStoreName] = useState<string>(FREQUENT_STORES[0]);
+  const [storeName, setStoreName] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY_ACTIVE_STORE);
+      if (saved && saved.trim()) return saved.trim();
+    } catch {}
+    return FREQUENT_STORES[0];
+  });
+
+  useEffect(() => {
+    if (typeof navigator === 'undefined' || !navigator.geolocation) return;
+    if (!isGenericDefaultStoreName(storeName)) return;
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const gpsResolved = resolveStoreByGpsIfGenericDefault(storeName, {
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+        });
+        if (gpsResolved.resolvedByGps) {
+          setStoreName(gpsResolved.store);
+          try {
+            localStorage.setItem(STORAGE_KEY_ACTIVE_STORE, gpsResolved.store);
+          } catch {}
+        }
+      },
+      () => {},
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 }
+    );
+  }, []);
   const [category, setCategory] = useState<string>('Embutidos Cocidos & Refrigerados');
   const [capturedPhotos, setCapturedPhotos] = useState<string[]>([]);
   const [isCameraActive, setIsCameraActive] = useState<boolean>(false);
@@ -300,7 +333,15 @@ export const CampoEscaneoGondola: React.FC<{ activePromoterName?: string }> = ({
       typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
         ? crypto.randomUUID()
         : 'SCAN-' + Date.now().toString().slice(-6);
-    const payload: ShelfScanPayload = {
+    const activeProfile = campoService.getActivePromoter();
+    const canonicalPromoter = resolvePromoterNameFromRaw(
+      activePromoterName || activeProfile.name,
+      activeProfile.email || activeProfile.id
+    );
+    try {
+      localStorage.setItem(STORAGE_KEY_ACTIVE_STORE, storeName);
+    } catch {}
+    const payload: ShelfScanPayload & { creatorId?: string } = {
       id: generatedId,
       date: new Date().toISOString(),
       store: storeName,
@@ -309,7 +350,8 @@ export const CampoEscaneoGondola: React.FC<{ activePromoterName?: string }> = ({
       metrics: analysisResult,
       alerts,
       competitorBrandsObserved: observedCompetitors,
-      promoter: activePromoterName || campoService.getActivePromoter().name,
+      promoter: canonicalPromoter || activePromoterName || activeProfile.name,
+      creatorId: activeProfile.email || activeProfile.id || canonicalPromoter,
       aiRecommendations: aiReport || undefined
     };
 

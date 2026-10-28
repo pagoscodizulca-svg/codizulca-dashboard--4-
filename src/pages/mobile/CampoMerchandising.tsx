@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useOutletContext } from 'react-router-dom';
 import {
   Sparkles,
   FileCheck,
@@ -10,9 +11,18 @@ import {
 } from 'lucide-react';
 import { CampoEscaneoGondola } from './CampoEscaneoGondola';
 import { PortalMerchandising } from './PortalMerchandising';
+import { campoService, PromoterProfile } from '../../lib/campoService';
+import { merchandisingService } from '../../lib/merchandisingService';
 
 export const CampoMerchandising: React.FC = () => {
+  const context = useOutletContext<{ activePromoter?: PromoterProfile }>();
+  const activePromoter = context?.activePromoter || campoService.getActivePromoter();
   const [activeSubTab, setActiveSubTab] = useState<'escaneo_ia' | 'certificacion_firma'>('escaneo_ia');
+
+  // Sincronizar en segundo plano cualquier informe o escaneo pendiente en el teléfono con Supabase
+  useEffect(() => {
+    merchandisingService.getAll(true).catch(() => {});
+  }, [activePromoter?.id]);
 
   return (
     <div className="space-y-4 animate-in fade-in duration-300">
@@ -48,10 +58,10 @@ export const CampoMerchandising: React.FC = () => {
 
       {/* Renderizado de la Sub-Pestaña Activa */}
       {activeSubTab === 'escaneo_ia' ? (
-        <CampoEscaneoGondola />
+        <CampoEscaneoGondola activePromoterName={activePromoter?.name} />
       ) : (
         <div className="text-white">
-          <PortalMerchandising />
+          <PortalMerchandising activePromoterName={activePromoter?.name} />
         </div>
       )}
     </div>

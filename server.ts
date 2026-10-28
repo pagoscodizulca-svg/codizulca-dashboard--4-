@@ -4388,7 +4388,7 @@ Responde con un JSON estructurado con:
             .select('*')
             .eq('type', 'Merchandising')
             .order('date', { ascending: false })
-            .limit(200);
+            .limit(1000);
           if (!error && Array.isArray(data)) {
             remoteRows = data
               .filter((r) => !deletedMerchIds.has(String(r.id)))
@@ -4457,6 +4457,7 @@ Responde con un JSON estructurado con:
             product: record.product || 'General',
             comments: JSON.stringify({
               isMerchandising: true,
+              isShelfScan: Boolean(rawRecord.isShelfScan || record.metrics),
               address: record.address || '',
               time: record.time || '',
               storeManagerName: record.storeManagerName || '',
@@ -4474,11 +4475,16 @@ Responde con un JSON estructurado con:
               alerts: record.alerts,
               aiRecommendations: record.aiRecommendations,
             }),
-            creatorId: record.promoter,
+            creatorId: rawRecord.creatorId || record.promoter,
           };
-          await supabase.from('surveys').upsert(dbRow);
+          const { error: sbErr } = await supabase.from('surveys').upsert(dbRow);
+          if (sbErr) {
+            console.warn('[Merchandising] Supabase upsert falló:', sbErr.message);
+          }
         }
-      } catch {}
+      } catch (sbEx: any) {
+        console.warn('[Merchandising] Error persistiendo en Supabase:', sbEx?.message);
+      }
 
       res.status(201).json(record);
     } catch (err: any) {
@@ -4898,27 +4904,167 @@ Responde con un JSON estructurado con:
     console.warn('[Campo] Error leyendo shelf scans:', e);
   }
 
-  app.get('/api/shelf-scans', (req, res) => {
-    res.json(memoryShelfScans);
+  const deletedShelfScanIds = new Set<string>();
+
+  app.get('/api/shelf-scans', async (req, res) => {
+    try {
+      let remoteScans: any[] = [];
+      const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || DEFAULT_SUPABASE_URL;
+      const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || DEFAULT_SUPABASE_KEY;
+      if (supabaseUrl && supabaseKey) {
+        try {
+          const supabase = createClient(supabaseUrl.replace('/rest/v1/', ''), supabaseKey);
+          const { data, error } = await supabase
+            .from('surveys')
+            .select('*')
+            .eq('type', 'Merchandising')
+            .order('date', { ascending: false })
+            .limit(500);
+          if (!error && Array.isArray(data)) {
+            for (const row of data) {
+              const idStr = String(row.id);
+              if (deletedShelfScanIds.has(idStr) || deletedMerchIds.has(idStr)) continue;
+              let c: any = {};
+              try {
+                c = typeof row.comments === 'string' ? JSON.parse(row.comments) : (row.comments || {});
+              } catch {
+                c = {};
+              }
+              if (c && (c.isShelfScan || c.metrics)) {
+                remoteScans.push({
+                  id: idStr,
+                  date: row.created_at || row.date,
+                  store: row.store,
+                  category: c.category || row.product || 'Embutidos y Charcutería',
+                  photos: Array.isArray(c.photos) ? c.photos : [],
+                  metrics: c.metrics,
+                  alerts: Array.isArray(c.alerts) ? c.alerts : [],
+                  competitorBrandsObserved: Array.isArray(c.competitorBrandsObserved) ? c.competitorBrandsObserved : [],
+                  promoter: row.promoter,
+                  aiRecommendations: c.aiRecommendations,
+                  created_at: row.created_at || row.date,
+                });
+              }
+            }
+          }
+        } catch (e: any) {
+          console.warn('[Campo] Error leyendo shelf scans en Supabase:', e?.message);
+        }
+      }
+
+      const localFiltered = memoryShelfScans.filter(
+        (s) => s && s.id && !deletedShelfScanIds.has(String(s.id)) && !deletedMerchIds.has(String(s.id))
+      );
+      const remoteIds = new Set(remoteScans.map((s) => s.id));
+      const merged = [
+        ...remoteScans,
+        ...localFiltered.filter((s) => !remoteIds.has(String(s.id))),
+      ];
+      memoryShelfScans = merged;
+      res.json(merged);
+    } catch {
+      res.json(memoryShelfScans);
+    }
   });
 
-  app.post('/api/shelf-scans', (req, res) => {
+  app.post('/api/shelf-scans', async (req, res) => {
     try {
-      const scan = req.body;
-      if (!scan || !scan.store) return res.status(400).json({ error: 'Datos de escaneo incompletos' });
-      memoryShelfScans = [scan, ...memoryShelfScans.filter(s => s.id !== scan.id)];
+      const rawScan = req.body;
+      if (!rawScan || !rawScan.store) return res.status(400).json({ error: 'Datos de escaneo incompletos' });
+      const isTestScan = /^SCAN-TEST-/i.test(String(rawScan.id || ''));
+      const finalId = isTestScan
+        ? String(rawScan.id)
+        : ensureCampoUuid(rawScan.id, `scan|${rawScan.date || ''}|${rawScan.promoter || ''}|${rawScan.store}`);
+      const scan = {
+        ...rawScan,
+        id: finalId,
+        created_at: rawScan.created_at || rawScan.date || new Date().toISOString(),
+      };
+
+      deletedShelfScanIds.delete(finalId);
+      deletedMerchIds.delete(finalId);
+      memoryShelfScans = [scan, ...memoryShelfScans.filter((s) => s.id !== finalId && s.id !== rawScan.id)];
+      merchCache = null;
       try { fs.writeFileSync(campoScansPath, JSON.stringify(memoryShelfScans, null, 2), 'utf8'); } catch (err) {}
+
+      if (!isTestScan) {
+        try {
+          const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || DEFAULT_SUPABASE_URL;
+          const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || DEFAULT_SUPABASE_KEY;
+          if (supabaseUrl && supabaseKey) {
+            const supabase = createClient(supabaseUrl.replace('/rest/v1/', ''), supabaseKey);
+            const rawDateStr = String(scan.date || new Date().toISOString());
+            const dbRow = {
+              id: finalId,
+              type: 'Merchandising',
+              date: rawDateStr.split('T')[0],
+              store: scan.store,
+              promoter: scan.promoter || 'Mercaderista',
+              product: scan.category || 'Embutidos y Charcutería',
+              creatorId: scan.creatorId || scan.promoter || 'Mercaderista',
+              comments: JSON.stringify({
+                isMerchandising: true,
+                isShelfScan: true,
+                address: scan.address || `Categoría: ${scan.category || 'Embutidos y Refrigerados'}`,
+                time: rawDateStr.includes('T')
+                  ? new Date(rawDateStr).toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit' })
+                  : '10:00',
+                storeManagerName: scan.storeManagerName || 'Encargado de Tienda',
+                storeManagerRole: scan.storeManagerRole || 'Gerente de PDV',
+                visitReason: 'Escaneo Inteligente de Góndola & Diagnóstico IA',
+                activities: [
+                  'Escaneo Inteligente de Góndolas (IA)',
+                  'Auditoría de Planograma & Visibilidad',
+                  'Medición de Share of Shelf',
+                  ...(scan.metrics?.outOfStockDetected ? ['Detección de Quiebres de Stock'] : []),
+                  ...(scan.metrics?.popDetected ? ['Verificación de Material POP'] : []),
+                ],
+                observations:
+                  scan.aiRecommendations?.marketDiagnostic ||
+                  `Auditoría IA de Góndola: Share of Shelf ${scan.metrics?.shareOfShelfPercent || 0}%. Frentes propios: ${scan.metrics?.ourFacings || 0}.`,
+                certified: true,
+                signedAt: rawDateStr,
+                photos: Array.isArray(scan.photos) ? scan.photos : [],
+                category: scan.category,
+                metrics: scan.metrics,
+                alerts: scan.alerts,
+                competitorBrandsObserved: scan.competitorBrandsObserved,
+                aiRecommendations: scan.aiRecommendations,
+              }),
+            };
+            const { error: sbErr } = await supabase.from('surveys').upsert(dbRow);
+            if (sbErr) {
+              console.warn('[Campo] Supabase upsert shelf scan falló:', sbErr.message);
+            }
+          }
+        } catch (sbEx: any) {
+          console.warn('[Campo] Error guardando shelf scan en Supabase:', sbEx?.message);
+        }
+      }
+
       res.status(201).json(scan);
     } catch (err: any) {
       res.status(500).json({ error: 'Error al guardar escaneo', details: err?.message });
     }
   });
 
-  app.delete('/api/shelf-scans/:id', (req, res) => {
+  app.delete('/api/shelf-scans/:id', async (req, res) => {
     try {
       const { id } = req.params;
-      memoryShelfScans = memoryShelfScans.filter(s => s.id !== id);
+      deletedShelfScanIds.add(id);
+      deletedMerchIds.add(id);
+      memoryShelfScans = memoryShelfScans.filter((s) => s.id !== id);
+      memoryMerch = memoryMerch.filter((m) => m.id !== id);
+      merchCache = null;
       try { fs.writeFileSync(campoScansPath, JSON.stringify(memoryShelfScans, null, 2), 'utf8'); } catch (err) {}
+      try {
+        const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || DEFAULT_SUPABASE_URL;
+        const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || DEFAULT_SUPABASE_KEY;
+        if (supabaseUrl && supabaseKey && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+          const supabase = createClient(supabaseUrl.replace('/rest/v1/', ''), supabaseKey);
+          await supabase.from('surveys').delete().eq('id', id);
+        }
+      } catch {}
       res.json({ success: true, id });
     } catch (err: any) {
       res.status(500).json({ error: 'Error al eliminar escaneo', details: err?.message });

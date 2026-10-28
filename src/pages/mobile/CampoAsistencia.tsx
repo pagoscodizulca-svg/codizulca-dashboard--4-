@@ -22,7 +22,10 @@ import {
 import {
   checkinsService,
   CheckInRecord,
-  getCaracasDayKey
+  getCaracasDayKey,
+  STORAGE_KEY_ACTIVE_STORE,
+  isMerchandisingRoutePromoter,
+  resolveStoreByGpsIfGenericDefault,
 } from '../../lib/checkinsService';
 import { CampoStoreSelector } from '../../components/mobile/CampoStoreSelector';
 import {
@@ -81,19 +84,22 @@ export const CampoAsistencia: React.FC<{ activePromoterName?: string }> = ({
         const cPromoter = resolvePromoterNameFromRaw(c.promoter, c.creatorId).toUpperCase();
         return getCaracasDayKey(c.date) === todayKey && cPromoter === canonicalMe;
       });
+      const isRouteMerch = isMerchandisingRoutePromoter(canonicalMe, activeProfile.role || activeProfile.email);
       setTodayCheckIns(mineToday);
-      if (mineToday.length > 0 && mineToday[0].store) {
-        setStoreName(mineToday[0].store);
-      }
-      const order: Array<CheckinPayload['type']> = [
-        'Ingreso',
-        'Salida a almorzar',
-        'Vuelta a almorzar',
-        'Salida'
-      ];
-      const firstMissing = order.find((t) => !mineToday.some((m) => m.type === t));
-      if (firstMissing) {
-        setCheckInType(firstMissing);
+      if (!isRouteMerch) {
+        if (mineToday.length > 0 && mineToday[0].store) {
+          setStoreName(mineToday[0].store);
+        }
+        const order: Array<CheckinPayload['type']> = [
+          'Ingreso',
+          'Salida a almorzar',
+          'Vuelta a almorzar',
+          'Salida'
+        ];
+        const firstMissing = order.find((t) => !mineToday.some((m) => m.type === t));
+        if (firstMissing) {
+          setCheckInType(firstMissing);
+        }
       }
     } catch {
       // ignore
@@ -117,10 +123,21 @@ export const CampoAsistencia: React.FC<{ activePromoterName?: string }> = ({
     setGpsError(null);
 
     const onSuccess = (pos: GeolocationPosition) => {
-      setGpsLocation({
+      const coords = {
         lat: Number(pos.coords.latitude.toFixed(6)),
         lng: Number(pos.coords.longitude.toFixed(6)),
         accuracy: Math.round(pos.coords.accuracy || 15)
+      };
+      setGpsLocation(coords);
+      setStoreName((prev) => {
+        const resolved = resolveStoreByGpsIfGenericDefault(prev, coords);
+        if (resolved.resolvedByGps) {
+          try {
+            localStorage.setItem(STORAGE_KEY_ACTIVE_STORE, resolved.store);
+          } catch {}
+          return resolved.store;
+        }
+        return prev;
       });
       setIsCapturingGps(false);
     };
@@ -374,18 +391,29 @@ export const CampoAsistencia: React.FC<{ activePromoterName?: string }> = ({
 
     try {
       const activeProfile = campoService.getActivePromoter();
-      const promoterName = activePromoterName || activeProfile.name;
+      const promoterName = resolvePromoterNameFromRaw(
+        activePromoterName || activeProfile.name,
+        activeProfile.email || activeProfile.id
+      );
       const creatorIdentifier =
         activeProfile?.email ||
         activeProfile?.id ||
         'USR-' + promoterName.replace(/\s+/g, '-').toLowerCase();
       const nowIso = new Date().toISOString();
+      const gpsStoreResolved = resolveStoreByGpsIfGenericDefault(storeName, gpsLocation);
+      const finalStoreName = gpsStoreResolved.store;
+      if (finalStoreName !== storeName) {
+        setStoreName(finalStoreName);
+      }
+      try {
+        localStorage.setItem(STORAGE_KEY_ACTIVE_STORE, finalStoreName);
+      } catch {}
 
       // Guardar en checkinsService (con UUID válido, sincronización directa a Supabase + Backend y cola offline)
       const checkinResult = await checkinsService.createCheckIn({
         date: nowIso,
         promoter: promoterName,
-        store: storeName,
+        store: finalStoreName,
         type: checkInType,
         photoBase64: selfieDataUrl,
         location: {
@@ -396,10 +424,14 @@ export const CampoAsistencia: React.FC<{ activePromoterName?: string }> = ({
         creatorId: creatorIdentifier
       });
 
+      if (isMerchandisingRoutePromoter(promoterName, activeProfile?.role || creatorIdentifier)) {
+        window.dispatchEvent(new Event('codizulca_merchandising_changed'));
+      }
+
       const payload: CheckinPayload & { id: string } = {
         id: checkinResult.record.id,
         date: nowIso,
-        store: storeName,
+        store: finalStoreName,
         type: checkInType,
         photoBase64: selfieDataUrl,
         location: gpsLocation,
