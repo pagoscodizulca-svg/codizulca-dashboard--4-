@@ -47,8 +47,8 @@ async function startServer() {
   const app = express();
   const PORT = Number(process.env.PORT) || 3000;
 
-  // Eagerly initialize CodiBot SQL Database
-  getCodibotDatabase().catch(err => console.warn('[CodiBot SQL Engine] Startup init warning:', err));
+  // CodiBot SQL Database se inicializa bajo demanda (lazy) en la primera consulta
+  // para reducir el uso de RAM (~50 MB) y acelerar la apertura del puerto en Render.
 
   // Middleware for parsing JSON with increased limit for base64 images
   app.use(express.json({ limit: '10mb' }));
@@ -6707,6 +6707,13 @@ Responde con un JSON estructurado con:
 
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server running on http://localhost:${PORT}`);
+    if (process.env.PREWARM_CODIBOT_DB === 'true') {
+      setTimeout(() => {
+        getCodibotDatabase().catch((err) =>
+          console.warn('[CodiBot SQL Engine] Background warmup warning:', err)
+        );
+      }, 3000).unref();
+    }
   });
 }
 

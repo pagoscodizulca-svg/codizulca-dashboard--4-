@@ -1,16 +1,47 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense, lazy } from 'react';
 import Papa from 'papaparse';
 import { MonthProgressBar, MainTab, ViewLevel } from '../components/cuotas/MonthProgressBar';
 import { RubrosActivationTable } from '../components/cuotas/RubrosActivationTable';
-import { ActivacionClientesSubmodule } from '../components/cuotas/ActivacionClientesSubmodule';
-import { MonthlyVolumeHistoryTable } from '../components/cuotas/MonthlyVolumeHistoryTable';
-import { SkuVolumeSubmodule } from '../components/cuotas/SkuVolumeSubmodule';
-import { ParetoSubmodule } from '../components/cuotas/ParetoSubmodule';
-import { ShareCuotasModal } from '../components/cuotas/ShareCuotasModal';
 import { INITIAL_SELLERS_ACTIVATION, SellerActivationRow } from '../components/cuotas/cuotasData';
 import { getSellerMetadata, normalizeSellerName } from '../components/cuotas/sellerSupervisorMap';
-import { RegionalManagerAuditSubmodule } from '../components/cuotas/regional/RegionalManagerAuditSubmodule';
 import { calculateMonthWorkingProgress } from '../components/cuotas/volumeQuotasData';
+
+const ActivacionClientesSubmodule = lazy(() =>
+  import('../components/cuotas/ActivacionClientesSubmodule').then((m) => ({
+    default: m.ActivacionClientesSubmodule,
+  }))
+);
+const MonthlyVolumeHistoryTable = lazy(() =>
+  import('../components/cuotas/MonthlyVolumeHistoryTable').then((m) => ({
+    default: m.MonthlyVolumeHistoryTable,
+  }))
+);
+const SkuVolumeSubmodule = lazy(() =>
+  import('../components/cuotas/SkuVolumeSubmodule').then((m) => ({
+    default: m.SkuVolumeSubmodule,
+  }))
+);
+const ParetoSubmodule = lazy(() =>
+  import('../components/cuotas/ParetoSubmodule').then((m) => ({
+    default: m.ParetoSubmodule,
+  }))
+);
+const ShareCuotasModal = lazy(() =>
+  import('../components/cuotas/ShareCuotasModal').then((m) => ({
+    default: m.ShareCuotasModal,
+  }))
+);
+const RegionalManagerAuditSubmodule = lazy(() =>
+  import('../components/cuotas/regional/RegionalManagerAuditSubmodule').then((m) => ({
+    default: m.RegionalManagerAuditSubmodule,
+  }))
+);
+
+const SubmoduleLoadingFallback: React.FC = () => (
+  <div className="bg-zinc-900/60 border border-zinc-800 rounded-xl p-8 flex items-center justify-center text-zinc-400 text-sm">
+    Cargando submódulo comercial...
+  </div>
+);
 
 export const Cuotas: React.FC = () => {
   const autoProgress = calculateMonthWorkingProgress();
@@ -156,73 +187,77 @@ export const Cuotas: React.FC = () => {
       />
 
       {/* VISTA SUBMÓDULO GERENTE REGIONAL: AUDITORÍA Y EVALUACIÓN DE SUPERVISORES Y VENDEDORES */}
-      {activeView === 'gerente' ? (
-        activeTab === 'pareto' ? (
-          <ParetoSubmodule />
-        ) : activeTab === 'volumen_sku' ? (
-          <SkuVolumeSubmodule />
-        ) : activeTab === 'activacion_clientes' ? (
-          <ActivacionClientesSubmodule
-            viewLevel={activeView}
-            diasLaborables={diasLaborables}
-            diasTranscurridos={diasTranscurridos}
-          />
-        ) : (
-          <RegionalManagerAuditSubmodule
-            activeTab={activeTab}
-            onTabChange={setActiveTab}
-            sellers={sellers}
-            diasLaborables={diasLaborables}
-            diasTranscurridos={diasTranscurridos}
-          />
-        )
-      ) : (
-        <>
-          {/* BLOQUE 2: Cuadro Detallado con los Rubros a Activar */}
-          {activeTab === 'activacion' && (
-            <RubrosActivationTable
-              sellers={sellers}
-              viewLevel={activeView}
-            />
-          )}
-
-          {/* PESTAÑA ACTIVACIÓN POR CLIENTES */}
-          {activeTab === 'activacion_clientes' && (
+      <Suspense fallback={<SubmoduleLoadingFallback />}>
+        {activeView === 'gerente' ? (
+          activeTab === 'pareto' ? (
+            <ParetoSubmodule />
+          ) : activeTab === 'volumen_sku' ? (
+            <SkuVolumeSubmodule />
+          ) : activeTab === 'activacion_clientes' ? (
             <ActivacionClientesSubmodule
               viewLevel={activeView}
               diasLaborables={diasLaborables}
               diasTranscurridos={diasTranscurridos}
             />
-          )}
-
-          {/* PESTAÑA VOLUMEN CON HISTORIAL Y FILTRO MULTISELECCIÓN DE MESES */}
-          {activeTab === 'volumen' && (
-            <MonthlyVolumeHistoryTable
-              viewLevel={activeView}
-              onOpenSkuVolume={() => setActiveTab('volumen_sku')}
+          ) : (
+            <RegionalManagerAuditSubmodule
+              activeTab={activeTab}
+              onTabChange={setActiveTab}
+              sellers={sellers}
               diasLaborables={diasLaborables}
               diasTranscurridos={diasTranscurridos}
             />
-          )}
+          )
+        ) : (
+          <>
+            {/* BLOQUE 2: Cuadro Detallado con los Rubros a Activar */}
+            {activeTab === 'activacion' && (
+              <RubrosActivationTable
+                sellers={sellers}
+                viewLevel={activeView}
+              />
+            )}
 
-          {/* SUBMÓDULO VOLUMEN POR SKU (TODOS LOS PRODUCTOS + DIAGNÓSTICO POR VENDEDOR) */}
-          {activeTab === 'volumen_sku' && <SkuVolumeSubmodule />}
+            {/* PESTAÑA ACTIVACIÓN POR CLIENTES */}
+            {activeTab === 'activacion_clientes' && (
+              <ActivacionClientesSubmodule
+                viewLevel={activeView}
+                diasLaborables={diasLaborables}
+                diasTranscurridos={diasTranscurridos}
+              />
+            )}
 
-          {/* PESTAÑA PARETO (OPCIÓN 1: DIMENSIONES CONMUTABLES 80/20) */}
-          {activeTab === 'pareto' && <ParetoSubmodule />}
-        </>
-      )}
+            {/* PESTAÑA VOLUMEN CON HISTORIAL Y FILTRO MULTISELECCIÓN DE MESES */}
+            {activeTab === 'volumen' && (
+              <MonthlyVolumeHistoryTable
+                viewLevel={activeView}
+                onOpenSkuVolume={() => setActiveTab('volumen_sku')}
+                diasLaborables={diasLaborables}
+                diasTranscurridos={diasTranscurridos}
+              />
+            )}
 
-      {/* Modal Compartir */}
-      <ShareCuotasModal
-        isOpen={isShareOpen}
-        onClose={() => setIsShareOpen(false)}
-        activeTab={activeTab}
-        activeView={activeView}
-        sellers={sellers}
-        diasLaborables={diasLaborables}
-        diasTranscurridos={diasTranscurridos}
-      />
+            {/* SUBMÓDULO VOLUMEN POR SKU (TODOS LOS PRODUCTOS + DIAGNÓSTICO POR VENDEDOR) */}
+            {activeTab === 'volumen_sku' && <SkuVolumeSubmodule />}
+
+            {/* PESTAÑA PARETO (OPCIÓN 1: DIMENSIONES CONMUTABLES 80/20) */}
+            {activeTab === 'pareto' && <ParetoSubmodule />}
+          </>
+        )}
+
+        {/* Modal Compartir */}
+        {isShareOpen && (
+          <ShareCuotasModal
+            isOpen={isShareOpen}
+            onClose={() => setIsShareOpen(false)}
+            activeTab={activeTab}
+            activeView={activeView}
+            sellers={sellers}
+            diasLaborables={diasLaborables}
+            diasTranscurridos={diasTranscurridos}
+          />
+        )}
+      </Suspense>
     </div>
   );
 };

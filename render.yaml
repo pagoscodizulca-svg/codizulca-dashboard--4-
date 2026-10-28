@@ -4,10 +4,12 @@ services:
     runtime: node
     plan: free
     buildCommand: npm install && npm run build
-    startCommand: npm start
+    startCommand: node start.mjs
     envVars:
       - key: NODE_ENV
         value: production
+      - key: NODE_OPTIONS
+        value: --max-old-space-size=384
       - key: VITE_APP_ENV
         value: production
       - key: VITE_SUPABASE_URL

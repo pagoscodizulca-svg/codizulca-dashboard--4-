@@ -1,8 +1,10 @@
 import fs from 'fs';
 import path from 'path';
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import { createRequire } from 'module';
 import { fileURLToPath } from 'url';
+import { isDistUpToDate } from './scripts/build-manifest.mjs';
+import { detectMemoryLimitMB } from './scripts/build.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -12,53 +14,41 @@ process.env.NODE_ENV = process.env.NODE_ENV || 'production';
 const distServerPath = path.join(__dirname, 'dist', 'server.cjs');
 const distIndexPath = path.join(__dirname, 'dist', 'index.html');
 
-const getNewestSourceMtime = (targetPath) => {
-  if (!fs.existsSync(targetPath)) return 0;
-  const stat = fs.statSync(targetPath);
-  if (!stat.isDirectory()) return stat.mtimeMs;
-  let newest = stat.mtimeMs;
-  for (const entry of fs.readdirSync(targetPath)) {
-    if (entry === 'node_modules' || entry === 'dist' || entry === '.git' || entry === '__tests__' || entry === 'test') {
-      continue;
-    }
-    const childTime = getNewestSourceMtime(path.join(targetPath, entry));
-    if (childTime > newest) newest = childTime;
+function hasValidDistArtifacts() {
+  if (!fs.existsSync(distServerPath) || !fs.existsSync(distIndexPath)) {
+    return false;
   }
-  return newest;
-};
-
-const needsRebuild = () => {
-  if (!fs.existsSync(distServerPath) || !fs.existsSync(distIndexPath)) return true;
   try {
-    const distServerTime = fs.statSync(distServerPath).mtimeMs;
-    const distIndexTime = fs.statSync(distIndexPath).mtimeMs;
-    const minDistTime = Math.min(distServerTime, distIndexTime);
-    const newestSrcTime = Math.max(
-      getNewestSourceMtime(path.join(__dirname, 'index.html')),
-      getNewestSourceMtime(path.join(__dirname, 'server.ts')),
-      getNewestSourceMtime(path.join(__dirname, 'src'))
-    );
-    // Allow 2s tolerance for git checkout timestamps when dist/ is committed together with src/
-    if (newestSrcTime > minDistTime + 2000) {
-      return true;
-    }
     const serverCode = fs.readFileSync(distServerPath, 'utf8');
-    if (serverCode.includes('import_meta.env.')) {
-      return true;
-    }
+    return !serverCode.includes('import_meta.env.');
   } catch {
-    return true;
+    return false;
   }
-  return false;
-};
+}
 
-if (needsRebuild()) {
-  console.log('[Render Startup] dist/ desactualizado o no encontrado. Compilando proyecto automáticamente (npm run build)...');
-  try {
-    execSync('npm run build', { stdio: 'inherit', cwd: __dirname });
-  } catch (err) {
-    console.error('[Render Startup] Error al compilar con npm run build:', err);
-    process.exit(1);
+if (!isDistUpToDate(__dirname)) {
+  const memLimitMB = detectMemoryLimitMB();
+  const hasArtifacts = hasValidDistArtifacts();
+
+  if (hasArtifacts && memLimitMB <= 600 && process.env.FORCE_RUNTIME_BUILD !== '1') {
+    console.warn(
+      `[Render Startup] Contenedor de memoria limitada (${memLimitMB} MB) detectado con dist/ válido disponible. ` +
+        'Omitiendo recompilación en arranque para evitar saturación de memoria (OOM) e iniciando servidor inmediatamente.'
+    );
+  } else {
+    console.log('[Render Startup] dist/ no encontrado o desactualizado. Compilando proyecto (scripts/build.mjs)...');
+    try {
+      execFileSync(process.execPath, [path.join(__dirname, 'scripts', 'build.mjs'), '--force'], {
+        stdio: 'inherit',
+        cwd: __dirname,
+      });
+    } catch (err) {
+      console.error('[Render Startup] Error al compilar proyecto:', err);
+      if (!hasArtifacts) {
+        process.exit(1);
+      }
+      console.warn('[Render Startup] Continuando con artefactos previos existentes en dist/.');
+    }
   }
 }
 
