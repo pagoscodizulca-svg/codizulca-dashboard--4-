@@ -1,4 +1,4 @@
-import{r as N,j as e}from"./vendor-react-CyjJnG_7.js";import{X as R,a7 as $,g as y,h as O,as as S}from"./vendor-icons-C4SzxuYX.js";import{R as i}from"./Cuotas-D8CctQGy.js";import"./vendor-pdf-CDr5kSUf.js";import"./vendor-csv-Cy_HF0yi.js";import"./sellerSupervisorMap-D8drwSI6.js";const I=({isOpen:b,onClose:u,activeTab:j,activeView:v,sellers:l,diasLaborables:d,diasTranscurridos:x})=>{const[f,p]=N.useState(!1);if(!b)return null;const g=(x/d*100).toFixed(1),m=()=>{let t=`📊 *REPORTE DE ACTIVACIÓN & CUOTAS*
+import{r as N,j as e}from"./vendor-react-CyjJnG_7.js";import{X as R,a7 as $,g as y,h as O,as as S}from"./vendor-icons-YJ63R1Qw.js";import{R as i}from"./Cuotas-DU8nSMy5.js";import"./vendor-pdf-CDr5kSUf.js";import"./vendor-csv-Cy_HF0yi.js";import"./sellerSupervisorMap-D8drwSI6.js";const I=({isOpen:b,onClose:u,activeTab:j,activeView:v,sellers:l,diasLaborables:d,diasTranscurridos:x})=>{const[f,p]=N.useState(!1);if(!b)return null;const g=(x/d*100).toFixed(1),m=()=>{let t=`📊 *REPORTE DE ACTIVACIÓN & CUOTAS*
 `;return t+=`📅 Progreso del Mes: ${g}% (${x}/${d} días laborables)
 `,t+=`Vista: ${v.toUpperCase()} | Pestaña: ${j.toUpperCase()}
 

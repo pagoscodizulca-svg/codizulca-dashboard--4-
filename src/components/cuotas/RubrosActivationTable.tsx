@@ -27,11 +27,17 @@ import { SellerMultiSelect, SellerOption } from './SellerMultiSelect';
 interface RubrosActivationTableProps {
   sellers: SellerActivationRow[];
   viewLevel: ViewLevel;
+  maestraTotalActive?: number;
+  maestraRoutesCount?: number;
+  onOpenMaestraAudit?: () => void;
 }
 
 export const RubrosActivationTable: React.FC<RubrosActivationTableProps> = ({
   sellers,
   viewLevel,
+  maestraTotalActive = 2676,
+  maestraRoutesCount = 30,
+  onOpenMaestraAudit,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [supervisorFilter, setSupervisorFilter] = useState('ALL');
@@ -125,6 +131,7 @@ export const RubrosActivationTable: React.FC<RubrosActivationTableProps> = ({
         supervisor: string;
         region: string;
         sellersCount: number;
+        carteraTotal: number;
         sellers: SellerActivationRow[];
         rubros: Record<RubroKey, { meta: number; activados: number }>;
       }
@@ -136,6 +143,7 @@ export const RubrosActivationTable: React.FC<RubrosActivationTableProps> = ({
           supervisor: s.supervisor,
           region: s.region,
           sellersCount: 0,
+          carteraTotal: 0,
           sellers: [],
           rubros: {
             aceite: { meta: 0, activados: 0 },
@@ -148,6 +156,7 @@ export const RubrosActivationTable: React.FC<RubrosActivationTableProps> = ({
       }
 
       grouped[s.supervisor].sellersCount += 1;
+      grouped[s.supervisor].carteraTotal += Number(s.cartera) || 0;
       grouped[s.supervisor].sellers.push(s);
       RUBROS_CONFIG.forEach(({ key }) => {
         grouped[s.supervisor].rubros[key].meta += s.rubros[key].meta;
@@ -171,6 +180,7 @@ export const RubrosActivationTable: React.FC<RubrosActivationTableProps> = ({
         region: string;
         supervisorsCount: number;
         sellersCount: number;
+        carteraTotal: number;
         rubros: Record<RubroKey, { meta: number; activados: number }>;
       }
     > = {};
@@ -183,6 +193,7 @@ export const RubrosActivationTable: React.FC<RubrosActivationTableProps> = ({
           region: s.region,
           supervisorsCount: 0,
           sellersCount: 0,
+          carteraTotal: 0,
           rubros: {
             aceite: { meta: 0, activados: 0 },
             azucar: { meta: 0, activados: 0 },
@@ -196,6 +207,7 @@ export const RubrosActivationTable: React.FC<RubrosActivationTableProps> = ({
 
       seenSupervisorsByRegion[s.region].add(s.supervisor);
       grouped[s.region].sellersCount += 1;
+      grouped[s.region].carteraTotal += Number(s.cartera) || 0;
 
       RUBROS_CONFIG.forEach(({ key }) => {
         grouped[s.region].rubros[key].meta += s.rubros[key].meta;
@@ -209,6 +221,11 @@ export const RubrosActivationTable: React.FC<RubrosActivationTableProps> = ({
 
     return Object.values(grouped);
   }, [filteredSellers]);
+
+  const grandCarteraTotal = useMemo(
+    () => filteredSellers.reduce((acc, s) => acc + (Number(s.cartera) || 0), 0),
+    [filteredSellers]
+  );
 
   // Grand Totals Calculation
   const grandTotals = useMemo(() => {
@@ -526,10 +543,39 @@ export const RubrosActivationTable: React.FC<RubrosActivationTableProps> = ({
         </div>
       </div>
 
+      {/* Cinta de Estado de Cartera Sincronizada con Maestra Activa (Negro / Rojo / Blanco) */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 rounded-xl border border-red-600/35 bg-zinc-950 px-4 py-2.5 text-xs">
+        <div className="flex flex-wrap items-center gap-2 text-zinc-300">
+          <span className="inline-flex items-center gap-1 rounded bg-red-600 px-2 py-0.5 text-[10px] font-black uppercase text-white">
+            Maestra Oct 2026
+          </span>
+          <span>
+            Cartera Activa Total Sincronizada:{' '}
+            <strong className="font-mono text-white font-black">
+              {maestraTotalActive.toLocaleString('es-VE')} clientes
+            </strong>{' '}
+            en <strong className="text-white">{maestraRoutesCount} rutas</strong> (
+            <strong className="font-mono text-white">
+              {grandCarteraTotal.toLocaleString('es-VE')}
+            </strong>{' '}
+            en carteras con cuota de 5 rubros + Food Service especializado).
+          </span>
+        </div>
+        {onOpenMaestraAudit && (
+          <button
+            type="button"
+            onClick={onOpenMaestraAudit}
+            className="shrink-0 inline-flex items-center gap-1.5 rounded-lg border border-white bg-white px-3 py-1 text-[11px] font-black text-black hover:bg-zinc-200 transition cursor-pointer"
+          >
+            <span>Ver Auditoría Maestra ({maestraTotalActive.toLocaleString('es-VE')})</span>
+          </button>
+        )}
+      </div>
+
       {/* Main Activation Table */}
       <div className="bg-zinc-950 border border-white/10 rounded-xl shadow-2xl overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse min-w-[1100px]">
+          <table className="w-full text-left border-collapse min-w-[1160px]">
             {/* Table Header exactly like mockup */}
             <thead>
               {/* Row 1: Main Headers */}
@@ -544,9 +590,15 @@ export const RubrosActivationTable: React.FC<RubrosActivationTableProps> = ({
                     </th>
                     <th
                       rowSpan={2}
-                      className="p-3 text-center font-bold tracking-wider uppercase border-r border-white/10 bg-zinc-900/95 min-w-[170px]"
+                      className="p-3 text-center font-bold tracking-wider uppercase border-r border-white/10 bg-zinc-900/95 min-w-[160px]"
                     >
                       SUPERVISOR
+                    </th>
+                    <th
+                      rowSpan={2}
+                      className="p-3 text-center font-bold tracking-wider uppercase border-r border-white/10 bg-zinc-900/95 min-w-[85px] text-red-400"
+                    >
+                      CARTERA
                     </th>
                   </>
                 )}
@@ -565,6 +617,12 @@ export const RubrosActivationTable: React.FC<RubrosActivationTableProps> = ({
                     >
                       VENDEDORES
                     </th>
+                    <th
+                      rowSpan={2}
+                      className="p-3 text-center font-bold tracking-wider uppercase border-r border-white/10 bg-zinc-900/95 min-w-[85px] text-red-400"
+                    >
+                      CARTERA
+                    </th>
                   </>
                 )}
 
@@ -581,6 +639,12 @@ export const RubrosActivationTable: React.FC<RubrosActivationTableProps> = ({
                       className="p-3 text-center font-bold tracking-wider uppercase border-r border-white/10 bg-zinc-900/95 min-w-[100px]"
                     >
                       SUPERVISORES
+                    </th>
+                    <th
+                      rowSpan={2}
+                      className="p-3 text-center font-bold tracking-wider uppercase border-r border-white/10 bg-zinc-900/95 min-w-[85px] text-red-400"
+                    >
+                      CARTERA
                     </th>
                   </>
                 )}
@@ -635,6 +699,9 @@ export const RubrosActivationTable: React.FC<RubrosActivationTableProps> = ({
                     </td>
                     <td className="p-3 border-r border-white/10 text-zinc-400 font-medium">
                       {row.supervisor}
+                    </td>
+                    <td className="p-3 border-r border-white/10 text-center font-mono font-black text-white">
+                      {row.cartera ?? 0}
                     </td>
 
                     {/* Rubros cells */}
@@ -728,6 +795,9 @@ export const RubrosActivationTable: React.FC<RubrosActivationTableProps> = ({
                             {row.sellersCount}
                           </span>
                         </td>
+                        <td className="p-3 border-r border-white/10 text-center font-mono font-black text-white">
+                          {row.carteraTotal.toLocaleString('es-VE')}
+                        </td>
 
                         {RUBROS_CONFIG.map((rubro, idx) => {
                           const data = row.rubros[rubro.key];
@@ -778,6 +848,9 @@ export const RubrosActivationTable: React.FC<RubrosActivationTableProps> = ({
                                 #{sIdx + 1}
                               </span>
                             </td>
+                            <td className="py-2.5 px-2 border-r border-white/10 text-center font-mono font-bold text-white text-xs">
+                              {seller.cartera ?? 0}
+                            </td>
 
                             {RUBROS_CONFIG.map((rubro, idx) => {
                               const sData = seller.rubros[rubro.key];
@@ -826,6 +899,9 @@ export const RubrosActivationTable: React.FC<RubrosActivationTableProps> = ({
                     <td className="p-3 border-r border-white/10 text-center font-mono text-zinc-300">
                       {row.supervisorsCount}
                     </td>
+                    <td className="p-3 border-r border-white/10 text-center font-mono font-black text-white">
+                      {row.carteraTotal.toLocaleString('es-VE')}
+                    </td>
 
                     {RUBROS_CONFIG.map((rubro, idx) => {
                       const data = row.rubros[rubro.key];
@@ -864,6 +940,9 @@ export const RubrosActivationTable: React.FC<RubrosActivationTableProps> = ({
                   className="p-3 text-right uppercase tracking-wider border-r border-white/10 text-zinc-300 bg-zinc-900/90"
                 >
                   TOTAL GENERAL / PROMEDIO
+                </td>
+                <td className="p-3 text-center font-mono font-black text-white border-r border-white/10 bg-zinc-900/90">
+                  {grandCarteraTotal.toLocaleString('es-VE')}
                 </td>
 
                 {RUBROS_CONFIG.map((rubro, idx) => {

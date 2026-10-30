@@ -87,10 +87,15 @@ const getRubroIconAndTheme = (rubro: RubroClienteCodigo) => {
 };
 
 export interface RawClientActivationItem {
+  assignmentKey?: string;
   id: string;
   cliente: string;
+  idVendedorErp?: string;
   vendedorId: string;
   vendedorNombre: string;
+  rif?: string;
+  tipoCliente?: string;
+  activo?: boolean;
   status: string;
   cats?: {
     ACEITE?: boolean;
@@ -176,7 +181,7 @@ export const resolveCanonicalSellerForClient = (rawVendor: string): {
   if (u.includes('JUAN HERNANDEZ')) {
     const isFs = u.includes('FOOD SERVICE');
     return {
-      canonicalSeller: 'JUAN HERNANDEZ',
+      canonicalSeller: isFs ? 'FOOD SERVICE SENIOR - JUAN HERNANDEZ' : 'JUAN HERNANDEZ',
       routeLabel: isFs ? 'FOOD SERVICE SENIOR - JUAN HERNANDEZ' : 'JUAN HERNANDEZ',
       supervisor: 'JOHNATAN SOTO',
       zona: isFs ? 'Food Service Senior' : 'Sur del Lago / El Chivo',
@@ -299,22 +304,25 @@ interface ActivacionClientesSubmoduleProps {
   viewLevel?: ViewLevel;
   diasLaborables?: number;
   diasTranscurridos?: number;
+  syncVersion?: number;
 }
 
 export const ActivacionClientesSubmodule: React.FC<ActivacionClientesSubmoduleProps> = ({
   viewLevel = 'vendedor',
   diasLaborables = DEFAULT_DIAS_LABORABLES,
   diasTranscurridos = DEFAULT_DIAS_TRANSCURRIDOS,
+  syncVersion = 0,
 }) => {
   const [rawActivacion, setRawActivacion] = useState<RawClientActivationItem[]>(
     () => (activacionSeed as RawClientActivationItem[]) || []
   );
   const [isSyncing, setIsSyncing] = useState(false);
 
-  // Filtros de Vendedor, Ruta y Supervisor
+  // Filtros de Vendedor, Ruta, Supervisor y Tipo de Cliente (Maestra Activa)
   const [supervisorFilter, setSupervisorFilter] = useState<string>('ALL');
   const [selectedSellers, setSelectedSellers] = useState<string[]>([]);
   const [directVendorFilter, setDirectVendorFilter] = useState<string>('ALL');
+  const [tipoClienteFilter, setTipoClienteFilter] = useState<string>('ALL');
 
   // Filtros de Cartera, Rubros y Búsqueda
   const [searchTerm, setSearchTerm] = useState('');
@@ -347,26 +355,50 @@ export const ActivacionClientesSubmodule: React.FC<ActivacionClientesSubmodulePr
   }, []);
 
   useEffect(() => {
-    syncFromServer(false);
-  }, [syncFromServer]);
+    syncFromServer(syncVersion > 0);
+  }, [syncFromServer, syncVersion]);
 
   // Resetear límite de filas al cambiar filtros para respuesta inmediata
   useEffect(() => {
     setVisibleLimit(350);
-  }, [supervisorFilter, selectedSellers, directVendorFilter, searchTerm, selectedRubros, rubroFilterMode, statusFilter, viewMode]);
+  }, [supervisorFilter, selectedSellers, directVendorFilter, tipoClienteFilter, searchTerm, selectedRubros, rubroFilterMode, statusFilter, viewMode]);
 
-  // Enriquecer cada registro con vendedor canónico, ruta y supervisor
+  // Enriquecer cada registro activo (excluyendo bajas lógicas activo=false) con vendedor canónico, ruta, RIF, Tipo de cliente y llave compuesta
   const enrichedRawList = useMemo(() => {
-    return rawActivacion.map((item) => {
-      const resolved = resolveCanonicalSellerForClient(item.vendedorNombre || item.vendedorId || '');
-      return {
-        ...item,
-        canonicalSeller: resolved.canonicalSeller,
-        routeLabel: resolved.routeLabel,
-        supervisor: resolved.supervisor,
-        zona: resolved.zona,
-      };
-    });
+    return rawActivacion
+      .filter(
+        (item) =>
+          item.activo !== false &&
+          String(item.status || '').toUpperCase() !== 'BAJA_MAESTRA' &&
+          !String(item.vendedorId || '').toUpperCase().startsWith('INACTIVO_MAESTRA::')
+      )
+      .map((item) => {
+        const rawVendor = String(item.vendedorNombre || item.vendedorId || '').trim();
+        const resolved = resolveCanonicalSellerForClient(rawVendor);
+        const cleanId = String(item.id || '').replace(/^[#\s]+/, '').trim();
+        const cleanTipo =
+          String(item.tipoCliente || '')
+            .replace(/\s+/g, ' ')
+            .trim()
+            .toUpperCase() || 'POR CLASIFICAR';
+        const cleanRif =
+          String(item.rif || '')
+            .replace(/\s+/g, ' ')
+            .trim() || 'PENDIENTE';
+        const compKey = item.assignmentKey || `${resolved.routeLabel}::${cleanId}`;
+
+        return {
+          ...item,
+          assignmentKey: compKey,
+          rawVendedorNombre: rawVendor.toUpperCase(),
+          rif: cleanRif,
+          tipoCliente: cleanTipo,
+          canonicalSeller: resolved.canonicalSeller,
+          routeLabel: resolved.routeLabel,
+          supervisor: resolved.supervisor,
+          zona: resolved.zona,
+        };
+      });
   }, [rawActivacion]);
 
   // Lista de Supervisores únicos
@@ -408,7 +440,7 @@ export const ActivacionClientesSubmodule: React.FC<ActivacionClientesSubmodulePr
     filteredBySup.forEach((r) => {
       const key = r.canonicalSeller;
       const cleanCod = String(r.id || '').replace(/^[#\s]+/, '').trim();
-      const ov = manualOverrides[cleanCod];
+      const ov = manualOverrides[r.assignmentKey] || manualOverrides[cleanCod];
       const hasAny =
         (ov?.ACEITE ?? Boolean(r.cats?.ACEITE || (r.cajas?.ACEITE || 0) > 0)) ||
         (ov?.AZUCAR ?? Boolean(r.cats?.AZUCAR || r.cats?.AZÚCAR || (r.cajas?.AZUCAR || 0) > 0)) ||
@@ -508,8 +540,8 @@ export const ActivacionClientesSubmodule: React.FC<ActivacionClientesSubmodulePr
     }
   }, [supervisorFilter, availableSellers, directVendorDropdownOptions.options, directVendorFilter, selectedSellers]);
 
-  // Filtrar registros de activación según Supervisor, SellerMultiSelect y Selector Directo de Vendedor
-  const filteredActivacionBySeller = useMemo(() => {
+  // 1. Filtrar por Supervisor y Vendedor primero para calcular el desglose dinámico por Tipo de cliente
+  const sellerFilteredBaseList = useMemo(() => {
     return enrichedRawList.filter((item) => {
       if (supervisorFilter !== 'ALL' && item.supervisor !== supervisorFilter) {
         return false;
@@ -533,22 +565,53 @@ export const ActivacionClientesSubmodule: React.FC<ActivacionClientesSubmodulePr
     });
   }, [enrichedRawList, supervisorFilter, directVendorFilter, selectedSellers]);
 
+  // Opciones dinámicas de Tipo de cliente (27 categorías sanitizadas de Maestra Activa)
+  const tipoClienteOptions = useMemo(() => {
+    const map = new Map<string, { tipo: string; total: number; activos: number }>();
+    sellerFilteredBaseList.forEach((r) => {
+      const t = r.tipoCliente || 'POR CLASIFICAR';
+      const cleanCod = String(r.id || '').replace(/^[#\s]+/, '').trim();
+      const ov = manualOverrides[r.assignmentKey] || manualOverrides[cleanCod];
+      const hasAny =
+        (ov?.ACEITE ?? Boolean(r.cats?.ACEITE || (r.cajas?.ACEITE || 0) > 0)) ||
+        (ov?.AZUCAR ?? Boolean(r.cats?.AZUCAR || r.cats?.AZÚCAR || (r.cajas?.AZUCAR || 0) > 0)) ||
+        (ov?.POLLO ?? Boolean(r.cats?.POLLO || (r.cajas?.POLLO || 0) > 0)) ||
+        (ov?.ESTANDAR_ASTURIAS ?? Boolean(r.cats?.ESTANDAR_ASTURIAS || (r.cajas?.ESTANDAR_ASTURIAS || 0) > 0)) ||
+        (ov?.MORTADELA_SALPICAO ?? Boolean(r.cats?.MORTADELA_SALPICAO || (r.cajas?.MORTADELA_SALPICAO || 0) > 0));
+
+      if (!map.has(t)) {
+        map.set(t, { tipo: t, total: 0, activos: 0 });
+      }
+      const st = map.get(t)!;
+      st.total++;
+      if (hasAny) st.activos++;
+    });
+
+    return Array.from(map.values()).sort(
+      (a, b) => b.total - a.total || a.tipo.localeCompare(b.tipo)
+    );
+  }, [sellerFilteredBaseList, manualOverrides]);
+
+  // 2. Filtrar finalmente por Tipo de cliente seleccionado
+  const filteredActivacionBySeller = useMemo(() => {
+    if (tipoClienteFilter === 'ALL') return sellerFilteredBaseList;
+    return sellerFilteredBaseList.filter((item) => item.tipoCliente === tipoClienteFilter);
+  }, [sellerFilteredBaseList, tipoClienteFilter]);
+
   // Etiqueta del vendedor o vista activa en el encabezado
   const activeVendedorTitle = useMemo(() => {
+    let base = 'GLOBAL (TODOS)';
     if (directVendorFilter !== 'ALL') {
-      return directVendorFilter.replace(/^(SELLER:|ROUTE:)/, '');
+      base = directVendorFilter.replace(/^(SELLER:|ROUTE:)/, '');
+    } else if (selectedSellers.length === 1 && selectedSellers[0] !== '__NONE__') {
+      base = selectedSellers[0];
+    } else if (selectedSellers.length > 1) {
+      base = `${selectedSellers.length} VENDEDORES SELECCIONADOS`;
+    } else if (supervisorFilter !== 'ALL') {
+      base = `SUPERVISIÓN ${supervisorFilter}`;
     }
-    if (selectedSellers.length === 1 && selectedSellers[0] !== '__NONE__') {
-      return selectedSellers[0];
-    }
-    if (selectedSellers.length > 1) {
-      return `${selectedSellers.length} VENDEDORES SELECCIONADOS`;
-    }
-    if (supervisorFilter !== 'ALL') {
-      return `SUPERVISIÓN ${supervisorFilter}`;
-    }
-    return 'GLOBAL (TODOS)';
-  }, [directVendorFilter, selectedSellers, supervisorFilter]);
+    return tipoClienteFilter !== 'ALL' ? `${base} · ${tipoClienteFilter}` : base;
+  }, [directVendorFilter, selectedSellers, supervisorFilter, tipoClienteFilter]);
 
   const handleSelectMetricFilter = (
     nextStatus: 'TODOS' | 'ACTIVOS' | 'FALTANTES' | 'FALTAN_RUBROS' | 'CINCO_RUBROS',
@@ -581,16 +644,23 @@ export const ActivacionClientesSubmodule: React.FC<ActivacionClientesSubmodulePr
     });
   };
 
-  const handleToggleClientRubro = (codigoRaw: string, rCode: RubroClienteCodigo, currentHas: boolean) => {
+  const handleToggleClientRubro = (
+    codigoRaw: string,
+    rCode: RubroClienteCodigo,
+    currentHas: boolean,
+    assignmentKey?: string,
+    vendedorNombre?: string
+  ) => {
     const cleanCode = String(codigoRaw || '').replace(/^[#\s]+/, '').trim();
     if (!cleanCode) return;
+    const overrideKey = assignmentKey || cleanCode;
     const nextActive = !currentHas;
 
     setManualOverrides((prev) => {
-      const currentClientMap = prev[cleanCode] || {};
+      const currentClientMap = prev[overrideKey] || prev[cleanCode] || {};
       const updated: ManualRubrosMap = {
         ...prev,
-        [cleanCode]: {
+        [overrideKey]: {
           ...currentClientMap,
           [rCode]: nextActive,
         },
@@ -604,11 +674,16 @@ export const ActivacionClientesSubmodule: React.FC<ActivacionClientesSubmodulePr
     fetch('/api/cuotas/activacion-clientes/toggle-rubro', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ clienteCodigo: cleanCode, rubro: rCode, active: nextActive }),
+      body: JSON.stringify({
+        clienteCodigo: cleanCode,
+        vendedorNombre: vendedorNombre || '',
+        rubro: rCode,
+        active: nextActive,
+      }),
     }).catch(() => {});
   };
 
-  // Cálculos dinámicos basados en los clientes filtrados por vendedor/supervisor y sus 5 rubros
+  // Cálculos dinámicos basados en los clientes filtrados por vendedor/supervisor/tipo de cliente y sus 5 rubros
   const {
     totalClientes,
     activos,
@@ -632,9 +707,13 @@ export const ActivacionClientesSubmodule: React.FC<ActivacionClientesSubmodulePr
     const clientMap = new Map<
       string,
       {
+        assignmentKey: string;
         id: string;
         name: string;
+        rif: string;
+        tipoCliente: string;
         vendedor: string;
+        rawVendedorNombre: string;
         routeLabel: string;
         supervisor: string;
         isActivo: boolean;
@@ -643,9 +722,10 @@ export const ActivacionClientesSubmodule: React.FC<ActivacionClientesSubmodulePr
     >();
 
     filteredActivacionBySeller.forEach((a) => {
-      const key = a.id ? String(a.id).replace(/^[#\s]+/, '').trim() : String(a.cliente || '').trim();
-      if (!key) return;
-      const existing = clientMap.get(key);
+      const cleanId = a.id ? String(a.id).replace(/^[#\s]+/, '').trim() : String(a.cliente || '').trim();
+      if (!cleanId) return;
+      const compKey = a.assignmentKey || `${a.routeLabel}::${cleanId}`;
+      const existing = clientMap.get(compKey);
       const rubros = existing ? existing.rubrosComprados : new Set<string>();
 
       const cAceite = Number(a.cajas?.ACEITE) || 0;
@@ -660,7 +740,7 @@ export const ActivacionClientesSubmodule: React.FC<ActivacionClientesSubmodulePr
       if (a.cats?.ESTANDAR_ASTURIAS || cAsturias > 0) rubros.add('ESTANDAR Y SUPERIOR ASTURIAS');
       if (a.cats?.MORTADELA_SALPICAO || cSalpicao > 0) rubros.add('MORTADELA SALPICAO Y ASTURIAS');
 
-      const ov = manualOverrides[key];
+      const ov = manualOverrides[compKey] || manualOverrides[cleanId];
       if (ov) {
         if (ov.ACEITE === true) rubros.add('ACEITE');
         else if (ov.ACEITE === false) rubros.delete('ACEITE');
@@ -681,10 +761,14 @@ export const ActivacionClientesSubmodule: React.FC<ActivacionClientesSubmodulePr
         else if (ov.MORTADELA_SALPICAO === false) rubros.delete('MORTADELA SALPICAO Y ASTURIAS');
       }
 
-      clientMap.set(key, {
-        id: a.id ? String(a.id).replace(/^[#\s]+/, '').trim() : key,
+      clientMap.set(compKey, {
+        assignmentKey: compKey,
+        id: cleanId,
         name: a.cliente || existing?.name || '',
+        rif: a.rif || existing?.rif || 'PENDIENTE',
+        tipoCliente: a.tipoCliente || existing?.tipoCliente || 'POR CLASIFICAR',
         vendedor: a.canonicalSeller || existing?.vendedor || '',
+        rawVendedorNombre: a.rawVendedorNombre || existing?.rawVendedorNombre || '',
         routeLabel: a.routeLabel || existing?.routeLabel || '',
         supervisor: a.supervisor || existing?.supervisor || '',
         isActivo: rubros.size > 0,
@@ -743,9 +827,13 @@ export const ActivacionClientesSubmodule: React.FC<ActivacionClientesSubmodulePr
       ].filter(Boolean).length;
 
       return {
+        assignmentKey: data.assignmentKey,
         codigo: data.id ? (data.id.startsWith('#') ? data.id : `#${data.id}`) : `#${idx + 1}`,
         razonSocial: data.name,
+        rif: data.rif,
+        tipoCliente: data.tipoCliente,
         vendedor: data.vendedor,
+        rawVendedorNombre: data.rawVendedorNombre,
         routeLabel: data.routeLabel,
         supervisor: data.supervisor,
         hasAceite,
@@ -838,10 +926,12 @@ export const ActivacionClientesSubmodule: React.FC<ActivacionClientesSubmodulePr
         if (!term) return true;
         const nameMatch = normSearch(c.razonSocial || '').includes(term);
         const vendorMatch = normSearch(c.vendedor || '').includes(term) || normSearch(c.routeLabel || '').includes(term);
+        const rifOrTipoMatch =
+          normSearch(c.rif || '').includes(term) || normSearch(c.tipoCliente || '').includes(term);
         const codeMatch =
           normSearch(c.codigo || '').includes(term) ||
           (termCode.length > 0 && normClientCode(c.codigo || '').includes(termCode));
-        return nameMatch || codeMatch || vendorMatch;
+        return nameMatch || codeMatch || vendorMatch || rifOrTipoMatch;
       })
       .filter((c) => {
         if (selectedRubros.length > 0) {
@@ -1341,6 +1431,26 @@ export const ActivacionClientesSubmodule: React.FC<ActivacionClientesSubmodulePr
               }}
               supervisorLabel={supervisorFilter !== 'ALL' ? supervisorFilter : undefined}
             />
+
+            {/* Filtro por Tipo de Cliente (Maestra Activa Sincronizada) */}
+            <div className="flex items-center gap-1.5 bg-neutral-900 border border-neutral-800 rounded-lg px-2.5 py-1.5 text-xs">
+              <Layers className="w-3.5 h-3.5 text-red-500 shrink-0" />
+              <select
+                value={tipoClienteFilter}
+                onChange={(e) => setTipoClienteFilter(e.target.value)}
+                aria-label="Filtrar por Tipo de Cliente"
+                className="bg-transparent text-white font-bold focus:outline-none cursor-pointer text-xs max-w-[205px]"
+              >
+                <option value="ALL" className="bg-neutral-900 text-white">
+                  Todos los Tipos ({tipoClienteOptions.length})
+                </option>
+                {tipoClienteOptions.map((opt) => (
+                  <option key={opt.tipo} value={opt.tipo} className="bg-neutral-900 text-white">
+                    {opt.tipo} ({opt.activos}/{opt.total})
+                  </option>
+                ))}
+              </select>
+            </div>
 
             {/* Selector de Modo de Vista */}
             <div className="flex bg-neutral-900 border border-neutral-800 rounded-lg overflow-hidden shrink-0">
@@ -1853,6 +1963,7 @@ export const ActivacionClientesSubmodule: React.FC<ActivacionClientesSubmodulePr
             viewMode === 'personal' ||
             directVendorFilter !== 'ALL' ||
             supervisorFilter !== 'ALL' ||
+            tipoClienteFilter !== 'ALL' ||
             selectedSellers.length > 0) && (
             <button
               type="button"
@@ -1863,6 +1974,7 @@ export const ActivacionClientesSubmodule: React.FC<ActivacionClientesSubmodulePr
                 setRubroFilterMode('ACTIVOS');
                 setDirectVendorFilter('ALL');
                 setSupervisorFilter('ALL');
+                setTipoClienteFilter('ALL');
                 setSelectedSellers([]);
                 if (viewMode === 'personal') setViewMode('listado');
               }}
@@ -2052,9 +2164,17 @@ export const ActivacionClientesSubmodule: React.FC<ActivacionClientesSubmodulePr
                     const getCell = (has: boolean, rCode: RubroClienteCodigo) =>
                       has ? (
                         <td
-                          key={`${client.codigo}-${rCode}-1`}
+                          key={`${client.assignmentKey}-${rCode}-1`}
                           translate="no"
-                          onClick={() => handleToggleClientRubro(client.codigo, rCode, true)}
+                          onClick={() =>
+                            handleToggleClientRubro(
+                              client.codigo,
+                              rCode,
+                              true,
+                              client.assignmentKey,
+                              client.rawVendedorNombre
+                            )
+                          }
                           title={`Rubro ${RUBRO_CLIENTE_LABEL[rCode]} ACTIVO en ${client.razonSocial} (Clic para desmarcar)`}
                           className="p-3 text-center border-r border-neutral-800/50 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold cursor-pointer transition-colors"
                         >
@@ -2065,9 +2185,17 @@ export const ActivacionClientesSubmodule: React.FC<ActivacionClientesSubmodulePr
                         </td>
                       ) : (
                         <td
-                          key={`${client.codigo}-${rCode}-0`}
+                          key={`${client.assignmentKey}-${rCode}-0`}
                           translate="no"
-                          onClick={() => handleToggleClientRubro(client.codigo, rCode, false)}
+                          onClick={() =>
+                            handleToggleClientRubro(
+                              client.codigo,
+                              rCode,
+                              false,
+                              client.assignmentKey,
+                              client.rawVendedorNombre
+                            )
+                          }
                           title={`Clic para activar ${RUBRO_CLIENTE_LABEL[rCode]} en ${client.razonSocial}`}
                           className="p-3 text-center border-r border-neutral-800/50 bg-neutral-900/40 hover:bg-emerald-950/30 text-neutral-600 hover:text-emerald-400 font-bold cursor-pointer transition-colors"
                         >
@@ -2084,7 +2212,7 @@ export const ActivacionClientesSubmodule: React.FC<ActivacionClientesSubmodulePr
 
                     return (
                       <tr
-                        key={client.codigo}
+                        key={client.assignmentKey}
                         className={`${bgClass} border-b border-neutral-800/50 hover:bg-neutral-900/50 transition-colors`}
                       >
                         <td
@@ -2094,13 +2222,27 @@ export const ActivacionClientesSubmodule: React.FC<ActivacionClientesSubmodulePr
                           {client.codigo}
                         </td>
                         <td className="p-3 border-r border-neutral-800/50 font-sans font-bold text-white uppercase">
-                          <div className="flex flex-col">
+                          <div className="flex flex-col gap-0.5">
                             <span>{client.razonSocial}</span>
-                            {showSellerTagInRow && client.vendedor && (
-                              <span className="text-[10px] font-normal text-neutral-400 mt-0.5">
-                                Vendedor: <strong className="text-neutral-300">{client.vendedor}</strong>
+                            <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                              <span
+                                className={`rounded px-1.5 py-0.5 text-[9px] font-black tracking-wide ${
+                                  client.tipoCliente === 'POR CLASIFICAR'
+                                    ? 'bg-red-600 text-white'
+                                    : 'bg-neutral-900 border border-neutral-700 text-neutral-300'
+                                }`}
+                              >
+                                {client.tipoCliente}
                               </span>
-                            )}
+                              <span className="text-[10px] font-mono font-normal text-neutral-400">
+                                RIF: {client.rif}
+                              </span>
+                              {showSellerTagInRow && client.routeLabel && (
+                                <span className="text-[10px] font-normal text-neutral-400">
+                                  · Ruta: <strong className="text-neutral-300">{client.routeLabel}</strong>
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </td>
                         <td className="p-3 text-center border-r border-neutral-800/50">
@@ -2226,10 +2368,18 @@ export const ActivacionClientesSubmodule: React.FC<ActivacionClientesSubmodulePr
               const getPill = (name: string, has: boolean, rCode: RubroClienteCodigo) =>
                 has ? (
                   <button
-                    key={`${client.codigo}-${rCode}-1`}
+                    key={`${client.assignmentKey}-${rCode}-1`}
                     type="button"
                     translate="no"
-                    onClick={() => handleToggleClientRubro(client.codigo, rCode, true)}
+                    onClick={() =>
+                      handleToggleClientRubro(
+                        client.codigo,
+                        rCode,
+                        true,
+                        client.assignmentKey,
+                        client.rawVendedorNombre
+                      )
+                    }
                     className="inline-flex items-center gap-1 bg-emerald-600 hover:bg-emerald-500 border-2 border-emerald-300 text-white text-[10px] font-extrabold px-2.5 py-1 rounded-md shadow-[0_0_12px_rgba(16,185,129,0.45)] cursor-pointer transition-all"
                   >
                     <CheckCircle2 className="w-3.5 h-3.5 text-white shrink-0" />
@@ -2237,10 +2387,18 @@ export const ActivacionClientesSubmodule: React.FC<ActivacionClientesSubmodulePr
                   </button>
                 ) : (
                   <button
-                    key={`${client.codigo}-${rCode}-0`}
+                    key={`${client.assignmentKey}-${rCode}-0`}
                     type="button"
                     translate="no"
-                    onClick={() => handleToggleClientRubro(client.codigo, rCode, false)}
+                    onClick={() =>
+                      handleToggleClientRubro(
+                        client.codigo,
+                        rCode,
+                        false,
+                        client.assignmentKey,
+                        client.rawVendedorNombre
+                      )
+                    }
                     className="inline-flex items-center gap-1 bg-neutral-900/60 hover:bg-emerald-950/40 hover:border-emerald-700/60 hover:text-emerald-300 border border-neutral-800 text-neutral-500 text-[10px] font-bold px-2.5 py-1 rounded-md line-through hover:no-underline cursor-pointer transition-all"
                   >
                     <span>{name}</span>
@@ -2249,7 +2407,7 @@ export const ActivacionClientesSubmodule: React.FC<ActivacionClientesSubmodulePr
 
               return (
                 <div
-                  key={client.codigo}
+                  key={client.assignmentKey}
                   className={`rounded-lg p-3 transition-all ${
                     client.cobertura > 0
                       ? 'bg-neutral-900 border-2 border-emerald-500/60 shadow-[0_0_16px_rgba(16,185,129,0.12)]'
@@ -2293,9 +2451,23 @@ export const ActivacionClientesSubmodule: React.FC<ActivacionClientesSubmodulePr
                   <h4 className="text-white font-sans text-sm font-bold mb-1 uppercase leading-tight">
                     {client.razonSocial}
                   </h4>
-                  {client.vendedor && (
+                  <div className="flex flex-wrap items-center gap-1.5 mb-1.5">
+                    <span
+                      className={`rounded px-1.5 py-0.5 text-[9px] font-black uppercase ${
+                        client.tipoCliente === 'POR CLASIFICAR'
+                          ? 'bg-red-600 text-white'
+                          : 'bg-neutral-800 text-neutral-300'
+                      }`}
+                    >
+                      {client.tipoCliente}
+                    </span>
+                    <span className="text-[10px] font-mono text-neutral-400">
+                      RIF: {client.rif}
+                    </span>
+                  </div>
+                  {client.routeLabel && (
                     <div className="text-[10px] text-neutral-400 mb-2">
-                      Vendedor: <strong className="text-neutral-300">{client.vendedor}</strong>
+                      Ruta: <strong className="text-neutral-300">{client.routeLabel}</strong>
                     </div>
                   )}
 

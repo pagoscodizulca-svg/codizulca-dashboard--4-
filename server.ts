@@ -41,6 +41,16 @@ import {
   toSortableTimestamp,
 } from './src/lib/campoService';
 import { mapSupabaseMerchRowToReport } from './src/lib/merchandisingService';
+import {
+  isActivationRecordLogicallyInactive,
+  parseMaestraActivaBuffer,
+} from './src/lib/maestraActivaEngine';
+import {
+  executeMaestraActivaBatchSync,
+  fetchAllSupabaseActivacionRows,
+  loadMaestraAuditSnapshot,
+  mapSupabaseRowsToClientActivationList,
+} from './src/server/maestraActivaSyncService';
 
 
 async function startServer() {
@@ -50,8 +60,8 @@ async function startServer() {
   // CodiBot SQL Database se inicializa bajo demanda (lazy) en la primera consulta
   // para reducir el uso de RAM (~50 MB) y acelerar la apertura del puerto en Render.
 
-  // Middleware for parsing JSON with increased limit for base64 images
-  app.use(express.json({ limit: '10mb' }));
+  // Middleware for parsing JSON with increased limit for base64 images & Maestra Excel workbooks
+  app.use(express.json({ limit: '25mb' }));
 
   // CORS & Security headers for iframe environment
   app.use((req, res, next) => {
@@ -1045,46 +1055,20 @@ async function startServer() {
   const activacionClientesSeedPath = path.join(process.cwd(), 'src', 'data', 'activacionClientesSeed.json');
   const activacionClientesDiskCachePath = path.join(process.cwd(), 'activacion_clientes_cache.json');
 
-  const loadActivacionClientesFallbackFromDisk = (): any[] => {
+  const loadActivacionClientesFallbackFromDisk = (includeInactive = false): any[] => {
     try {
       if (fs.existsSync(activacionClientesSeedPath)) {
         const parsed = JSON.parse(fs.readFileSync(activacionClientesSeedPath, 'utf8'));
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return includeInactive
+            ? parsed
+            : parsed.filter((r: any) => r.activo !== false && r.status !== 'BAJA_MAESTRA');
+        }
       }
       if (fs.existsSync(activacionClientesDiskCachePath)) {
         const raw = JSON.parse(fs.readFileSync(activacionClientesDiskCachePath, 'utf8'));
         if (Array.isArray(raw) && raw.length > 0) {
-          return raw.map((r: any) => {
-            const hasAceite = Boolean(r.has_aceite) || (Number(r.cajas_aceite) || 0) > 0;
-            const hasAzucar = Boolean(r.has_azucar) || (Number(r.cajas_azucar) || 0) > 0;
-            const hasPollo = Boolean(r.has_pollo) || (Number(r.cajas_pollo) || 0) > 0;
-            const hasAsturias = Boolean(r.has_estandar_asturias) || (Number(r.cajas_estandar_asturias) || 0) > 0;
-            const hasSalpicao = Boolean(r.has_mortadela_salpicao) || (Number(r.cajas_mortadela_salpicao) || 0) > 0;
-            return {
-              id: String(r.cliente_codigo || r.id || '').trim(),
-              cliente: String(r.cliente_nombre || r.cliente || '').trim(),
-              vendedorId: String(r.vendedor_id || r.vendedor_nombre || '').trim(),
-              vendedorNombre: String(r.vendedor_nombre || r.vendedor_id || '').trim(),
-              status:
-                hasAceite || hasAzucar || hasPollo || hasAsturias || hasSalpicao || r.status === 'ACTIVO'
-                  ? 'ACTIVO'
-                  : 'INACTIVO',
-              cajas: {
-                ACEITE: Number(r.cajas_aceite) || 0,
-                AZUCAR: Number(r.cajas_azucar) || 0,
-                POLLO: Number(r.cajas_pollo) || 0,
-                ESTANDAR_ASTURIAS: Number(r.cajas_estandar_asturias) || 0,
-                MORTADELA_SALPICAO: Number(r.cajas_mortadela_salpicao) || 0,
-              },
-              cats: {
-                ACEITE: hasAceite,
-                AZUCAR: hasAzucar,
-                POLLO: hasPollo,
-                ESTANDAR_ASTURIAS: hasAsturias,
-                MORTADELA_SALPICAO: hasSalpicao,
-              },
-            };
-          });
+          return mapSupabaseRowsToClientActivationList(raw, process.cwd(), includeInactive);
         }
       }
     } catch (e) {
@@ -1096,8 +1080,14 @@ async function startServer() {
   app.get('/api/cuotas/activacion-clientes', async (req, res) => {
     try {
       const force = req.query.force === 'true' || req.query.refresh === 'true';
+      const includeInactive = req.query.includeInactive === 'true';
       const now = Date.now();
-      if (!force && activacionClientesMemoryCache && now - activacionClientesMemoryCache.timestamp < 60000) {
+      if (
+        !force &&
+        !includeInactive &&
+        activacionClientesMemoryCache &&
+        now - activacionClientesMemoryCache.timestamp < 60000
+      ) {
         return res.json(activacionClientesMemoryCache.data);
       }
 
@@ -1108,82 +1098,17 @@ async function startServer() {
             GERENCIA_FDV_SUPABASE_KEY,
             { auth: { persistSession: false } }
           );
-          const supaRows: any[] = [];
-          let from = 0;
-          const pageSize = 1000;
-          while (from < 10000) {
-            const { data, error } = await fdvSupabase
-              .from('activacion_clientes')
-              .select('*')
-              .order('id')
-              .range(from, from + pageSize - 1);
-            if (error || !data || data.length === 0) break;
-            supaRows.push(...data);
-            if (data.length < pageSize) break;
-            from += pageSize;
-          }
+          const supaRows = await fetchAllSupabaseActivacionRows(fdvSupabase, '2026-10');
 
           if (supaRows.length > 0) {
-            const byClientMap = new Map<string, any>();
-            for (const r of supaRows) {
-              const cid = String(r.cliente_codigo || '').trim();
-              if (!cid) continue;
-              const hasAceite = Boolean(r.has_aceite) || (Number(r.cajas_aceite) || 0) > 0;
-              const hasAzucar = Boolean(r.has_azucar) || (Number(r.cajas_azucar) || 0) > 0;
-              const hasPollo = Boolean(r.has_pollo) || (Number(r.cajas_pollo) || 0) > 0;
-              const hasAsturias = Boolean(r.has_estandar_asturias) || (Number(r.cajas_estandar_asturias) || 0) > 0;
-              const hasSalpicao = Boolean(r.has_mortadela_salpicao) || (Number(r.cajas_mortadela_salpicao) || 0) > 0;
-
-              if (!byClientMap.has(cid)) {
-                byClientMap.set(cid, {
-                  id: cid,
-                  cliente: String(r.cliente_nombre || '').trim(),
-                  vendedorId: String(r.vendedor_id || r.vendedor_nombre || '').trim(),
-                  vendedorNombre: String(r.vendedor_nombre || r.vendedor_id || '').trim(),
-                  status:
-                    hasAceite || hasAzucar || hasPollo || hasAsturias || hasSalpicao || r.status === 'ACTIVO'
-                      ? 'ACTIVO'
-                      : 'INACTIVO',
-                  cajas: {
-                    ACEITE: Number(r.cajas_aceite) || 0,
-                    AZUCAR: Number(r.cajas_azucar) || 0,
-                    POLLO: Number(r.cajas_pollo) || 0,
-                    ESTANDAR_ASTURIAS: Number(r.cajas_estandar_asturias) || 0,
-                    MORTADELA_SALPICAO: Number(r.cajas_mortadela_salpicao) || 0,
-                  },
-                  cats: {
-                    ACEITE: hasAceite,
-                    AZUCAR: hasAzucar,
-                    POLLO: hasPollo,
-                    ESTANDAR_ASTURIAS: hasAsturias,
-                    MORTADELA_SALPICAO: hasSalpicao,
-                  },
-                });
-              } else {
-                const prev = byClientMap.get(cid);
-                prev.cats.ACEITE = prev.cats.ACEITE || hasAceite;
-                prev.cats.AZUCAR = prev.cats.AZUCAR || hasAzucar;
-                prev.cats.POLLO = prev.cats.POLLO || hasPollo;
-                prev.cats.ESTANDAR_ASTURIAS = prev.cats.ESTANDAR_ASTURIAS || hasAsturias;
-                prev.cats.MORTADELA_SALPICAO = prev.cats.MORTADELA_SALPICAO || hasSalpicao;
-                prev.cajas.ACEITE = Math.max(prev.cajas.ACEITE, Number(r.cajas_aceite) || 0);
-                prev.cajas.AZUCAR = Math.max(prev.cajas.AZUCAR, Number(r.cajas_azucar) || 0);
-                prev.cajas.POLLO = Math.max(prev.cajas.POLLO, Number(r.cajas_pollo) || 0);
-                prev.cajas.ESTANDAR_ASTURIAS = Math.max(prev.cajas.ESTANDAR_ASTURIAS, Number(r.cajas_estandar_asturias) || 0);
-                prev.cajas.MORTADELA_SALPICAO = Math.max(prev.cajas.MORTADELA_SALPICAO, Number(r.cajas_mortadela_salpicao) || 0);
-                if (
-                  prev.cats.ACEITE ||
-                  prev.cats.AZUCAR ||
-                  prev.cats.POLLO ||
-                  prev.cats.ESTANDAR_ASTURIAS ||
-                  prev.cats.MORTADELA_SALPICAO
-                ) {
-                  prev.status = 'ACTIVO';
-                }
-              }
+            const mapped = mapSupabaseRowsToClientActivationList(
+              supaRows,
+              process.cwd(),
+              includeInactive
+            );
+            if (!includeInactive) {
+              activacionClientesMemoryCache = { data: mapped, timestamp: now };
             }
-            const mapped = Array.from(byClientMap.values());
-            activacionClientesMemoryCache = { data: mapped, timestamp: now };
             return res.json(mapped);
           }
         } catch (supaErr: any) {
@@ -1191,26 +1116,92 @@ async function startServer() {
         }
       }
 
-      const fallback = loadActivacionClientesFallbackFromDisk();
-      activacionClientesMemoryCache = { data: fallback, timestamp: now };
+      const fallback = loadActivacionClientesFallbackFromDisk(includeInactive);
+      if (!includeInactive) {
+        activacionClientesMemoryCache = { data: fallback, timestamp: now };
+      }
       return res.json(fallback);
     } catch (err: any) {
       console.error('Error serving /api/cuotas/activacion-clientes:', err);
-      const fallback = loadActivacionClientesFallbackFromDisk();
+      const includeInactive = req.query.includeInactive === 'true';
+      const fallback = loadActivacionClientesFallbackFromDisk(includeInactive);
       return res.json(fallback);
+    }
+  });
+
+  app.get('/api/cuotas/maestra-activa/audit', async (_req, res) => {
+    try {
+      const snapshot = loadMaestraAuditSnapshot(process.cwd());
+      const activeFallback = loadActivacionClientesFallbackFromDisk(false);
+      return res.json({
+        snapshot,
+        liveActiveCount: activeFallback.length,
+      });
+    } catch (err: any) {
+      console.error('Error serving /api/cuotas/maestra-activa/audit:', err);
+      return res.status(500).json({
+        error: 'No se pudo cargar el reporte de auditoría de Maestra Activa',
+        details: err?.message,
+      });
+    }
+  });
+
+  app.post('/api/cuotas/maestra-activa/sync', async (req, res) => {
+    try {
+      const { base64Workbook, filename, periodo } = req.body || {};
+      if (!base64Workbook || typeof base64Workbook !== 'string') {
+        return res.status(400).json({
+          error: 'Se requiere el archivo Excel codificado en base64 (base64Workbook).',
+        });
+      }
+
+      const cleanBase64 = base64Workbook.includes(',')
+        ? base64Workbook.split(',').pop() || ''
+        : base64Workbook;
+      const workbookBuffer = Buffer.from(cleanBase64, 'base64');
+      const safeFilename = String(filename || 'MAESTRA ACTIVA.xlsx').trim();
+
+      const parsed = parseMaestraActivaBuffer(new Uint8Array(workbookBuffer), safeFilename);
+      if (parsed.validActiveCount === 0) {
+        return res.status(400).json({
+          error: 'El archivo Excel no contiene registros válidos en la hoja DATA.',
+        });
+      }
+
+      const { response, activeSeedPayload } = await executeMaestraActivaBatchSync(parsed, {
+        supabaseUrl: GERENCIA_FDV_SUPABASE_URL,
+        supabaseKey: GERENCIA_FDV_SUPABASE_KEY,
+        rootDir: process.cwd(),
+        periodo: String(periodo || '2026-10').trim(),
+        batchSize: 250,
+      });
+
+      activacionClientesMemoryCache = {
+        data: activeSeedPayload,
+        timestamp: Date.now(),
+      };
+
+      return res.json(response);
+    } catch (err: any) {
+      console.error('Error executing /api/cuotas/maestra-activa/sync:', err);
+      return res.status(500).json({
+        error: 'Error ejecutando la sincronización por lotes de Maestra Activa',
+        details: err?.message,
+      });
     }
   });
 
   app.post('/api/cuotas/activacion-clientes/toggle-rubro', async (req, res) => {
     try {
-      const { clienteCodigo, rubro, active } = req.body || {};
+      const { clienteCodigo, vendedorNombre, rubro, active } = req.body || {};
       const cleanCod = String(clienteCodigo || '').replace(/^[#\s]+/, '').trim();
+      const cleanVendor = String(vendedorNombre || '').trim().toUpperCase();
       const rawRubro = String(rubro || '').toUpperCase().trim();
       let normRubro = '';
       if (rawRubro.includes('ACEITE')) normRubro = 'ACEITE';
       else if (rawRubro.includes('AZUCAR') || rawRubro.includes('AZÚCAR')) normRubro = 'AZUCAR';
       else if (rawRubro.includes('POLLO')) normRubro = 'POLLO';
-      else if (rawRubro.includes('ESTANDAR') || rawRubro.includes('ASTURIAS') && !rawRubro.includes('MORTADELA')) normRubro = 'ESTANDAR_ASTURIAS';
+      else if (rawRubro.includes('ESTANDAR') || (rawRubro.includes('ASTURIAS') && !rawRubro.includes('MORTADELA'))) normRubro = 'ESTANDAR_ASTURIAS';
       else if (rawRubro.includes('MORTADELA') || rawRubro.includes('SALPICAO')) normRubro = 'MORTADELA_SALPICAO';
 
       if (!cleanCod || !normRubro) {
@@ -1232,6 +1223,13 @@ async function startServer() {
 
           if (Array.isArray(rows) && rows.length > 0) {
             for (const r of rows) {
+              if (isActivationRecordLogicallyInactive(r)) continue;
+              if (
+                cleanVendor &&
+                String(r.vendedor_nombre || r.vendedor_id || '').trim().toUpperCase() !== cleanVendor
+              ) {
+                continue;
+              }
               const nextState = {
                 has_aceite: normRubro === 'ACEITE' ? boolActive : Boolean(r.has_aceite),
                 has_azucar: normRubro === 'AZUCAR' ? boolActive : Boolean(r.has_azucar),
@@ -1257,7 +1255,8 @@ async function startServer() {
       if (activacionClientesMemoryCache && Array.isArray(activacionClientesMemoryCache.data)) {
         activacionClientesMemoryCache.data.forEach((c: any) => {
           const cid = String(c.id || '').replace(/^[#\s]+/, '').trim();
-          if (cid === cleanCod) {
+          const cVendor = String(c.vendedorNombre || '').trim().toUpperCase();
+          if (cid === cleanCod && (!cleanVendor || cVendor === cleanVendor)) {
             if (!c.cats) c.cats = {};
             c.cats[normRubro] = boolActive;
             const anyActive = Boolean(

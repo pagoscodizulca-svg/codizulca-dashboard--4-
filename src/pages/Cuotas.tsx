@@ -1,14 +1,21 @@
-import React, { useState, useEffect, Suspense, lazy } from 'react';
+import React, { useState, useEffect, useCallback, Suspense, lazy } from 'react';
 import Papa from 'papaparse';
 import { MonthProgressBar, MainTab, ViewLevel } from '../components/cuotas/MonthProgressBar';
 import { RubrosActivationTable } from '../components/cuotas/RubrosActivationTable';
 import { INITIAL_SELLERS_ACTIVATION, SellerActivationRow } from '../components/cuotas/cuotasData';
-import { getSellerMetadata, normalizeSellerName } from '../components/cuotas/sellerSupervisorMap';
+import { normalizeSellerName } from '../components/cuotas/sellerSupervisorMap';
 import { calculateMonthWorkingProgress } from '../components/cuotas/volumeQuotasData';
+import maestraSnapshotSeed from '../data/maestraActivaAuditSnapshot.json';
+import type { MaestraAuditReport } from '../lib/maestraActivaTypes';
 
 const ActivacionClientesSubmodule = lazy(() =>
   import('../components/cuotas/ActivacionClientesSubmodule').then((m) => ({
     default: m.ActivacionClientesSubmodule,
+  }))
+);
+const MaestraActivaAuditSubmodule = lazy(() =>
+  import('../components/cuotas/MaestraActivaAuditSubmodule').then((m) => ({
+    default: m.MaestraActivaAuditSubmodule,
   }))
 );
 const MonthlyVolumeHistoryTable = lazy(() =>
@@ -50,6 +57,42 @@ export const Cuotas: React.FC = () => {
   const [activeView, setActiveView] = useState<ViewLevel>('vendedor');
   const [isShareOpen, setIsShareOpen] = useState(false);
   const [sellers, setSellers] = useState<SellerActivationRow[]>(INITIAL_SELLERS_ACTIVATION);
+  const [portfolioSyncVersion, setPortfolioSyncVersion] = useState<number>(0);
+  const [maestraStats, setMaestraStats] = useState<{ totalActive: number; routesCount: number }>(() => {
+    const snap = maestraSnapshotSeed as unknown as MaestraAuditReport;
+    return {
+      totalActive: snap?.parseMetrics?.validActiveCount || 2676,
+      routesCount: snap?.parseMetrics?.sellersCount || 30,
+    };
+  });
+
+  const applyMaestraCarteraToSellers = useCallback((report: MaestraAuditReport) => {
+    if (!report?.sellerAuditRows?.length) return;
+    const byCanonical = new Map<string, number>();
+    report.sellerAuditRows.forEach((row) => {
+      const key = row.canonicalSeller;
+      byCanonical.set(key, (byCanonical.get(key) || 0) + row.excelActiveCount);
+    });
+    setSellers((prev) =>
+      prev.map((s) =>
+        byCanonical.has(s.vendedor)
+          ? { ...s, cartera: byCanonical.get(s.vendedor)! }
+          : s
+      )
+    );
+  }, []);
+
+  const handlePortfolioSynced = useCallback(
+    (report: MaestraAuditReport) => {
+      setMaestraStats({
+        totalActive: report.parseMetrics.validActiveCount,
+        routesCount: report.parseMetrics.sellersCount,
+      });
+      applyMaestraCarteraToSellers(report);
+      setPortfolioSyncVersion((v) => v + 1);
+    },
+    [applyMaestraCarteraToSellers]
+  );
 
   const [diasLaborables, setDiasLaborables] = useState<number>(autoProgress.diasLaborables);
   const [diasTranscurridos, setDiasTranscurridos] = useState<number>(autoProgress.diasTranscurridos);
@@ -193,11 +236,14 @@ export const Cuotas: React.FC = () => {
             <ParetoSubmodule />
           ) : activeTab === 'volumen_sku' ? (
             <SkuVolumeSubmodule />
+          ) : activeTab === 'auditoria_maestra' ? (
+            <MaestraActivaAuditSubmodule onPortfolioSynced={handlePortfolioSynced} />
           ) : activeTab === 'activacion_clientes' ? (
             <ActivacionClientesSubmodule
               viewLevel={activeView}
               diasLaborables={diasLaborables}
               diasTranscurridos={diasTranscurridos}
+              syncVersion={portfolioSyncVersion}
             />
           ) : (
             <RegionalManagerAuditSubmodule
@@ -215,6 +261,9 @@ export const Cuotas: React.FC = () => {
               <RubrosActivationTable
                 sellers={sellers}
                 viewLevel={activeView}
+                maestraTotalActive={maestraStats.totalActive}
+                maestraRoutesCount={maestraStats.routesCount}
+                onOpenMaestraAudit={() => setActiveTab('auditoria_maestra')}
               />
             )}
 
@@ -224,7 +273,13 @@ export const Cuotas: React.FC = () => {
                 viewLevel={activeView}
                 diasLaborables={diasLaborables}
                 diasTranscurridos={diasTranscurridos}
+                syncVersion={portfolioSyncVersion}
               />
+            )}
+
+            {/* PESTAÑA AUDITORÍA Y SINCRONIZACIÓN DE MAESTRA DE CLIENTES ACTIVOS */}
+            {activeTab === 'auditoria_maestra' && (
+              <MaestraActivaAuditSubmodule onPortfolioSynced={handlePortfolioSynced} />
             )}
 
             {/* PESTAÑA VOLUMEN CON HISTORIAL Y FILTRO MULTISELECCIÓN DE MESES */}

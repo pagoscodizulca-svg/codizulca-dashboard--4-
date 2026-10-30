@@ -214,6 +214,7 @@ export const ENRICHED_CLIENTS: EnrichedClient[] = (() => {
   const usedClientIds = new Set<string>();
 
   CARTERA_CLIENTES.forEach((c) => {
+    if (c.activo === false) return;
     const norm = normalizeForMatch(c.nombre);
     const baseNorm = normalizeForMatch(c.nombre.replace(/\([^)]*\)/g, ''));
     const cleanRif = normalizeRif(c.rif);
@@ -281,7 +282,7 @@ export const ENRICHED_CLIENTS: EnrichedClient[] = (() => {
       canal: c.canal || (surveyMatch ? surveyMatch.tipoCliente : 'GENERAL'),
       sector: exactSector,
       direccion: exactDireccion,
-      activo: c.activo !== false,
+      activo: true,
       hasLocation: hasGps,
       survey: surveyMatch,
     });

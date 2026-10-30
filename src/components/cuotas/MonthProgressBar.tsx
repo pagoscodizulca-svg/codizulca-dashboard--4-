@@ -1,12 +1,18 @@
 import React, { useState } from 'react';
-import { Calendar, Share2, ShieldCheck, FileText, SlidersHorizontal, RotateCcw, Clock } from 'lucide-react';
+import { Calendar, Share2, ShieldCheck, FileText, SlidersHorizontal, RotateCcw, Clock, Database } from 'lucide-react';
 import {
   DEFAULT_DIAS_LABORABLES,
   DEFAULT_DIAS_TRANSCURRIDOS,
   calculateMonthWorkingProgress,
 } from './volumeQuotasData';
 
-export type MainTab = 'activacion' | 'activacion_clientes' | 'volumen' | 'volumen_sku' | 'pareto';
+export type MainTab =
+  | 'activacion'
+  | 'activacion_clientes'
+  | 'auditoria_maestra'
+  | 'volumen'
+  | 'volumen_sku'
+  | 'pareto';
 export type ViewLevel = 'vendedor' | 'supervisores' | 'gerente';
 
 interface MonthProgressBarProps {
@@ -226,6 +232,19 @@ export const MonthProgressBar: React.FC<MonthProgressBarProps> = ({
             }`}
           >
             Activación Clientes
+          </button>
+          <button
+            type="button"
+            onClick={() => onTabChange('auditoria_maestra')}
+            className={`inline-flex items-center gap-1.5 px-3.5 sm:px-4 py-1.5 rounded-md font-bold transition-all cursor-pointer ${
+              activeTab === 'auditoria_maestra'
+                ? 'bg-red-600 text-white shadow-md ring-1 ring-white/30'
+                : 'text-zinc-300 hover:text-white'
+            }`}
+            title="Auditoría comparativa y sincronización por lotes de Maestra de Clientes Activos (2.676 clientes / 30 rutas)"
+          >
+            <Database className="w-3.5 h-3.5" />
+            <span>Auditoría Maestra</span>
           </button>
           <button
             type="button"

@@ -136,9 +136,9 @@ describe('Ventas & Cuotas Business Calculations Test Suite', () => {
       });
     });
 
-    it('debe sincronizar exactamente los 2,559 clientes activos de Octubre 2026 incluyendo Angel Navarro, Mariangel Gonzalez y Victor Campos', () => {
-      expect(CARTERA_CLIENTES.length).toBe(2559);
-      expect(ENRICHED_CLIENTS.length).toBeGreaterThanOrEqual(2559);
+    it('debe sincronizar exactamente los 2,676 clientes activos de Maestra Octubre 2026 (2,559 FDV + 117 Food Service) incluyendo Angel Navarro, Mariangel Gonzalez y Victor Campos', () => {
+      expect(CARTERA_CLIENTES.length).toBe(2676);
+      expect(ENRICHED_CLIENTS.length).toBeGreaterThanOrEqual(2676);
 
       const countBySeller = new Map<string, number>();
       CARTERA_CLIENTES.forEach((c) => {
@@ -171,6 +171,10 @@ describe('Ventas & Cuotas Business Calculations Test Suite', () => {
       expect(countBySeller.get('LUIS GUANIPA')).toBe(55);
       expect(countBySeller.get('MARIANA CHACIN')).toBe(38);
       expect(countBySeller.get('SAIRU VALLES')).toBe(36);
+      // Rutas especializadas de Food Service (117 clientes activos)
+      expect(countBySeller.get('FOOD SERVICE SENIOR - JUAN HERNANDEZ')).toBe(58);
+      expect(countBySeller.get('FOOD SERVICE SUR')).toBe(32);
+      expect(countBySeller.get('JAIDER MEDINA - FOOD SERVICE NORTE')).toBe(27);
     });
   });
 
