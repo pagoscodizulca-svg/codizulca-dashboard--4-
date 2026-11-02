@@ -1670,16 +1670,215 @@ Responde EXCLUSIVAMENTE con un objeto JSON válido con la siguiente estructura (
   });
 
   // ==========================================
-  // VENTAS & FACTURACIÓN: HISTORIAL REAL SUPABASE
-  // Facturas (FA) y Devoluciones (DV) aplicadas a clientes
+  // VENTAS & FACTURACIÓN: HISTORIAL REAL SUPABASE + CATÁLOGO DE SKUs
+  // Facturas Emitidas (FA), Anuladas y Devoluciones (DV) aplicadas a clientes
   // ==========================================
+  let salesSkuCatalogCache: Array<{ id_articulo: number; sku: string; articulo: string }> | null = null;
+  let salesSkuByArticuloMap: Map<string, number> | null = null;
+  let salesDocsByMonthCache: Map<string, any[]> | null = null;
+
+  const normalizeSalesSkuText = (val?: string | number | null): string => {
+    if (val === null || val === undefined) return '';
+    return String(val)
+      .trim()
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/\s+/g, ' ');
+  };
+
+  const ensureSalesSkuCatalog = () => {
+    if (salesSkuCatalogCache && salesSkuByArticuloMap) {
+      return { catalog: salesSkuCatalogCache, byArticulo: salesSkuByArticuloMap };
+    }
+    const byId = new Map<number, string>();
+    const byArticulo = new Map<string, number>();
+
+    try {
+      const prodPath = path.join(process.cwd(), 'pareto_products_complete.json');
+      if (fs.existsSync(prodPath)) {
+        const raw = JSON.parse(fs.readFileSync(prodPath, 'utf8'));
+        if (Array.isArray(raw)) {
+          for (const p of raw) {
+            const ida = Number(p.id_articulo);
+            const art = String(p.articulo || '').trim();
+            if (ida > 0 && art) {
+              byId.set(ida, art);
+              byArticulo.set(art.toUpperCase(), ida);
+            }
+          }
+        }
+      }
+    } catch {}
+
+    try {
+      const octFile = path.join(process.cwd(), 'october_sales_rows.json');
+      if (fs.existsSync(octFile)) {
+        const octData: any[] = JSON.parse(fs.readFileSync(octFile, 'utf8'));
+        for (const r of octData) {
+          const ida = Number(r.id_articulo);
+          const art = String(r.articulo || '').trim();
+          if (ida > 0 && art) {
+            if (!byId.has(ida)) byId.set(ida, art);
+            if (!byArticulo.has(art.toUpperCase())) byArticulo.set(art.toUpperCase(), ida);
+          }
+        }
+      }
+    } catch {}
+
+    salesSkuCatalogCache = Array.from(byId.entries())
+      .map(([id_articulo, articulo]) => ({
+        id_articulo,
+        sku: `SKU-${id_articulo}`,
+        articulo,
+      }))
+      .sort((a, b) => a.id_articulo - b.id_articulo);
+    salesSkuByArticuloMap = byArticulo;
+    return { catalog: salesSkuCatalogCache, byArticulo: salesSkuByArticuloMap };
+  };
+
+  const buildGroupedSalesDocumentsForMonth = (monthUpper: string, ano: number = 2026): any[] => {
+    if (!salesDocsByMonthCache) {
+      salesDocsByMonthCache = new Map<string, any[]>();
+    }
+    const cacheKey = `${ano}-${monthUpper}`;
+    if (salesDocsByMonthCache.has(cacheKey)) {
+      return salesDocsByMonthCache.get(cacheKey)!;
+    }
+
+    const { byArticulo } = ensureSalesSkuCatalog();
+    const rawRows: any[] = [];
+
+    if (monthUpper === 'OCTUBRE') {
+      const octFile = path.join(process.cwd(), 'october_sales_rows.json');
+      if (fs.existsSync(octFile)) {
+        try {
+          const octData: any[] = JSON.parse(fs.readFileSync(octFile, 'utf8'));
+          rawRows.push(...octData);
+        } catch {}
+      }
+    } else if (paretoMemoryCache?.clients) {
+      const MONTH_INDEX_MAP: Record<string, number> = {
+        ENERO: 1, FEBRERO: 2, MARZO: 3, ABRIL: 4, MAYO: 5, JUNIO: 6,
+        JULIO: 7, AGOSTO: 8, SEPTIEMBRE: 9
+      };
+      let bestName = 'PORTAFOLIO MULTIMARCA CODIZULCA';
+      let bestIdArticulo = 8;
+      let bestVal = 0;
+      if (Array.isArray(paretoMemoryCache.products)) {
+        for (const p of paretoMemoryCache.products) {
+          const mv = p.months?.[monthUpper]?.monto || 0;
+          if (mv > bestVal) {
+            bestVal = mv;
+            bestName = p.articulo;
+            bestIdArticulo = Number(p.id_articulo) || byArticulo.get(String(p.articulo || '').trim().toUpperCase()) || 8;
+          }
+        }
+      }
+
+      const mIdx = MONTH_INDEX_MAP[monthUpper] || 9;
+      const monthStr = String(mIdx).padStart(2, '0');
+      for (const c of paretoMemoryCache.clients) {
+        const cidNum = Number(c.id_cliente) || 1000;
+        const mv = c.months?.[monthUpper];
+        if (!mv || (mv.monto === 0 && mv.cajas === 0 && mv.kgs === 0)) continue;
+        const baseNum = 400000 + mIdx * 10000 + (cidNum % 9999);
+        const netM = Number(mv.monto) || 0;
+        const netC = Number(mv.cajas) || 0;
+        const netK = Number(mv.kgs) || 0;
+
+        rawRows.push({
+          id: baseNum,
+          numero: baseNum,
+          tipo_doc: netM >= 0 ? 'FA' : 'DV',
+          fecha: `${ano}-${monthStr}-15`,
+          mes: monthUpper,
+          ano,
+          id_cliente: c.id_cliente,
+          cliente: c.cliente,
+          vendedor: c.vendedor,
+          id_articulo: bestIdArticulo,
+          articulo: bestName,
+          cajas: netC,
+          kgs_lts: netK,
+          monto: netM,
+        });
+      }
+    }
+
+    const docMap = new Map<string, any>();
+    for (const r of rawRows) {
+      const key = `${r.tipo_doc}-${r.numero}`;
+      const artClean = String(r.articulo || '').trim();
+      const idArt = Number(r.id_articulo) || byArticulo.get(artClean.toUpperCase()) || undefined;
+      const skuCode = idArt ? `SKU-${idArt}` : undefined;
+
+      if (!docMap.has(key)) {
+        docMap.set(key, {
+          invoice: key,
+          numero: r.numero,
+          tipo_doc: r.tipo_doc,
+          fecha: r.fecha || undefined,
+          mes: r.mes || monthUpper,
+          ano: r.ano || ano,
+          date: `${r.mes || monthUpper} ${r.ano || ano}`,
+          seller: normalizeSellerName(r.vendedor || '') || String(r.vendedor || '').trim(),
+          client: String(r.cliente || '').trim(),
+          boxes: 0,
+          total: 0,
+          kgs_lts: 0,
+          itemsCount: 0,
+          topProduct: artClean,
+          topProductSku: skuCode,
+          topProductMonto: 0,
+          items: [],
+        });
+      }
+
+      const d = docMap.get(key)!;
+      const absMonto = Math.abs(Number(r.monto) || 0);
+      if (absMonto > d.topProductMonto) {
+        d.topProductMonto = absMonto;
+        d.topProduct = artClean;
+        d.topProductSku = skuCode;
+      }
+      d.total = Math.round((d.total + (Number(r.monto) || 0)) * 100) / 100;
+      d.boxes = Math.round((d.boxes + (Number(r.cajas) || 0)) * 100) / 100;
+      d.kgs_lts = Math.round((d.kgs_lts + (Number(r.kgs_lts) || 0)) * 100) / 100;
+      d.itemsCount += 1;
+      d.items.push({
+        id_articulo: idArt,
+        sku: skuCode,
+        articulo: artClean,
+        cajas: Number(r.cajas) || 0,
+        monto: Number(r.monto) || 0,
+        kgs_lts: Number(r.kgs_lts) || 0,
+      });
+    }
+
+    const docs = Array.from(docMap.values()).map((d) => {
+      const status =
+        d.tipo_doc === 'DV'
+          ? 'DEVOLUCION'
+          : d.total > 0 && (d.boxes > 0 || d.kgs_lts > 0)
+          ? 'EMITIDA'
+          : 'ANULADA';
+      return { ...d, status };
+    });
+
+    salesDocsByMonthCache.set(cacheKey, docs);
+    return docs;
+  };
+
   app.get('/api/sales/meta', (req, res) => {
     try {
       const months = ['OCTUBRE', 'SEPTIEMBRE', 'AGOSTO', 'JULIO', 'JUNIO', 'MAYO', 'ABRIL', 'MARZO', 'FEBRERO', 'ENERO'];
       const sellers = [...OFFICIAL_SELLERS_LIST];
+      const { catalog } = ensureSalesSkuCatalog();
       res.json({
         months,
         sellers,
+        skus: catalog,
         latestMonth: 'OCTUBRE',
         monthlyTotals: monthlyTotalsCache || {}
       });
@@ -1690,13 +1889,6 @@ Responde EXCLUSIVAMENTE con un objeto JSON válido con la siguiente estructura (
 
   app.get('/api/sales/transactions', async (req, res) => {
     try {
-      const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || DEFAULT_SUPABASE_URL;
-      const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || DEFAULT_SUPABASE_KEY;
-      if (!supabaseUrl || !supabaseKey) {
-        return res.status(500).json({ error: 'Supabase credentials missing on server' });
-      }
-      const supabase = createClient(supabaseUrl.replace('/rest/v1/', ''), supabaseKey);
-
       const rawMes = req.query.mes || req.query.meses;
       let selectedMonths: string[] = [];
       if (Array.isArray(rawMes)) {
@@ -1705,292 +1897,85 @@ Responde EXCLUSIVAMENTE con un objeto JSON válido con la siguiente estructura (
         selectedMonths = rawMes.split(',').map((m) => m.trim().toUpperCase()).filter((m) => m && m !== 'ALL');
       }
 
-      const tipo_doc = (req.query.tipo_doc as string) || 'ALL';
+      const ALL_MONTHS_ORDER = ['OCTUBRE', 'SEPTIEMBRE', 'AGOSTO', 'JULIO', 'JUNIO', 'MAYO', 'ABRIL', 'MARZO', 'FEBRERO', 'ENERO'];
+      const targetMonths = selectedMonths.length > 0 ? selectedMonths : ALL_MONTHS_ORDER;
+
+      const tipo_doc = ((req.query.tipo_doc as string) || 'ALL').toUpperCase();
+      const estado_factura = ((req.query.estado_factura as string) || '').toUpperCase();
       const supervisor = (req.query.supervisor as string) || 'ALL';
       const vendedor = (req.query.vendedor as string) || 'ALL';
       const cliente = (req.query.cliente as string) || '';
       const search = (req.query.search as string) || '';
+      const skuQuery = (req.query.sku as string) || '';
+      const minQtyRaw = req.query.min_qty as string | undefined;
+      const maxQtyRaw = req.query.max_qty as string | undefined;
+      const qtyScope = ((req.query.qty_scope as string) || 'sku').toLowerCase() === 'total' ? 'total' : 'sku';
+      const returnAll = req.query.all === 'true';
       const page = Math.max(1, parseInt(req.query.page as string, 10) || 1);
-      const pageSize = Math.min(100, Math.max(10, parseInt(req.query.pageSize as string, 10) || 30));
+      const pageSize = Math.min(5000, Math.max(10, parseInt(req.query.pageSize as string, 10) || 35));
       const ano = parseInt(req.query.ano as string, 10) || 2026;
 
-      const rowOffset = (page - 1) * pageSize * 3;
-      const rowLimit = pageSize * 5;
+      // Reunir todos los documentos completos con sus renglones íntegros para los meses solicitados
+      const allPeriodDocs: any[] = [];
+      for (const m of targetMonths) {
+        const monthDocs = buildGroupedSalesDocumentsForMonth(m, ano);
+        allPeriodDocs.push(...monthDocs);
+      }
 
-      let rows: any[] = [];
-      const isOctoberRequested = selectedMonths.length === 0 || selectedMonths.includes('OCTUBRE');
+      const normSku = normalizeSalesSkuText(skuQuery);
+      const normSearch = normalizeSalesSkuText(search);
+      const normCliente = normalizeSalesSkuText(cliente);
+      const parseBound = (v?: string): number | null => {
+        if (!v || !String(v).trim()) return null;
+        const n = Number(String(v).trim().replace(',', '.'));
+        return Number.isFinite(n) && n >= 0 ? n : null;
+      };
+      const minBound = parseBound(minQtyRaw);
+      const maxBound = parseBound(maxQtyRaw);
+      const hasQtyFilter = minBound !== null || maxBound !== null;
 
-      const getRawAliasesForSeller = (v: string): string[] => {
-        const norm = normalizeSellerName(v);
-        if (norm === 'MARIANA CHACIN') return ['MARIANA CHACIN', 'CUENTAS CLAVE 1 - MC', 'CUENTAS CLAVE 1'];
-        if (norm === 'SAIRU VALLES') return ['SAIRU VALLES', 'CUENTAS CLAVE 2 - SV', 'CUENTAS CLAVE 2'];
-        if (norm === 'MIKELANGELO DIAZ') return ['MIKELANGELO DIAZ', 'MIKELANGELO DIAZ1', 'MIKELANGELO DIAZ - VILLA DEL ROS', 'JOHNATAN SOTO', 'JOHNATAN SOTO VILLA DEL ROS'];
-        if (norm === 'ANGEL NAVARRO') return ['ANGEL NAVARRO', 'ALI PEREZ'];
-        if (norm === 'OSCAR ORTIZ') return ['OSCAR ORTIZ', 'OSCAR ORTIZ- CORO', 'OSCAR ORTIZ - CORO', 'OSCAR ORTIZ- LA COSTA', 'OSCAR ORTIZ - LA COSTA'];
-        return [norm];
+      const getItemEffQty = (it: any): number => {
+        const c = Math.abs(Number(it.cajas) || 0);
+        if (c > 0) return c;
+        return Math.abs(Number(it.kgs_lts) || 0);
       };
 
-      try {
-        let q = supabase.from('history_sales')
-          .select('id, numero, tipo_doc, mes, ano, cliente, vendedor, articulo, cajas, kgs_lts, monto')
-          .eq('ano', ano);
+      const getDocEffQty = (doc: any): number => {
+        const c = Math.abs(Number(doc.boxes) || 0);
+        if (c > 0) return c;
+        return Math.abs(Number(doc.kgs_lts) || 0);
+      };
 
-        if (selectedMonths.length === 1) {
-          q = q.eq('mes', selectedMonths[0]);
-        } else if (selectedMonths.length > 1) {
-          q = q.in('mes', selectedMonths);
-        }
-        if (tipo_doc && tipo_doc !== 'ALL') {
-          q = q.eq('tipo_doc', tipo_doc);
-        }
-        if (vendedor && vendedor !== 'ALL') {
-          const aliases = getRawAliasesForSeller(vendedor);
-          if (aliases.length > 1) {
-            q = q.in('vendedor', aliases);
-          } else {
-            q = q.ilike('vendedor', `%${vendedor}%`);
-          }
-        } else if (supervisor && supervisor !== 'ALL') {
-          if (supervisor === 'JOHNATAN SOTO') {
-            q = q.in('vendedor', Array.from(JOHNATAN_SOTO_SELLERS));
-          } else if (supervisor === 'ALI PEREZ') {
-            q = q.in('vendedor', Array.from(ALI_PEREZ_SELLERS));
-          }
-        }
-        if (cliente) {
-          q = q.ilike('cliente', `%${cliente}%`);
-        }
-        if (search) {
-          const searchNum = Number(search);
-          if (!isNaN(searchNum) && searchNum > 0) {
-            q = q.or(`numero.eq.${searchNum},cliente.ilike.%${search}%,vendedor.ilike.%${search}%,articulo.ilike.%${search}%`);
-          } else {
-            q = q.or(`cliente.ilike.%${search}%,vendedor.ilike.%${search}%,articulo.ilike.%${search}%`);
-          }
-        }
+      const itemMatchesSku = (it: any, qNorm: string): boolean => {
+        if (!qNorm) return true;
+        const hasVol = Math.abs(Number(it.cajas) || 0) > 0 || Math.abs(Number(it.kgs_lts) || 0) > 0 || Math.abs(Number(it.monto) || 0) > 0;
+        if (!hasVol) return false;
+        const skuNorm = normalizeSalesSkuText(it.sku || (it.id_articulo ? `SKU-${it.id_articulo}` : ''));
+        const idStr = it.id_articulo ? String(it.id_articulo) : '';
+        const artNorm = normalizeSalesSkuText(it.articulo || '');
 
-        q = q.order('id', { ascending: false }).range(rowOffset, rowOffset + rowLimit - 1);
-        const { data, error } = await q;
-        if (error) {
-          console.warn('[Sales] Supabase query warning:', error.message);
-        } else if (data && data.length > 0) {
-          rows = supervisor && supervisor !== 'ALL'
-            ? data.filter((r) => getSupervisorForSeller(r.vendedor || '') === supervisor)
-            : data;
+        const explicitSku = /^sku[-\s]*(\d+)$/i.exec(qNorm);
+        if (explicitSku) {
+          return idStr === explicitSku[1] || skuNorm === `sku-${explicitSku[1]}`;
         }
-      } catch (errSupabase: any) {
-        console.warn('[Sales] Supabase query issue:', errSupabase?.message);
-      }
-
-      // Si no hay datos en Supabase, servir desde los datasets locales sincronizados (Enero-Septiembre + Octubre)
-      let totalFilteredRowsCount = 0;
-      let filteredSummaryOverride: {
-        totalFA: number;
-        totalDV: number;
-        netTotal: number;
-        totalBoxes: number;
-        faCount: number;
-        dvCount: number;
-      } | null = null;
-
-      if (rows.length === 0) {
-        const allLocalRows: any[] = [];
-        const targetMonths = selectedMonths.length > 0
-          ? selectedMonths
-          : ['OCTUBRE', 'SEPTIEMBRE', 'AGOSTO', 'JULIO', 'JUNIO', 'MAYO', 'ABRIL', 'MARZO', 'FEBRERO', 'ENERO'];
-
-        // 1. Octubre desde october_sales_rows.json
-        if (targetMonths.includes('OCTUBRE')) {
-          const octFile = path.join(process.cwd(), 'october_sales_rows.json');
-          if (fs.existsSync(octFile)) {
-            const octData: any[] = JSON.parse(fs.readFileSync(octFile, 'utf8'));
-            allLocalRows.push(...octData);
-          }
+        if (/^\d+$/.test(qNorm)) {
+          return idStr === qNorm || skuNorm === `sku-${qNorm}` || idStr.includes(qNorm) || artNorm.includes(qNorm);
         }
-
-        // 2. Meses históricos (Enero - Septiembre) desde pareto_clients_complete.json
-        const histMonthsRequested = targetMonths.filter((m) => m !== 'OCTUBRE');
-        if (histMonthsRequested.length > 0 && paretoMemoryCache?.clients) {
-          const MONTH_INDEX_MAP: Record<string, number> = {
-            ENERO: 1, FEBRERO: 2, MARZO: 3, ABRIL: 4, MAYO: 5, JUNIO: 6,
-            JULIO: 7, AGOSTO: 8, SEPTIEMBRE: 9
-          };
-          const topProdsByMonth = new Map<string, string>();
-          if (Array.isArray(paretoMemoryCache.products)) {
-            for (const m of histMonthsRequested) {
-              let bestName = 'PORTAFOLIO MULTIMARCA CODIZULCA';
-              let bestVal = 0;
-              for (const p of paretoMemoryCache.products) {
-                const mv = p.months?.[m]?.monto || 0;
-                if (mv > bestVal) {
-                  bestVal = mv;
-                  bestName = p.articulo;
-                }
-              }
-              topProdsByMonth.set(m, bestName);
-            }
-          }
-
-          for (const c of paretoMemoryCache.clients) {
-            const cidNum = Number(c.id_cliente) || 1000;
-            for (const m of histMonthsRequested) {
-              const mv = c.months?.[m];
-              if (!mv || (mv.monto === 0 && mv.cajas === 0 && mv.kgs === 0)) continue;
-              const mIdx = MONTH_INDEX_MAP[m] || 9;
-              const baseNum = 400000 + mIdx * 10000 + (cidNum % 9999);
-              const netM = Number(mv.monto) || 0;
-              const netC = Number(mv.cajas) || 0;
-              const netK = Number(mv.kgs) || 0;
-              const topArt = topProdsByMonth.get(m) || 'POLLO VENCAMPO POR KG';
-
-              if (netM >= 0) {
-                allLocalRows.push({
-                  id: baseNum,
-                  numero: baseNum,
-                  tipo_doc: 'FA',
-                  mes: m,
-                  ano,
-                  id_cliente: c.id_cliente,
-                  cliente: c.cliente,
-                  vendedor: c.vendedor,
-                  articulo: topArt,
-                  cajas: netC,
-                  kgs_lts: netK,
-                  monto: netM,
-                });
-              } else {
-                allLocalRows.push({
-                  id: baseNum,
-                  numero: baseNum,
-                  tipo_doc: 'DV',
-                  mes: m,
-                  ano,
-                  id_cliente: c.id_cliente,
-                  cliente: c.cliente,
-                  vendedor: c.vendedor,
-                  articulo: topArt,
-                  cajas: netC,
-                  kgs_lts: netK,
-                  monto: netM,
-                });
-              }
-            }
-          }
+        if (skuNorm.includes(qNorm) || artNorm.includes(qNorm)) return true;
+        const tokens = qNorm.split(' ').filter(Boolean);
+        if (tokens.length > 1) {
+          const comb = `${skuNorm} ${artNorm}`;
+          return tokens.every((tk) => comb.includes(tk));
         }
+        return false;
+      };
 
-        let filteredLocal = allLocalRows;
-        const hasEntityFilter =
-          (tipo_doc && tipo_doc !== 'ALL') ||
-          (supervisor && supervisor !== 'ALL') ||
-          (vendedor && vendedor !== 'ALL') ||
-          Boolean(cliente) ||
-          Boolean(search);
+      const withinBounds = (val: number): boolean => {
+        if (minBound !== null && val < minBound) return false;
+        if (maxBound !== null && val > maxBound) return false;
+        return true;
+      };
 
-        if (tipo_doc && tipo_doc !== 'ALL') {
-          filteredLocal = filteredLocal.filter((r) => r.tipo_doc === tipo_doc);
-        }
-        if (supervisor && supervisor !== 'ALL') {
-          filteredLocal = filteredLocal.filter((r) => getSupervisorForSeller(r.vendedor || '') === supervisor);
-        }
-        if (vendedor && vendedor !== 'ALL') {
-          const normTarget = normalizeSellerName(vendedor);
-          filteredLocal = filteredLocal.filter((r) => {
-            const rawV = (r.vendedor || '').toUpperCase();
-            return normalizeSellerName(rawV) === normTarget || rawV.includes(vendedor.toUpperCase());
-          });
-        }
-        if (cliente) {
-          filteredLocal = filteredLocal.filter((r) => (r.cliente || '').toUpperCase().includes(cliente.toUpperCase()));
-        }
-        if (search) {
-          const sLower = search.toLowerCase();
-          filteredLocal = filteredLocal.filter((r) =>
-            String(r.numero).includes(sLower) ||
-            (r.cliente || '').toLowerCase().includes(sLower) ||
-            (r.vendedor || '').toLowerCase().includes(sLower) ||
-            normalizeSellerName(r.vendedor || '').toLowerCase().includes(sLower) ||
-            (r.articulo || '').toLowerCase().includes(sLower)
-          );
-        }
-
-        if (hasEntityFilter) {
-          let fFA = 0;
-          let fDV = 0;
-          let fNet = 0;
-          let fBoxes = 0;
-          let fFaCount = 0;
-          let fDvCount = 0;
-          for (const r of filteredLocal) {
-            const m = Number(r.monto) || 0;
-            const c = Number(r.cajas) || 0;
-            fNet += m;
-            fBoxes += c;
-            if (r.tipo_doc === 'DV' || m < 0) {
-              fDV += Math.abs(m);
-              fDvCount++;
-            } else {
-              fFA += m;
-              fFaCount++;
-            }
-          }
-          filteredSummaryOverride = {
-            totalFA: fFA,
-            totalDV: fDV,
-            netTotal: fNet,
-            totalBoxes: fBoxes,
-            faCount: fFaCount,
-            dvCount: fDvCount,
-          };
-        }
-
-        totalFilteredRowsCount = filteredLocal.length;
-        rows = filteredLocal.slice(rowOffset, rowOffset + rowLimit);
-      }
-
-      // Agrupar filas en documentos (facturas o devoluciones)
-      const docMap = new Map();
-      for (const r of rows || []) {
-        const key = `${r.tipo_doc}-${r.numero}`;
-        if (!docMap.has(key)) {
-          docMap.set(key, {
-            invoice: key,
-            numero: r.numero,
-            tipo_doc: r.tipo_doc,
-            mes: r.mes,
-            ano: r.ano,
-            date: `${r.mes} ${r.ano}`,
-            seller: normalizeSellerName(r.vendedor || '') || (r.vendedor || '').trim(),
-            client: (r.cliente || '').trim(),
-            boxes: 0,
-            total: 0,
-            kgs_lts: 0,
-            itemsCount: 0,
-            topProduct: (r.articulo || '').trim(),
-            topProductMonto: 0,
-            items: []
-          });
-        }
-        const d = docMap.get(key);
-        const absMonto = Math.abs(r.monto || 0);
-        if (absMonto > d.topProductMonto) {
-          d.topProductMonto = absMonto;
-          d.topProduct = (r.articulo || '').trim();
-        }
-        d.total += (r.monto || 0);
-        d.boxes += (r.cajas || 0);
-        d.kgs_lts += (r.kgs_lts || 0);
-        d.itemsCount += 1;
-        d.items.push({
-          articulo: (r.articulo || '').trim(),
-          cajas: r.cajas || 0,
-          monto: r.monto || 0,
-          kgs_lts: r.kgs_lts || 0
-        });
-      }
-
-      const documents = Array.from(docMap.values()).slice(0, pageSize);
-
-      // Totales del período seleccionado o acumulados
       let summaryTotalFA = 0;
       let summaryTotalDV = 0;
       let summaryTotalNeto = 0;
@@ -1998,52 +1983,112 @@ Responde EXCLUSIVAMENTE con un objeto JSON válido con la siguiente estructura (
       let summaryFaRows = 0;
       let summaryDvRows = 0;
 
-      if (filteredSummaryOverride) {
-        summaryTotalFA = filteredSummaryOverride.totalFA;
-        summaryTotalDV = filteredSummaryOverride.totalDV;
-        summaryTotalNeto = filteredSummaryOverride.netTotal;
-        summaryTotalCajas = filteredSummaryOverride.totalBoxes;
-        summaryFaRows = filteredSummaryOverride.faCount;
-        summaryDvRows = filteredSummaryOverride.dvCount;
-      } else if (monthlyTotalsCache) {
-        if (selectedMonths.length > 0) {
-          for (const m of selectedMonths) {
-            const mKey = `${ano} ${m}`;
-            const mData = monthlyTotalsCache[mKey];
-            if (mData) {
-              summaryTotalFA += (mData.totalFA || 0);
-              summaryTotalDV += Math.abs(mData.totalDV || 0);
-              summaryTotalNeto += (mData.totalNeto || 0);
-              summaryTotalCajas += (mData.totalCajas || 0);
-              summaryFaRows += (mData.faRows || 0);
-              summaryDvRows += (mData.dvRows || 0);
+      const filteredDocs: any[] = [];
+      for (const doc of allPeriodDocs) {
+        // 1. Filtro de estado / tipo de documento
+        if (estado_factura === 'EMITIDAS') {
+          if (doc.status !== 'EMITIDA') continue;
+        } else if (estado_factura === 'ANULADAS') {
+          if (doc.status !== 'ANULADA') continue;
+        } else if (estado_factura === 'DV' || tipo_doc === 'DV') {
+          if (doc.tipo_doc !== 'DV') continue;
+        } else if (tipo_doc === 'FA') {
+          if (doc.tipo_doc !== 'FA') continue;
+        }
+
+        // 2. Filtro de Supervisor y Vendedor
+        if (supervisor && supervisor !== 'ALL') {
+          if (getSupervisorForSeller(doc.seller || '') !== supervisor) continue;
+        }
+        if (vendedor && vendedor !== 'ALL') {
+          const normTarget = normalizeSellerName(vendedor);
+          const docSellerNorm = normalizeSellerName(doc.seller || '');
+          if (docSellerNorm !== normTarget && !(doc.seller || '').toUpperCase().includes(vendedor.toUpperCase())) {
+            continue;
+          }
+        }
+
+        // 3. Filtro de Cliente
+        if (normCliente && !normalizeSalesSkuText(doc.client).includes(normCliente)) {
+          continue;
+        }
+
+        // 4. Búsqueda general
+        if (normSearch) {
+          const mInv = normalizeSalesSkuText(doc.invoice).includes(normSearch);
+          const mNum = String(doc.numero || '').includes(normSearch);
+          const mCli = normalizeSalesSkuText(doc.client).includes(normSearch);
+          const mSel = normalizeSalesSkuText(doc.seller).includes(normSearch);
+          const mIt = (doc.items || []).some(
+            (it: any) =>
+              normalizeSalesSkuText(it.articulo).includes(normSearch) ||
+              normalizeSalesSkuText(it.sku).includes(normSearch)
+          );
+          if (!mInv && !mNum && !mCli && !mSel && !mIt) continue;
+        }
+
+        // 5. Filtro por SKU
+        let matchedSkuItems: any[] = [];
+        if (normSku) {
+          matchedSkuItems = (doc.items || []).filter((it: any) => itemMatchesSku(it, normSku));
+          if (matchedSkuItems.length === 0) continue;
+        }
+
+        // 6. Filtro por Cantidad de Productos (del SKU o Total de la Factura)
+        if (hasQtyFilter) {
+          const docTotalQty = getDocEffQty(doc);
+          if (normSku) {
+            if (qtyScope === 'sku') {
+              const skuQty = matchedSkuItems.reduce((acc, it) => acc + getItemEffQty(it), 0);
+              if (!withinBounds(skuQty)) continue;
+            } else {
+              if (!withinBounds(docTotalQty)) continue;
+            }
+          } else {
+            if (qtyScope === 'total') {
+              if (!withinBounds(docTotalQty)) continue;
+            } else {
+              const anyItemOk = (doc.items || []).some((it: any) => {
+                const q = getItemEffQty(it);
+                return q > 0 && withinBounds(q);
+              });
+              if (!withinBounds(docTotalQty) && !anyItemOk) continue;
             }
           }
-        } else {
-          Object.values(monthlyTotalsCache).forEach((mData: any) => {
-            summaryTotalFA += (mData.totalFA || 0);
-            summaryTotalDV += Math.abs(mData.totalDV || 0);
-            summaryTotalNeto += (mData.totalNeto || 0);
-            summaryTotalCajas += (mData.totalCajas || 0);
-            summaryFaRows += (mData.faRows || 0);
-            summaryDvRows += (mData.dvRows || 0);
-          });
+        }
+
+        filteredDocs.push(doc);
+
+        const m = Number(doc.total) || 0;
+        const c = Number(doc.boxes) || 0;
+        summaryTotalNeto += m;
+        summaryTotalCajas += c;
+        if (doc.tipo_doc === 'DV' || m < 0) {
+          summaryTotalDV += Math.abs(m);
+          summaryDvRows += doc.itemsCount || 1;
+        } else if (doc.status === 'EMITIDA') {
+          summaryTotalFA += m;
+          summaryFaRows += doc.itemsCount || 1;
         }
       }
 
+      const totalDocumentsCount = filteredDocs.length;
+      const startIdx = (page - 1) * pageSize;
+      const documents = returnAll ? filteredDocs : filteredDocs.slice(startIdx, startIdx + pageSize);
       const returnRate = summaryTotalFA > 0 ? (summaryTotalDV / summaryTotalFA) * 100 : 0;
 
       res.json({
         documents,
+        totalDocumentsCount,
         page,
-        pageSize,
-        hasMore: totalFilteredRowsCount > 0 ? rowOffset + rowLimit < totalFilteredRowsCount : (rows?.length || 0) >= rowLimit,
+        pageSize: returnAll ? totalDocumentsCount : pageSize,
+        hasMore: returnAll ? false : startIdx + pageSize < totalDocumentsCount,
         summary: {
-          totalFA: summaryTotalFA,
-          totalDV: summaryTotalDV,
-          netTotal: summaryTotalNeto,
-          totalBoxes: summaryTotalCajas,
-          returnRate,
+          totalFA: Math.round(summaryTotalFA * 100) / 100,
+          totalDV: Math.round(summaryTotalDV * 100) / 100,
+          netTotal: Math.round(summaryTotalNeto * 100) / 100,
+          totalBoxes: Math.round(summaryTotalCajas * 100) / 100,
+          returnRate: Math.round(returnRate * 100) / 100,
           faCount: summaryFaRows,
           dvCount: summaryDvRows
         }

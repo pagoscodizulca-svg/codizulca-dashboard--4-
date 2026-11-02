@@ -1,23 +1,29 @@
 import React from 'react';
-import { X, FileText, ArrowDownLeft, ArrowUpRight, User, Building, Package, Calendar } from 'lucide-react';
+import { X, FileText, ArrowDownLeft, User, Building, Package, Calendar, Tag } from 'lucide-react';
 import { SalesTransaction } from './types';
+import { doesItemMatchSkuQuery, formatItemSkuCode, resolveInvoiceStatus } from './invoiceFilterUtils';
 
 interface InvoiceDetailModalProps {
   isOpen: boolean;
   onClose: () => void;
   transaction: SalesTransaction | null;
   onOpenClientHistory?: (clientName: string) => void;
+  highlightedSkuQuery?: string;
 }
 
 export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({
   isOpen,
   onClose,
   transaction,
-  onOpenClientHistory
+  onOpenClientHistory,
+  highlightedSkuQuery = '',
 }) => {
   if (!isOpen || !transaction) return null;
 
   const isDV = transaction.tipo_doc === 'DV';
+  const docStatus = resolveInvoiceStatus(transaction);
+  const hasSkuHighlight = Boolean(highlightedSkuQuery.trim());
+
   const formatUSD = (val: number) => {
     return (val < 0 ? '-$' : '$') + Math.abs(val).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   };
@@ -40,9 +46,15 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({
                 <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded ${
                   isDV
                     ? 'bg-zinc-900 text-zinc-300 border border-white/20'
+                    : docStatus === 'ANULADA'
+                    ? 'bg-zinc-900 text-zinc-400 border border-zinc-700'
                     : 'bg-red-950/80 text-white border border-red-600/60'
                 }`}>
-                  {isDV ? 'DEVOLUCIÓN APLICADA (DV)' : 'FACTURA DE VENTA (FA)'}
+                  {isDV
+                    ? 'DEVOLUCIÓN APLICADA (DV)'
+                    : docStatus === 'ANULADA'
+                    ? 'FACTURA ANULADA / EN CERO (FA)'
+                    : 'FACTURA EMITIDA (FA)'}
                 </span>
                 <span className="text-xs text-zinc-500 font-mono">
                   Codizulca C.A.
@@ -122,24 +134,63 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5">
-                  {transaction.items.map((item, idx) => (
-                    <tr key={idx} className="hover:bg-white/[0.02] transition-colors">
-                      <td className="p-3 font-medium text-zinc-200 border-r border-white/10">
-                        {item.articulo}
-                      </td>
-                      <td className="p-3 text-right font-mono font-bold text-white border-r border-white/10">
-                        {item.cajas.toLocaleString('es-VE')}
-                      </td>
-                      <td className="p-3 text-right font-mono text-zinc-400 border-r border-white/10">
-                        {item.kgs_lts.toLocaleString('es-VE', { maximumFractionDigits: 1 })}
-                      </td>
-                      <td className={`p-3 text-right font-mono font-black ${
-                        isDV ? 'text-zinc-300' : 'text-white'
-                      }`}>
-                        {formatUSD(item.monto)}
-                      </td>
-                    </tr>
-                  ))}
+                  {transaction.items.map((item, idx) => {
+                    const skuCode = formatItemSkuCode(item);
+                    const isMatchedSku = hasSkuHighlight && doesItemMatchSkuQuery(item, highlightedSkuQuery);
+
+                    return (
+                      <tr
+                        key={idx}
+                        className={`transition-colors ${
+                          isMatchedSku
+                            ? 'bg-red-950/35 hover:bg-red-950/50 border-l-2 border-l-red-500'
+                            : 'hover:bg-white/[0.02]'
+                        }`}
+                      >
+                        <td className="p-3 font-medium text-zinc-200 border-r border-white/10">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            {skuCode && (
+                              <span
+                                className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded font-mono text-[10px] font-black tracking-wider ${
+                                  isMatchedSku
+                                    ? 'bg-red-600 text-white shadow'
+                                    : 'bg-zinc-900 text-zinc-400 border border-white/10'
+                                }`}
+                              >
+                                <Tag className="w-2.5 h-2.5" />
+                                {skuCode}
+                              </span>
+                            )}
+                            <span className={isMatchedSku ? 'text-white font-bold' : 'text-zinc-200'}>
+                              {item.articulo}
+                            </span>
+                            {isMatchedSku && (
+                              <span className="px-1.5 py-0.5 rounded bg-red-500/20 border border-red-500/40 text-[9px] font-black uppercase tracking-wider text-red-300">
+                                SKU Filtrado
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className={`p-3 text-right font-mono font-bold border-r border-white/10 ${
+                          isMatchedSku ? 'text-red-300' : 'text-white'
+                        }`}>
+                          {item.cajas.toLocaleString('es-VE')}
+                        </td>
+                        <td className="p-3 text-right font-mono text-zinc-400 border-r border-white/10">
+                          {item.kgs_lts.toLocaleString('es-VE', { maximumFractionDigits: 1 })}
+                        </td>
+                        <td className={`p-3 text-right font-mono font-black ${
+                          isMatchedSku
+                            ? 'text-red-300'
+                            : isDV
+                            ? 'text-zinc-300'
+                            : 'text-white'
+                        }`}>
+                          {formatUSD(item.monto)}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
                 <tfoot>
                   <tr className="bg-zinc-900 border-t-2 border-white/10 font-bold">

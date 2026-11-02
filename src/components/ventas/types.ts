@@ -1,14 +1,24 @@
 export interface SalesItem {
+  id_articulo?: number;
+  sku?: string;
   articulo: string;
   cajas: number;
   monto: number;
   kgs_lts: number;
 }
 
+export type InvoiceDocumentStatus = 'EMITIDA' | 'ANULADA' | 'DEVOLUCION';
+
+export type InvoiceStatusFilter = 'EMITIDAS' | 'ALL' | 'DV' | 'ANULADAS';
+
+export type QuantityFilterScope = 'sku' | 'total';
+
 export interface SalesTransaction {
   invoice: string;
   numero: number;
   tipo_doc: 'FA' | 'DV';
+  status?: InvoiceDocumentStatus;
+  fecha?: string;
   mes: string;
   ano: number;
   date: string;
@@ -19,6 +29,7 @@ export interface SalesTransaction {
   kgs_lts: number;
   itemsCount: number;
   topProduct: string;
+  topProductSku?: string;
   topProductMonto?: number;
   items: SalesItem[];
 }

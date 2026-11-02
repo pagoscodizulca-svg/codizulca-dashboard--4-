@@ -7,40 +7,106 @@ import {
   ArrowDownLeft,
   Filter,
   RefreshCw,
-  Calendar,
   Building,
   User,
   Package,
   Layers,
   CheckCircle2,
-  AlertCircle,
-  X
+  X,
+  Tag,
+  SlidersHorizontal,
+  RotateCcw,
+  DollarSign,
+  Hash,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import { SalesTransaction, SalesSummaryKPIs } from '../components/ventas/types';
+import {
+  InvoiceStatusFilter,
+  QuantityFilterScope,
+  SalesSummaryKPIs,
+  SalesTransaction,
+} from '../components/ventas/types';
 import { VentasKPIHeader } from '../components/ventas/VentasKPIHeader';
 import { InvoiceDetailModal } from '../components/ventas/InvoiceDetailModal';
 import { ClientPurchaseHistoryModal } from '../components/ventas/ClientPurchaseHistoryModal';
 import { MultiMonthSelector } from '../components/ventas/MultiMonthSelector';
 import { getSellerMetadata, OFFICIAL_SUPERVISORS } from '../components/cuotas/sellerSupervisorMap';
+import {
+  filterAndSummarizeInvoices,
+  formatItemSkuCode,
+} from '../components/ventas/invoiceFilterUtils';
+
+interface SkuCatalogEntry {
+  id_articulo: number;
+  sku: string;
+  articulo: string;
+}
+
+const PAGE_SIZE = 35;
 
 export const Ventas: React.FC = () => {
-  // Estados de datos
-  const [transactions, setTransactions] = useState<SalesTransaction[]>([]);
-  const [summary, setSummary] = useState<SalesSummaryKPIs | null>(null);
+  // Estados de datos base del período seleccionado
+  const [allPeriodTransactions, setAllPeriodTransactions] = useState<SalesTransaction[]>([]);
+  const [serverSummary, setServerSummary] = useState<SalesSummaryKPIs | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [months, setMonths] = useState<string[]>(['OCTUBRE', 'SEPTIEMBRE', 'AGOSTO', 'JULIO', 'JUNIO', 'MAYO', 'ABRIL', 'MARZO', 'FEBRERO', 'ENERO']);
+  const [months, setMonths] = useState<string[]>([
+    'OCTUBRE',
+    'SEPTIEMBRE',
+    'AGOSTO',
+    'JULIO',
+    'JUNIO',
+    'MAYO',
+    'ABRIL',
+    'MARZO',
+    'FEBRERO',
+    'ENERO',
+  ]);
   const [sellers, setSellers] = useState<string[]>([]);
+  const [skuCatalog, setSkuCatalog] = useState<SkuCatalogEntry[]>([]);
 
-  // Filtros
+  // 1. Filtro de Estado (Facturas Emitidas activo por defecto)
+  const [statusFilter, setStatusFilter] = useState<InvoiceStatusFilter>('EMITIDAS');
+
+  // 2. Filtro por SKU con Debounce (300ms)
+  const [skuInput, setSkuInput] = useState<string>('');
+  const [debouncedSkuQuery, setDebouncedSkuQuery] = useState<string>('');
+
+  // 3. Filtro por Cantidad de Productos (Granular por SKU y Total de Factura)
+  const [minQuantity, setMinQuantity] = useState<string>('');
+  const [maxQuantity, setMaxQuantity] = useState<string>('');
+  const [quantityScope, setQuantityScope] = useState<QuantityFilterScope>('sku');
+
+  // Filtros Generales (Búsqueda libre, Supervisor, Vendedor, Meses)
   const [searchTerm, setSearchTerm] = useState<string>('');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState<string>('');
   const [selectedSupervisor, setSelectedSupervisor] = useState<string>('ALL');
   const [selectedSeller, setSelectedSeller] = useState<string>('ALL');
-  const [selectedDocType, setSelectedDocType] = useState<'ALL' | 'FA' | 'DV'>('ALL');
   const [selectedMonths, setSelectedMonths] = useState<string[]>(['OCTUBRE']);
   const [page, setPage] = useState<number>(1);
-  const [hasMore, setHasMore] = useState<boolean>(false);
   const [isExporting, setIsExporting] = useState<boolean>(false);
+
+  // Modales
+  const [selectedInvoice, setSelectedInvoice] = useState<SalesTransaction | null>(null);
+  const [selectedClientForHistory, setSelectedClientForHistory] = useState<string | null>(null);
+
+  // Debounce 300ms para el Filtro por SKU (Requerimiento 2)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const trimmed = skuInput.trim();
+      setDebouncedSkuQuery(trimmed);
+      setPage(1);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [skuInput]);
+
+  // Debounce 300ms para búsqueda libre general
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm.trim());
+      setPage(1);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
 
   // Vendedores filtrados según supervisor seleccionado
   const filteredSellers = useMemo(() => {
@@ -48,23 +114,20 @@ export const Ventas: React.FC = () => {
     return sellers.filter((s) => getSellerMetadata(s).supervisor === selectedSupervisor);
   }, [sellers, selectedSupervisor]);
 
-  // Modales
-  const [selectedInvoice, setSelectedInvoice] = useState<SalesTransaction | null>(null);
-  const [selectedClientForHistory, setSelectedClientForHistory] = useState<string | null>(null);
-
-  // Cargar metadatos (vendedores y meses)
+  // Cargar metadatos (vendedores, meses y catálogo oficial de 297 SKUs)
   useEffect(() => {
     fetch('/api/sales/meta')
       .then((res) => res.json())
       .then((meta) => {
         if (meta.months) setMonths(meta.months);
         if (meta.sellers) setSellers(meta.sellers);
+        if (meta.skus) setSkuCatalog(meta.skus);
         if (meta.latestMonth) setSelectedMonths([meta.latestMonth]);
       })
       .catch((err) => console.error('Error fetching sales meta:', err));
   }, []);
 
-  // Cargar transacciones de ventas y devoluciones desde Supabase
+  // Cargar la totalidad de documentos agrupados del período seleccionado para filtrado reactivo en memoria
   const fetchTransactions = () => {
     setIsLoading(true);
     const params = new URLSearchParams();
@@ -73,20 +136,16 @@ export const Ventas: React.FC = () => {
     } else {
       params.append('mes', 'ALL');
     }
-    if (selectedDocType) params.append('tipo_doc', selectedDocType);
-    if (selectedSupervisor && selectedSupervisor !== 'ALL') params.append('supervisor', selectedSupervisor);
-    if (selectedSeller && selectedSeller !== 'ALL') params.append('vendedor', selectedSeller);
-    if (searchTerm.trim()) params.append('search', searchTerm.trim());
-    params.append('page', String(page));
-    params.append('pageSize', '35');
+    params.append('tipo_doc', 'ALL');
+    params.append('estado_factura', 'ALL');
+    params.append('all', 'true');
 
     fetch(`/api/sales/transactions?${params.toString()}`)
       .then((res) => res.json())
       .then((json) => {
         if (json.documents) {
-          setTransactions(json.documents);
-          setSummary(json.summary || null);
-          setHasMore(Boolean(json.hasMore));
+          setAllPeriodTransactions(json.documents);
+          setServerSummary(json.summary || null);
         }
         setIsLoading(false);
       })
@@ -98,19 +157,118 @@ export const Ventas: React.FC = () => {
 
   useEffect(() => {
     fetchTransactions();
-  }, [selectedMonths, selectedDocType, selectedSupervisor, selectedSeller, page]);
+  }, [selectedMonths]);
 
-  // Debounce search
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setPage(1);
-      fetchTransactions();
-    }, 400);
-    return () => clearTimeout(timer);
-  }, [searchTerm]);
+  // Motor de Filtrado Reactivo en Memoria (useMemo)
+  const filteredAnalysis = useMemo(() => {
+    return filterAndSummarizeInvoices(allPeriodTransactions, {
+      statusFilter,
+      skuQuery: debouncedSkuQuery,
+      minQuantity,
+      maxQuantity,
+      quantityScope,
+      searchTerm: debouncedSearchTerm,
+      selectedSupervisor,
+      selectedSeller,
+      selectedMonths,
+    });
+  }, [
+    allPeriodTransactions,
+    statusFilter,
+    debouncedSkuQuery,
+    minQuantity,
+    maxQuantity,
+    quantityScope,
+    debouncedSearchTerm,
+    selectedSupervisor,
+    selectedSeller,
+    selectedMonths,
+  ]);
+
+  const { rows: filteredRows, kpis: reactiveKPIs } = filteredAnalysis;
+
+  // Resumen superior sincronizado
+  const effectiveHeaderSummary: SalesSummaryKPIs | null = useMemo(() => {
+    if (allPeriodTransactions.length === 0 && serverSummary) {
+      return serverSummary;
+    }
+    // Calcular el resumen global FA vs DV sobre el universo filtrado por mes/supervisor/vendedor/SKU/cantidad
+    const allStatusMatch = filterAndSummarizeInvoices(allPeriodTransactions, {
+      statusFilter: 'ALL',
+      skuQuery: debouncedSkuQuery,
+      minQuantity,
+      maxQuantity,
+      quantityScope,
+      searchTerm: debouncedSearchTerm,
+      selectedSupervisor,
+      selectedSeller,
+      selectedMonths,
+    });
+    return {
+      totalFA: allStatusMatch.kpis.totalFA,
+      totalDV: allStatusMatch.kpis.totalDV,
+      netTotal: allStatusMatch.kpis.netTotal,
+      faCount: allStatusMatch.kpis.issuedInvoicesCount,
+      dvCount: allStatusMatch.kpis.dvCount,
+      totalBoxes: allStatusMatch.kpis.totalInvoiceUnits,
+      totalKgs: allStatusMatch.kpis.totalInvoiceKgs,
+      returnRate: allStatusMatch.kpis.returnRate,
+    };
+  }, [
+    allPeriodTransactions,
+    serverSummary,
+    debouncedSkuQuery,
+    minQuantity,
+    maxQuantity,
+    quantityScope,
+    debouncedSearchTerm,
+    selectedSupervisor,
+    selectedSeller,
+    selectedMonths,
+  ]);
+
+  // Paginación en cliente sobre las filas filtradas
+  const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const paginatedRows = useMemo(() => {
+    const start = (safePage - 1) * PAGE_SIZE;
+    return filteredRows.slice(start, start + PAGE_SIZE);
+  }, [filteredRows, safePage]);
+
+  const hasActiveAdvancedFilters = Boolean(
+    skuInput.trim() ||
+      debouncedSkuQuery.trim() ||
+      minQuantity.trim() ||
+      maxQuantity.trim() ||
+      searchTerm.trim() ||
+      selectedSupervisor !== 'ALL' ||
+      selectedSeller !== 'ALL' ||
+      statusFilter !== 'EMITIDAS'
+  );
+
+  // Restablecer todos los filtros de inmediato
+  const handleClearFilters = () => {
+    setStatusFilter('EMITIDAS');
+    setSkuInput('');
+    setDebouncedSkuQuery('');
+    setMinQuantity('');
+    setMaxQuantity('');
+    setQuantityScope('sku');
+    setSearchTerm('');
+    setDebouncedSearchTerm('');
+    setSelectedSupervisor('ALL');
+    setSelectedSeller('ALL');
+    setPage(1);
+  };
 
   const formatCurrency = (val: number) => {
-    return (val < 0 ? '-$' : '$') + Math.abs(val).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return (
+      (val < 0 ? '-$' : '$') +
+      Math.abs(val).toLocaleString('es-VE', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })
+    );
   };
 
   // Subtítulo del período seleccionado
@@ -124,53 +282,92 @@ export const Ventas: React.FC = () => {
     return `${selectedMonths.join(', ')} 2026 (${selectedMonths.length} meses seleccionados)`;
   };
 
-  // Exportar lista actual a Excel (.xlsx)
+  // Exportar selección filtrada actual a Excel (.xlsx)
   const handleExportToExcel = () => {
     setIsExporting(true);
     try {
       const wb = XLSX.utils.book_new();
 
-      const periodLabel = selectedMonths.length === 0 || selectedMonths.length === months.length
-        ? 'Todos los Meses 2026'
-        : `${selectedMonths.join(' - ')} 2026`;
+      const periodLabel =
+        selectedMonths.length === 0 || selectedMonths.length === months.length
+          ? 'Todos los Meses 2026'
+          : `${selectedMonths.join(' - ')} 2026`;
 
-      // Hoja de Resumen
+      // Hoja de Resumen Reactivo
       const summaryRows = [
-        { Concepto: 'Módulo', Valor: 'Ventas y Facturación Oficial' },
+        { Concepto: 'Módulo', Valor: 'Ventas y Facturación Oficial (Auditoría SKU & Cantidad)' },
         { Concepto: 'Fuente de Datos', Valor: 'Supabase history_sales (Transacciones Reales)' },
         { Concepto: 'Período', Valor: periodLabel },
-        { Concepto: 'Meses Seleccionados', Valor: selectedMonths.length === 0 || selectedMonths.length === months.length ? 'Todos' : selectedMonths.join(', ') },
-        { Concepto: 'Filtro Tipo Documento', Valor: selectedDocType === 'ALL' ? 'Facturas (FA) y Devoluciones (DV)' : selectedDocType },
-        { Concepto: 'Filtro Vendedor', Valor: selectedSeller },
-        { Concepto: 'Facturación Bruta (FA $)', Valor: summary?.totalFA || 0 },
-        { Concepto: 'Devoluciones Aplicadas (DV $)', Valor: summary?.totalDV || 0 },
-        { Concepto: 'Venta Neta Real ($)', Valor: summary?.netTotal || 0 },
-        { Concepto: 'Cajas Netas', Valor: summary?.totalBoxes || 0 },
-        { Concepto: 'Tasa de Devolución (%)', Valor: `${summary?.returnRate.toFixed(2)}%` },
+        {
+          Concepto: 'Filtro Estado Documento',
+          Valor:
+            statusFilter === 'EMITIDAS'
+              ? 'Facturas Emitidas (FA Válidas)'
+              : statusFilter === 'DV'
+              ? 'Devoluciones (DV)'
+              : 'Todos (FA + DV)',
+        },
+        { Concepto: 'Filtro SKU Activo', Valor: debouncedSkuQuery || 'Todos los SKUs' },
+        {
+          Concepto: 'Filtro Rango de Cantidad',
+          Valor:
+            minQuantity || maxQuantity
+              ? `Mín: ${minQuantity || '0'} | Máx: ${maxQuantity || 'Sin límite'} (${
+                  quantityScope === 'sku' ? 'Cantidad del SKU' : 'Cantidad Total Factura'
+                })`
+              : 'Sin restricción de cantidad',
+        },
+        { Concepto: 'Total Facturas Emitidas Encontradas', Valor: reactiveKPIs.issuedInvoicesCount },
+        { Concepto: 'Total Unidades / Cajas de la Selección', Valor: reactiveKPIs.totalInvoiceUnits },
+        ...(reactiveKPIs.hasActiveSkuFilter
+          ? [
+              {
+                Concepto: `Unidades Vendidas del SKU (${reactiveKPIs.matchedPrimarySkuLabel || debouncedSkuQuery})`,
+                Valor: reactiveKPIs.skuUnitsTotal,
+              },
+              {
+                Concepto: `Monto Facturado del SKU ($)`,
+                Valor: reactiveKPIs.skuAmountTotal,
+              },
+            ]
+          : []),
+        { Concepto: 'Monto Total Facturado de la Selección ($)', Valor: reactiveKPIs.totalInvoiceAmount },
         { Concepto: 'Fecha de Generación', Valor: new Date().toLocaleString('es-VE') },
       ];
       const wsSummary = XLSX.utils.json_to_sheet(summaryRows);
-      XLSX.utils.book_append_sheet(wb, wsSummary, 'Resumen Gerencial');
+      XLSX.utils.book_append_sheet(wb, wsSummary, 'Resumen Filtrado');
 
-      // Hoja de Facturas y Devoluciones
-      const docRows = transactions.map((t) => ({
+      // Hoja de Facturas Filtradas
+      const docRows = filteredRows.map(({ transaction: t, status, skuMatch }) => ({
         Documento: t.invoice,
-        Tipo: t.tipo_doc === 'FA' ? 'Factura' : 'Devolución',
+        Estado: status,
+        Tipo: t.tipo_doc === 'FA' ? 'Factura Emitida' : 'Devolución',
         Número: t.numero,
         Período: t.date,
         Vendedor: t.seller,
         Cliente: t.client,
+        SKU_Principal: t.topProductSku || (t.items[0] ? formatItemSkuCode(t.items[0]) : ''),
         Producto_Top: t.topProduct,
+        ...(reactiveKPIs.hasActiveSkuFilter
+          ? {
+              SKU_Filtrado: skuMatch?.primarySkuCode || '',
+              Producto_SKU_Filtrado: skuMatch?.primarySkuName || '',
+              Unidades_SKU_Filtrado: skuMatch?.skuEffectiveQuantity || 0,
+              Monto_SKU_Filtrado_USD: skuMatch?.skuTotalAmount || 0,
+            }
+          : {}),
         Renglones: t.itemsCount,
-        Cajas: t.boxes,
-        Total_USD: t.total,
+        Cajas_Totales_Factura: t.boxes,
+        Kgs_Lts_Totales: t.kgs_lts,
+        Total_Factura_USD: t.total,
       }));
       const wsDocs = XLSX.utils.json_to_sheet(docRows);
-      XLSX.utils.book_append_sheet(wb, wsDocs, 'Facturas y Devoluciones');
+      XLSX.utils.book_append_sheet(wb, wsDocs, 'Facturas Emitidas');
 
-      const fileNameMonthSuffix = selectedMonths.length === 0 || selectedMonths.length === months.length
-        ? 'Todos_Meses'
-        : selectedMonths.join('_');
+      const fileNameMonthSuffix =
+        selectedMonths.length === 0 || selectedMonths.length === months.length
+          ? 'Todos_Meses'
+          : selectedMonths.join('_');
       XLSX.writeFile(wb, `Ventas_Facturacion_${fileNameMonthSuffix}_2026_Codizulca.xlsx`);
     } catch (err) {
       console.error('Error exporting to Excel:', err);
@@ -180,7 +377,7 @@ export const Ventas: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6 animate-in fade-in-50 duration-500 font-sans text-zinc-100 max-w-[1600px] mx-auto pb-10">
+    <div className="space-y-5 animate-in fade-in-50 duration-500 font-sans text-zinc-100 max-w-[1600px] mx-auto pb-10">
       {/* 1. Header Oficial de Ventas y Facturación */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -189,18 +386,19 @@ export const Ventas: React.FC = () => {
               SUPABASE OFICIAL
             </span>
             <span className="text-xs text-zinc-400 font-mono">
-              267,148 Transacciones Conectadas
+              267,148 Transacciones Conectadas • 297 SKUs Oficiales
             </span>
           </div>
           <h2 className="text-xl sm:text-2xl md:text-3xl font-black tracking-widest text-white uppercase drop-shadow-[0_0_15px_rgba(255,255,255,0.2)] mt-1">
             VENTAS & FACTURACIÓN
           </h2>
           <p className="text-xs sm:text-sm text-zinc-400 mt-0.5">
-            Registro oficial de facturas (FA) y devoluciones (DV) aplicadas a los clientes en <strong className="text-zinc-200">{getPeriodSubtitle()}</strong>.
+            Auditoría inteligente de facturas emitidas (FA), SKUs y volúmenes por factura en{' '}
+            <strong className="text-zinc-200">{getPeriodSubtitle()}</strong>.
           </p>
         </div>
 
-        {/* Status Badge */}
+        {/* Status Badge & Refresh */}
         <div className="flex items-center gap-2 shrink-0">
           <div className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-zinc-900 border border-white/10 text-xs text-zinc-300">
             <CheckCircle2 className="w-3.5 h-3.5 text-red-500" />
@@ -220,54 +418,81 @@ export const Ventas: React.FC = () => {
       </div>
 
       {/* 2. Tarjetas KPI de Resumen de Facturación y Devoluciones */}
-      <VentasKPIHeader
-        summary={summary}
-        selectedMonths={selectedMonths}
-      />
+      <VentasKPIHeader summary={effectiveHeaderSummary} selectedMonths={selectedMonths} />
 
-      {/* 3. Barra de Filtros Multifuncional */}
-      <div className="bg-zinc-950/80 border border-white/10 rounded-xl p-4 shadow-xl space-y-3">
+      {/* 3. Panel Ejecutivo de Filtrado Avanzado (Estado, SKU y Cantidad de Productos) */}
+      <div className="bg-zinc-950/95 border border-white/10 rounded-xl p-4 shadow-2xl space-y-4">
+        {/* Fila 1: Búsqueda General, Selector de Estado (Facturas Emitidas por defecto), Meses, Supervisor, Vendedor y Exportar */}
         <div className="flex flex-wrap items-center justify-between gap-3">
-          {/* Input de Búsqueda */}
-          <div className="relative flex-1 min-w-[240px] max-w-md">
+          {/* Input de Búsqueda General */}
+          <div className="relative flex-1 min-w-[230px] max-w-md">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500" />
             <input
               type="text"
-              placeholder="Buscar por cliente, N° factura (FA), vendedor o producto..."
+              placeholder="Buscar por cliente, N° factura (FA), vendedor..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full bg-zinc-900 border border-white/10 rounded-lg pl-9 pr-3 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-red-500 transition-colors"
+              className="w-full bg-zinc-900 border border-white/10 rounded-lg pl-9 pr-8 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-red-500 transition-colors"
             />
-          </div>
-
-          {/* Filtros Rápidos */}
-          <div className="flex flex-wrap items-center gap-2.5">
-            {/* Filtro Tipo Documento */}
-            <div className="inline-flex rounded-lg p-0.5 bg-zinc-900 border border-white/10 text-xs">
+            {searchTerm && (
               <button
                 type="button"
-                onClick={() => { setSelectedDocType('ALL'); setPage(1); }}
+                onClick={() => setSearchTerm('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white"
+                title="Limpiar búsqueda general"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
+          {/* Controles Rápidos Superiores */}
+          <div className="flex flex-wrap items-center gap-2">
+            {/* 1. Filtro de Estado de Documento (Facturas Emitidas por defecto) */}
+            <div
+              className="inline-flex rounded-lg p-0.5 bg-zinc-900 border border-white/10 text-xs"
+              role="group"
+              aria-label="Filtro de estado de facturas"
+            >
+              <button
+                type="button"
+                onClick={() => {
+                  setStatusFilter('EMITIDAS');
+                  setPage(1);
+                }}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md font-bold transition-all ${
+                  statusFilter === 'EMITIDAS'
+                    ? 'bg-red-600 text-white shadow-[0_0_12px_rgba(220,38,38,0.45)]'
+                    : 'text-zinc-300 hover:text-white'
+                }`}
+              >
+                <FileText className="w-3.5 h-3.5 text-white" />
+                <span>Facturas Emitidas (FA)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setStatusFilter('ALL');
+                  setPage(1);
+                }}
                 className={`px-3 py-1.5 rounded-md font-bold transition-all ${
-                  selectedDocType === 'ALL' ? 'bg-zinc-800 text-white shadow' : 'text-zinc-400 hover:text-white'
+                  statusFilter === 'ALL'
+                    ? 'bg-zinc-800 text-white border border-white/20 shadow'
+                    : 'text-zinc-400 hover:text-white'
                 }`}
               >
                 Todos (FA + DV)
               </button>
               <button
                 type="button"
-                onClick={() => { setSelectedDocType('FA'); setPage(1); }}
+                onClick={() => {
+                  setStatusFilter('DV');
+                  setPage(1);
+                }}
                 className={`flex items-center gap-1 px-3 py-1.5 rounded-md font-bold transition-all ${
-                  selectedDocType === 'FA' ? 'bg-red-600 text-white shadow' : 'text-zinc-300 hover:text-white'
-                }`}
-              >
-                <FileText className="w-3.5 h-3.5 text-white" />
-                <span>Facturas (FA)</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => { setSelectedDocType('DV'); setPage(1); }}
-                className={`flex items-center gap-1 px-3 py-1.5 rounded-md font-bold transition-all ${
-                  selectedDocType === 'DV' ? 'bg-zinc-800 text-white border border-white/20 shadow' : 'text-zinc-400 hover:text-white'
+                  statusFilter === 'DV'
+                    ? 'bg-zinc-800 text-white border border-white/20 shadow'
+                    : 'text-zinc-400 hover:text-white'
                 }`}
               >
                 <ArrowDownLeft className="w-3.5 h-3.5 text-red-400" />
@@ -296,9 +521,11 @@ export const Ventas: React.FC = () => {
                   setSelectedSeller('ALL');
                   setPage(1);
                 }}
-                className="bg-transparent text-white font-bold focus:outline-none cursor-pointer py-1 max-w-[165px] truncate"
+                className="bg-transparent text-white font-bold focus:outline-none cursor-pointer py-1 max-w-[160px] truncate"
               >
-                <option value="ALL" className="bg-zinc-900">Todos los Supervisores</option>
+                <option value="ALL" className="bg-zinc-900">
+                  Todos los Supervisores
+                </option>
                 {OFFICIAL_SUPERVISORS.map((sup) => (
                   <option key={sup} value={sup} className="bg-zinc-900">
                     Sup: {sup}
@@ -312,10 +539,15 @@ export const Ventas: React.FC = () => {
               <User className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
               <select
                 value={selectedSeller}
-                onChange={(e) => { setSelectedSeller(e.target.value); setPage(1); }}
+                onChange={(e) => {
+                  setSelectedSeller(e.target.value);
+                  setPage(1);
+                }}
                 className="bg-transparent text-white font-bold focus:outline-none cursor-pointer py-1 max-w-[160px] truncate"
               >
-                <option value="ALL" className="bg-zinc-900">Todos los Vendedores ({filteredSellers.length})</option>
+                <option value="ALL" className="bg-zinc-900">
+                  Todos los Vendedores ({filteredSellers.length})
+                </option>
                 {filteredSellers.map((s) => (
                   <option key={s} value={s} className="bg-zinc-900">
                     {s}
@@ -328,12 +560,190 @@ export const Ventas: React.FC = () => {
             <button
               type="button"
               onClick={handleExportToExcel}
-              disabled={isExporting || transactions.length === 0}
+              disabled={isExporting || filteredRows.length === 0}
               className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-white/10 text-xs font-bold text-zinc-200 transition-colors disabled:opacity-50"
-              title="Descargar listado oficial a Excel"
+              title="Descargar selección filtrada a Excel"
             >
               <Download className="h-3.5 w-3.5 text-red-500" />
               <span>{isExporting ? 'Exportando...' : 'Exportar a Excel'}</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Fila 2: Filtro Inteligente por SKU + Filtro por Cantidad de Productos (Granular / Total) + Limpiar Filtros */}
+        <div className="pt-3 border-t border-white/10 grid grid-cols-1 lg:grid-cols-12 gap-3 items-end">
+          {/* 2. Filtro por SKU (Búsqueda Inteligente con Debounce 300ms y autocompletado de 297 SKUs) */}
+          <div className="lg:col-span-4 space-y-1">
+            <label
+              htmlFor="ventas-sku-filter-input"
+              className="flex items-center justify-between text-[10px] font-black uppercase tracking-wider text-zinc-400"
+            >
+              <span className="flex items-center gap-1.5">
+                <Tag className="w-3 h-3 text-red-500" />
+                Filtro por SKU / Producto (Debounce 300ms)
+              </span>
+              {debouncedSkuQuery && (
+                <span className="text-red-400 font-mono">
+                  Activo: {debouncedSkuQuery.toUpperCase()}
+                </span>
+              )}
+            </label>
+            <div className="relative">
+              <Tag className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-red-500" />
+              <input
+                id="ventas-sku-filter-input"
+                type="text"
+                list="ventas-sku-catalog"
+                placeholder="Ej: SKU-28, 28, 1464, HUEVOS, MORTADELA..."
+                value={skuInput}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setSkuInput(val);
+                  // Por defecto, cuando hay un SKU escrito, activar modo 'sku' ("Cantidad del SKU filtrado")
+                  if (val.trim() && !skuInput.trim()) {
+                    setQuantityScope('sku');
+                  }
+                }}
+                className={`w-full bg-zinc-900 border rounded-lg pl-9 pr-8 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none transition-colors font-medium ${
+                  debouncedSkuQuery
+                    ? 'border-red-500/70 ring-1 ring-red-500/30 bg-red-950/10'
+                    : 'border-white/10 focus:border-red-500'
+                }`}
+              />
+              {skuInput && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSkuInput('');
+                    setDebouncedSkuQuery('');
+                    setPage(1);
+                  }}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-white"
+                  title="Quitar filtro de SKU"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+              <datalist id="ventas-sku-catalog">
+                {skuCatalog.map((item) => (
+                  <option key={item.id_articulo} value={item.sku}>
+                    {item.sku} — {item.articulo}
+                  </option>
+                ))}
+              </datalist>
+            </div>
+          </div>
+
+          {/* 3. Controles Numéricos de Cantidad Mínima (>=) y Cantidad Máxima (<=) */}
+          <div className="lg:col-span-3 grid grid-cols-2 gap-2">
+            <div className="space-y-1">
+              <label
+                htmlFor="ventas-min-qty-input"
+                className="block text-[10px] font-black uppercase tracking-wider text-zinc-400"
+              >
+                Cantidad Mínima (&ge;)
+              </label>
+              <input
+                id="ventas-min-qty-input"
+                type="number"
+                step="any"
+                min="0"
+                placeholder="Mín (ej. 10)"
+                value={minQuantity}
+                onChange={(e) => {
+                  setMinQuantity(e.target.value);
+                  setPage(1);
+                }}
+                className={`w-full bg-zinc-900 border rounded-lg px-3 py-2 text-xs text-white font-mono placeholder-zinc-500 focus:outline-none transition-colors ${
+                  minQuantity.trim()
+                    ? 'border-red-500/70 bg-red-950/10'
+                    : 'border-white/10 focus:border-red-500'
+                }`}
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label
+                htmlFor="ventas-max-qty-input"
+                className="block text-[10px] font-black uppercase tracking-wider text-zinc-400"
+              >
+                Cantidad Máxima (&le;)
+              </label>
+              <input
+                id="ventas-max-qty-input"
+                type="number"
+                step="any"
+                min="0"
+                placeholder="Máx (ej. 500)"
+                value={maxQuantity}
+                onChange={(e) => {
+                  setMaxQuantity(e.target.value);
+                  setPage(1);
+                }}
+                className={`w-full bg-zinc-900 border rounded-lg px-3 py-2 text-xs text-white font-mono placeholder-zinc-500 focus:outline-none transition-colors ${
+                  maxQuantity.trim()
+                    ? 'border-red-500/70 bg-red-950/10'
+                    : 'border-white/10 focus:border-red-500'
+                }`}
+              />
+            </div>
+          </div>
+
+          {/* Selector de Alcance de Cantidad ("Cantidad del SKU filtrado" vs "Cantidad total de la factura") */}
+          <div className="lg:col-span-3 space-y-1">
+            <label className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-zinc-400">
+              <SlidersHorizontal className="w-3 h-3 text-red-500" />
+              Alcance del Filtro de Cantidad
+            </label>
+            <div className="grid grid-cols-2 rounded-lg p-0.5 bg-zinc-900 border border-white/10 text-[11px]">
+              <button
+                type="button"
+                onClick={() => {
+                  setQuantityScope('sku');
+                  setPage(1);
+                }}
+                className={`px-2.5 py-1.5 rounded-md font-bold transition-all truncate ${
+                  quantityScope === 'sku'
+                    ? 'bg-red-600 text-white shadow'
+                    : 'text-zinc-400 hover:text-white'
+                }`}
+                title="Evalúa que la cantidad facturada específicamente del SKU filtrado esté dentro del rango [Mínimo, Máximo]"
+              >
+                Cantidad del SKU filtrado
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setQuantityScope('total');
+                  setPage(1);
+                }}
+                className={`px-2.5 py-1.5 rounded-md font-bold transition-all truncate ${
+                  quantityScope === 'total'
+                    ? 'bg-zinc-800 text-white border border-white/20 shadow'
+                    : 'text-zinc-400 hover:text-white'
+                }`}
+                title="Evalúa que la suma total de unidades/productos de toda la factura esté dentro del rango [Mínimo, Máximo]"
+              >
+                Cantidad total factura
+              </button>
+            </div>
+          </div>
+
+          {/* Botón Limpiar Filtros */}
+          <div className="lg:col-span-2 flex items-center justify-end">
+            <button
+              type="button"
+              onClick={handleClearFilters}
+              disabled={!hasActiveAdvancedFilters}
+              className={`w-full flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-lg border text-xs font-black uppercase tracking-wider transition-all ${
+                hasActiveAdvancedFilters
+                  ? 'bg-red-950/60 hover:bg-red-900/70 text-white border-red-500/50 shadow-lg cursor-pointer'
+                  : 'bg-zinc-900/50 text-zinc-600 border-white/5 cursor-not-allowed'
+              }`}
+              title="Restablecer todos los filtros de inmediato"
+            >
+              <RotateCcw className="w-3.5 h-3.5 text-red-400" />
+              <span>Limpiar filtros</span>
             </button>
           </div>
         </div>
@@ -354,7 +764,7 @@ export const Ventas: React.FC = () => {
                   type="button"
                   onClick={() => {
                     const next = selectedMonths.filter((x) => x !== m);
-                    setSelectedMonths(next.length === 0 ? ['AGOSTO'] : next);
+                    setSelectedMonths(next.length === 0 ? ['OCTUBRE'] : next);
                     setPage(1);
                   }}
                   className="hover:text-white transition-colors"
@@ -378,22 +788,160 @@ export const Ventas: React.FC = () => {
         )}
       </div>
 
-      {/* 4. Tabla de Facturas y Devoluciones */}
+      {/* 4. Barra Reactiva de KPIs del Subconjunto Filtrado (En Tiempo Real sobre la Tabla) */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+        {/* KPI Reactivo 1: Total de Facturas Emitidas Encontradas */}
+        <div className="bg-zinc-950 border border-white/10 rounded-xl p-4 shadow-lg flex items-center justify-between">
+          <div className="space-y-1">
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400">
+                Total de Facturas Emitidas Encontradas
+              </span>
+            </div>
+            <div className="flex items-baseline gap-2.5">
+              <span
+                data-testid="reactive-kpi-issued-count"
+                className="text-2xl sm:text-3xl font-black font-mono text-white tracking-tight"
+              >
+                {reactiveKPIs.issuedInvoicesCount.toLocaleString('es-VE')}
+              </span>
+              <span className="text-xs font-bold text-red-400 uppercase">
+                Facturas (FA)
+              </span>
+            </div>
+            <p className="text-[11px] text-zinc-500">
+              {statusFilter === 'EMITIDAS'
+                ? 'Solo documentos emitidos válidos (excluye anuladas y borradores)'
+                : `Mostrando ${reactiveKPIs.totalDocumentsCount.toLocaleString('es-VE')} docs (${reactiveKPIs.issuedInvoicesCount} FA / ${reactiveKPIs.dvCount} DV)`}
+            </p>
+          </div>
+          <div className="p-3 rounded-xl bg-red-600/10 border border-red-500/20 text-red-500 shrink-0">
+            <Hash className="w-6 h-6" />
+          </div>
+        </div>
+
+        {/* KPI Reactivo 2: Total de Unidades / Productos (con desglose exacto cuando hay un SKU activo) */}
+        <div
+          className={`bg-zinc-950 border rounded-xl p-4 shadow-lg flex items-center justify-between ${
+            reactiveKPIs.hasActiveSkuFilter
+              ? 'border-red-500/50 bg-gradient-to-br from-zinc-950 via-zinc-950 to-red-950/20'
+              : 'border-white/10'
+          }`}
+        >
+          <div className="space-y-1 min-w-0 pr-2">
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400">
+                {reactiveKPIs.hasActiveSkuFilter
+                  ? 'Unidades Vendidas del SKU Filtrado'
+                  : 'Total de Unidades / Productos'}
+              </span>
+            </div>
+            {reactiveKPIs.hasActiveSkuFilter ? (
+              <>
+                <div className="flex items-baseline gap-2 flex-wrap">
+                  <span
+                    data-testid="reactive-kpi-sku-units"
+                    className="text-2xl sm:text-3xl font-black font-mono text-red-400 tracking-tight"
+                  >
+                    {reactiveKPIs.skuUnitsTotal.toLocaleString('es-VE', {
+                      maximumFractionDigits: 2,
+                    })}
+                  </span>
+                  <span className="text-xs font-bold text-white uppercase">
+                    unds del SKU ({reactiveKPIs.skuKgsTotal.toLocaleString('es-VE', { maximumFractionDigits: 1 })} Kg)
+                  </span>
+                </div>
+                <p className="text-[11px] text-zinc-400 truncate" title={reactiveKPIs.matchedPrimarySkuLabel}>
+                  Total general en esas facturas:{' '}
+                  <strong className="text-white font-mono">
+                    {reactiveKPIs.totalInvoiceUnits.toLocaleString('es-VE', {
+                      maximumFractionDigits: 2,
+                    })}{' '}
+                    unds
+                  </strong>
+                </p>
+              </>
+            ) : (
+              <>
+                <div className="flex items-baseline gap-2">
+                  <span
+                    data-testid="reactive-kpi-total-units"
+                    className="text-2xl sm:text-3xl font-black font-mono text-white tracking-tight"
+                  >
+                    {reactiveKPIs.totalInvoiceUnits.toLocaleString('es-VE', {
+                      maximumFractionDigits: 2,
+                    })}
+                  </span>
+                  <span className="text-xs font-bold text-zinc-300 uppercase">
+                    cajas / unds
+                  </span>
+                </div>
+                <p className="text-[11px] text-zinc-500 font-mono">
+                  Volumen físico: {reactiveKPIs.totalInvoiceKgs.toLocaleString('es-VE', { maximumFractionDigits: 1 })} Kg/Lts
+                </p>
+              </>
+            )}
+          </div>
+          <div className="p-3 rounded-xl bg-red-600/10 border border-red-500/20 text-red-500 shrink-0">
+            <Package className="w-6 h-6" />
+          </div>
+        </div>
+
+        {/* KPI Reactivo 3: Monto Total Facturado de la Selección */}
+        <div className="bg-zinc-950 border border-white/10 rounded-xl p-4 shadow-lg flex items-center justify-between">
+          <div className="space-y-1">
+            <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400 block">
+              Monto Total Facturado de la Selección
+            </span>
+            <div className="flex items-baseline gap-2">
+              <span
+                data-testid="reactive-kpi-total-amount"
+                className="text-2xl sm:text-3xl font-black font-mono text-white tracking-tight"
+              >
+                {formatCurrency(reactiveKPIs.totalInvoiceAmount)}
+              </span>
+            </div>
+            {reactiveKPIs.hasActiveSkuFilter ? (
+              <p className="text-[11px] text-zinc-400">
+                Facturación exclusiva del SKU:{' '}
+                <strong className="text-red-400 font-mono">
+                  {formatCurrency(reactiveKPIs.skuAmountTotal)}
+                </strong>
+              </p>
+            ) : (
+              <p className="text-[11px] text-zinc-500">
+                Suma exacta en USD de los documentos filtrados
+              </p>
+            )}
+          </div>
+          <div className="p-3 rounded-xl bg-red-600/10 border border-red-500/20 text-red-500 shrink-0">
+            <DollarSign className="w-6 h-6" />
+          </div>
+        </div>
+      </div>
+
+      {/* 5. Tabla de Resultados de Facturas Emitidas */}
       <div className="bg-zinc-950 border border-white/10 rounded-xl shadow-2xl overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse min-w-[1100px] text-xs">
+          <table className="w-full text-left border-collapse min-w-[1150px] text-xs">
             <thead>
               <tr className="bg-zinc-900/90 text-zinc-400 font-bold uppercase tracking-wider border-b border-white/10 text-[11px] select-none">
-                <th className="p-3.5 border-r border-white/10 min-w-[140px]">Factura / Dev</th>
-                <th className="p-3.5 border-r border-white/10 min-w-[110px]">Período</th>
-                <th className="p-3.5 border-r border-white/10 min-w-[160px]">Vendedor</th>
-                <th className="p-3.5 border-r border-white/10 min-w-[260px]">
+                <th className="p-3.5 border-r border-white/10 min-w-[155px]">Factura / Estado</th>
+                <th className="p-3.5 border-r border-white/10 min-w-[105px]">Período</th>
+                <th className="p-3.5 border-r border-white/10 min-w-[155px]">Vendedor</th>
+                <th className="p-3.5 border-r border-white/10 min-w-[250px]">
                   Cliente (Click para Historial 360°)
                 </th>
-                <th className="p-3.5 border-r border-white/10 min-w-[200px]">Producto (Top)</th>
-                <th className="p-3.5 text-right border-r border-white/10 min-w-[80px]">Cajas</th>
-                <th className="p-3.5 text-right border-r border-white/10 min-w-[110px]">Total ($)</th>
-                <th className="p-3.5 text-center min-w-[80px]">Detalle</th>
+                <th className="p-3.5 border-r border-white/10 min-w-[250px]">
+                  {reactiveKPIs.hasActiveSkuFilter
+                    ? 'SKU Filtrado & Unidades en Factura'
+                    : 'Producto Principal (SKU Top)'}
+                </th>
+                <th className="p-3.5 text-right border-r border-white/10 min-w-[95px]">
+                  {reactiveKPIs.hasActiveSkuFilter ? 'Cajas Totales' : 'Cajas / Unds'}
+                </th>
+                <th className="p-3.5 text-right border-r border-white/10 min-w-[115px]">Total ($)</th>
+                <th className="p-3.5 text-center min-w-[75px]">Detalle</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-white/5">
@@ -401,27 +949,54 @@ export const Ventas: React.FC = () => {
                 <tr>
                   <td colSpan={8} className="p-16 text-center text-zinc-400 space-y-3">
                     <div className="w-8 h-8 border-2 border-red-500 border-t-transparent rounded-full animate-spin mx-auto" />
-                    <p className="font-bold">Cargando facturas y devoluciones de Supabase...</p>
+                    <p className="font-bold">Cargando facturas emitidas de Supabase...</p>
                   </td>
                 </tr>
-              ) : transactions.length === 0 ? (
+              ) : paginatedRows.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="p-16 text-center text-zinc-500">
-                    No se encontraron transacciones con los filtros seleccionados.
+                  <td colSpan={8} className="p-16 text-center space-y-4">
+                    <div className="w-12 h-12 rounded-2xl bg-red-950/40 border border-red-500/30 flex items-center justify-center mx-auto text-red-400">
+                      <Filter className="w-6 h-6" />
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-sm font-black text-white">
+                        No se encontraron facturas emitidas con ese SKU y rango de cantidad
+                      </p>
+                      <p className="text-xs text-zinc-400 max-w-md mx-auto">
+                        Verifica el código SKU ingresado o amplía el rango de Cantidad Mínima / Máxima para visualizar más documentos emitidos.
+                      </p>
+                    </div>
+                    {hasActiveAdvancedFilters && (
+                      <button
+                        type="button"
+                        onClick={handleClearFilters}
+                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white font-bold text-xs shadow-lg transition-colors"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5" />
+                        <span>Limpiar filtros ahora</span>
+                      </button>
+                    )}
                   </td>
                 </tr>
               ) : (
-                transactions.map((row) => {
+                paginatedRows.map(({ transaction: row, status, skuMatch }) => {
                   const isDV = row.tipo_doc === 'DV';
+                  const hasSkuHighlight = Boolean(skuMatch && skuMatch.hasMatch);
+                  const topSkuBadge =
+                    row.topProductSku || (row.items[0] ? formatItemSkuCode(row.items[0]) : '');
 
                   return (
                     <tr
                       key={row.invoice}
-                      className={`hover:bg-white/[0.03] transition-colors group ${
-                        isDV ? 'bg-red-950/10' : ''
+                      className={`transition-colors group ${
+                        hasSkuHighlight
+                          ? 'bg-red-950/15 hover:bg-red-950/30 border-l-2 border-l-red-500'
+                          : isDV
+                          ? 'bg-red-950/10 hover:bg-white/[0.03]'
+                          : 'hover:bg-white/[0.03]'
                       }`}
                     >
-                      {/* Documento (FA / DV) */}
+                      {/* Documento (FA / DV) + Estado Emitida */}
                       <td className="p-3.5 border-r border-white/10">
                         <div
                           onClick={() => setSelectedInvoice(row)}
@@ -439,6 +1014,11 @@ export const Ventas: React.FC = () => {
                           <span className="font-mono font-bold text-white tracking-wider text-xs">
                             {row.invoice}
                           </span>
+                          {status === 'EMITIDA' && (
+                            <span className="px-1.5 py-0.5 rounded bg-emerald-950/60 border border-emerald-500/30 text-[9px] font-black text-emerald-300 uppercase tracking-wider">
+                              Emitida
+                            </span>
+                          )}
                         </div>
                       </td>
 
@@ -464,18 +1044,52 @@ export const Ventas: React.FC = () => {
                         </button>
                       </td>
 
-                      {/* Producto Top */}
+                      {/* Producto Top / Badge de SKU Filtrado */}
                       <td className="p-3.5 border-r border-white/10">
-                        <div className="flex flex-col">
-                          <span className="text-zinc-300 truncate max-w-[220px]" title={row.topProduct}>
-                            {row.topProduct}
-                          </span>
-                          {row.itemsCount > 1 && (
-                            <span className="text-[10px] text-zinc-500">
-                              +{row.itemsCount - 1} {row.itemsCount === 2 ? 'producto más' : 'productos más'}
+                        {hasSkuHighlight && skuMatch ? (
+                          <div className="flex flex-col gap-1">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span
+                                data-testid={`sku-row-badge-${row.invoice}`}
+                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-red-600 text-white font-mono text-[11px] font-black tracking-wide shadow-sm"
+                              >
+                                <Tag className="w-3 h-3" />
+                                {skuMatch.badgeText}
+                              </span>
+                              <span className="text-[10px] font-mono font-bold text-red-300">
+                                ({formatCurrency(skuMatch.skuTotalAmount)})
+                              </span>
+                            </div>
+                            <span
+                              className="text-white font-semibold truncate max-w-[250px] text-[11px]"
+                              title={skuMatch.primarySkuName}
+                            >
+                              {skuMatch.primarySkuName}
                             </span>
-                          )}
-                        </div>
+                          </div>
+                        ) : (
+                          <div className="flex flex-col gap-0.5">
+                            <div className="flex items-center gap-1.5">
+                              {topSkuBadge && (
+                                <span className="px-1.5 py-0.5 rounded bg-zinc-900 border border-white/10 font-mono text-[10px] font-bold text-zinc-400">
+                                  {topSkuBadge}
+                                </span>
+                              )}
+                              <span
+                                className="text-zinc-300 truncate max-w-[200px]"
+                                title={row.topProduct}
+                              >
+                                {row.topProduct}
+                              </span>
+                            </div>
+                            {row.itemsCount > 1 && (
+                              <span className="text-[10px] text-zinc-500">
+                                +{row.itemsCount - 1}{' '}
+                                {row.itemsCount === 2 ? 'producto más' : 'productos más'}
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </td>
 
                       {/* Cajas */}
@@ -484,9 +1098,11 @@ export const Ventas: React.FC = () => {
                       </td>
 
                       {/* Total */}
-                      <td className={`p-3.5 text-right font-mono font-black border-r border-white/10 ${
-                        isDV ? 'text-zinc-300' : 'text-white'
-                      }`}>
+                      <td
+                        className={`p-3.5 text-right font-mono font-black border-r border-white/10 ${
+                          isDV ? 'text-zinc-300' : 'text-white'
+                        }`}
+                      >
                         {formatCurrency(row.total)}
                       </td>
 
@@ -496,7 +1112,7 @@ export const Ventas: React.FC = () => {
                           type="button"
                           onClick={() => setSelectedInvoice(row)}
                           className="p-1.5 rounded-lg text-zinc-500 hover:text-white hover:bg-white/10 transition-colors"
-                          title="Ver detalle del documento"
+                          title="Ver renglones y SKU de la factura"
                         >
                           <ChevronRight className="h-4 w-4" />
                         </button>
@@ -511,14 +1127,18 @@ export const Ventas: React.FC = () => {
 
         {/* Paginación */}
         <div className="p-4 border-t border-white/10 bg-zinc-950 flex flex-wrap items-center justify-between gap-3 text-xs">
-          <div className="text-zinc-500 font-mono">
-            Página <strong className="text-white">{page}</strong> • Mostrando {transactions.length} documentos cargados de Supabase
+          <div className="text-zinc-400 font-mono">
+            Página <strong className="text-white">{safePage}</strong> de{' '}
+            <strong className="text-white">{totalPages}</strong> • Mostrando{' '}
+            <strong className="text-white">{paginatedRows.length}</strong> de{' '}
+            <strong className="text-red-400">{filteredRows.length.toLocaleString('es-VE')}</strong>{' '}
+            documentos filtrados
           </div>
 
           <div className="flex items-center gap-2">
             <button
               type="button"
-              disabled={page <= 1 || isLoading}
+              disabled={safePage <= 1 || isLoading}
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               className="px-3 py-1.5 rounded-lg bg-zinc-900 border border-white/10 font-bold text-zinc-300 hover:text-white disabled:opacity-40 transition-colors"
             >
@@ -526,8 +1146,8 @@ export const Ventas: React.FC = () => {
             </button>
             <button
               type="button"
-              disabled={!hasMore || isLoading}
-              onClick={() => setPage((p) => p + 1)}
+              disabled={safePage >= totalPages || isLoading}
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               className="px-3 py-1.5 rounded-lg bg-zinc-900 border border-white/10 font-bold text-zinc-300 hover:text-white disabled:opacity-40 transition-colors"
             >
               Siguiente
@@ -536,12 +1156,13 @@ export const Ventas: React.FC = () => {
         </div>
       </div>
 
-      {/* Modal 1: Detalle de Factura / Devolución */}
+      {/* Modal 1: Detalle de Factura / Devolución con Resaltado del SKU Filtrado */}
       <InvoiceDetailModal
         isOpen={Boolean(selectedInvoice)}
         onClose={() => setSelectedInvoice(null)}
         transaction={selectedInvoice}
         onOpenClientHistory={(client) => setSelectedClientForHistory(client)}
+        highlightedSkuQuery={debouncedSkuQuery}
       />
 
       {/* Modal 2: Historial de Compras y Devoluciones del Cliente (360°) */}
