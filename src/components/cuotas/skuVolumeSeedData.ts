@@ -329,27 +329,53 @@ export function parseCuotasVolumenCsv(csvText: string): SkuVolumeItem[] {
     .filter(Boolean);
   if (rawLines.length < 2) return [];
 
-  const header = splitCsvLine(rawLines[0]);
+  const row0 = splitCsvLine(rawLines[0]);
+  const row1 = splitCsvLine(rawLines[1]);
+
+  // Detectar si es encabezado doble real (Fila 1: vendedores combinados cada 3 cols desde C; Fila 2: Cod, Articulo, CUOTA, KG, %)
+  const isDoubleHeader =
+    (row1[0] || '').trim().toUpperCase() === 'COD' ||
+    (row1[1] || '').trim().toUpperCase().startsWith('ARTICULO');
+
+  const maxHeaderLen = Math.max(row0.length, row1.length);
+  // Forward-fill en Fila 1 desde columna C (índice 2)
+  const forwardFilledSellers: string[] = new Array(maxHeaderLen).fill('');
+  let curSeller = '';
+  for (let c = 2; c < maxHeaderLen; c++) {
+    const cell0 = (row0[c] || '').trim();
+    if (isDoubleHeader) {
+      if (cell0) curSeller = cell0;
+      forwardFilledSellers[c] = curSeller;
+    } else if ((c - 2) % 3 === 0) {
+      curSeller = cell0;
+      forwardFilledSellers[c] = curSeller;
+    } else {
+      forwardFilledSellers[c] = curSeller;
+    }
+  }
+
   // Only columns 2..91 are individual sellers; columns 92, 95, 98 are supervisor totals (ALI PEREZ, NELSON FINOL, JOHNATAN SOTO)
   const sellerColTriplets: Array<{ colIndex: number; sellerName: string }> = [];
-  const maxSellerCol = Math.min(header.length - 9, 92);
+  const maxSellerCol = Math.min(maxHeaderLen - 9, 92);
   for (let c = 2; c < maxSellerCol; c += 3) {
-    const rawHeaderName = header[c] || '';
+    const rawHeaderName = forwardFilledSellers[c] || '';
     const normSeller = normalizeSkuSellerName(rawHeaderName);
     if (normSeller) {
       sellerColTriplets.push({ colIndex: c, sellerName: normSeller });
     }
   }
 
+  const dataStartLine = isDoubleHeader ? 2 : 1;
   const items: SkuVolumeItem[] = [];
-  for (let r = 1; r < rawLines.length; r++) {
+  for (let r = dataStartLine; r < rawLines.length; r++) {
     const row = splitCsvLine(rawLines[r]);
     const rawCod = (row[0] || '').trim();
     const rawArticulo = (row[1] || '').trim();
     if (!rawArticulo) continue;
 
-    const displayCod = resolveSheetDisplayCode(rawCod, rawArticulo);
-    const isMacroRubro = !rawCod;
+    const isNumericSku = /^\d+$/.test(rawCod);
+    const displayCod = resolveSheetDisplayCode(isNumericSku ? rawCod : '', rawArticulo);
+    const isMacroRubro = !isNumericSku;
     const categoria = classifySkuCategory(displayCod, rawArticulo);
 
     const bySeller: Record<string, SellerSkuMetrics> = {};
@@ -392,14 +418,14 @@ export function parseCuotasVolumenCsv(csvText: string): SkuVolumeItem[] {
     }
 
     items.push({
-      id: rawCod ? `SKU-${rawCod}` : `RUBRO-${displayCod}`,
+      id: isNumericSku ? `SKU-${rawCod}` : `RUBRO-${displayCod}`,
       cod: displayCod,
-      rawCod,
+      rawCod: isNumericSku ? rawCod : '',
       articulo: rawArticulo,
       categoria,
       isMacroRubro,
       isOfficialQuotaRow: true,
-      sheetOrder: r,
+      sheetOrder: r - dataStartLine + 1,
       totalCuotaKg: Math.round(totalCuotaKg * 100) / 100,
       totalVentaKg: Math.round(totalVentaKg * 100) / 100,
       totalCajas: 0,

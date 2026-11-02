@@ -213,6 +213,162 @@ async function startServer() {
     res.json({});
   });
 
+  // =========================================================================
+  // ENDPOINT PAGINADO DETALLADO FILA POR FILA (ENERO - OCTUBRE 2026)
+  // Soporta .select('*', { count: 'exact' }) + .range(from, to) + fallback local
+  // =========================================================================
+  let detailedHistoryRowsMemoryCache: any[] | null = null;
+
+  const ensureLocalDetailedHistoryRows = (): any[] => {
+    if (detailedHistoryRowsMemoryCache) return detailedHistoryRowsMemoryCache;
+
+    const rows: any[] = [];
+    const MONTH_TO_NUM: Record<string, string> = {
+      ENERO: '01',
+      FEBRERO: '02',
+      MARZO: '03',
+      ABRIL: '04',
+      MAYO: '05',
+      JUNIO: '06',
+      JULIO: '07',
+      AGOSTO: '08',
+      SEPTIEMBRE: '09',
+      OCTUBRE: '10',
+    };
+
+    // 1. Enero a Septiembre 2026 desde exact_historical_sales_aggregated.json / historical_sales_aggregated.json
+    const histFile = fs.existsSync(path.join(process.cwd(), 'exact_historical_sales_aggregated.json'))
+      ? path.join(process.cwd(), 'exact_historical_sales_aggregated.json')
+      : path.join(process.cwd(), 'historical_sales_aggregated.json');
+
+    let seqId = 1;
+    if (fs.existsSync(histFile)) {
+      try {
+        const histRaw: any[] = JSON.parse(fs.readFileSync(histFile, 'utf8'));
+        for (const r of histRaw) {
+          const mes = String(r.mes || '').trim().toUpperCase();
+          if (!mes || mes === 'OCTUBRE' || !MONTH_TO_NUM[mes]) continue;
+          const ano = Number(r.ano) || 2026;
+          const fecha = `${ano}-${MONTH_TO_NUM[mes]}-01`;
+          const monto = Number(r.monto) || 0;
+          const cajas = Number(r.cajas) || 0;
+          const kgs_lts = Number(r.kgs_lts) || 0;
+
+          rows.push({
+            id: seqId++,
+            numero: 100000 + seqId,
+            tipo_doc: monto < 0 || cajas < 0 ? 'DV' : 'FA',
+            fecha,
+            mes,
+            ano,
+            id_cliente: 0,
+            cliente: 'CARTERA CONSOLIDADA CODIZULCA',
+            id_vendedor: 0,
+            vendedor: 'CONSOLIDADO',
+            id_articulo: Number(r.id_articulo) || 0,
+            articulo: String(r.articulo || '').trim(),
+            cajas,
+            unidades: 0,
+            kgs_lts,
+            monto,
+          });
+        }
+      } catch (e) {
+        console.warn('[DetailedHistory] Error reading Jan-Sep aggregated file:', e);
+      }
+    }
+
+    // 2. Octubre 2026 fila por fila (15.148 renglones reales con cliente, vendedor, artículo, cajas, kgs_lts, monto, utilidad)
+    const octFile = path.join(process.cwd(), 'october_sales_rows.json');
+    if (fs.existsSync(octFile)) {
+      try {
+        const octRaw: any[] = JSON.parse(fs.readFileSync(octFile, 'utf8'));
+        for (const r of octRaw) {
+          rows.push({
+            id: Number(r.id) || seqId++,
+            numero: Number(r.numero) || 0,
+            tipo_doc: r.tipo_doc === 'DV' || Number(r.monto) < 0 ? 'DV' : 'FA',
+            fecha: String(r.fecha || '2026-10-01').slice(0, 10),
+            mes: String(r.mes || 'OCTUBRE').trim().toUpperCase(),
+            ano: Number(r.ano) || 2026,
+            id_cliente: Number(r.id_cliente) || 0,
+            cliente: String(r.cliente || '').trim(),
+            id_vendedor: Number(r.id_vendedor) || 0,
+            vendedor: String(r.vendedor || '').trim(),
+            id_articulo: Number(r.id_articulo) || 0,
+            articulo: String(r.articulo || '').trim(),
+            cajas: Number(r.cajas) || 0,
+            unidades: Number(r.unidades) || 0,
+            kgs_lts: Number(r.kgs_lts) || 0,
+            monto: Number(r.monto) || 0,
+            costo: Number(r.costo) || 0,
+            utilidad: Number(r.utilidad) || 0,
+          });
+        }
+      } catch (e) {
+        console.warn('[DetailedHistory] Error reading october_sales_rows.json:', e);
+      }
+    }
+
+    rows.sort((a, b) => Number(a.id) - Number(b.id));
+    detailedHistoryRowsMemoryCache = rows;
+    return rows;
+  };
+
+  app.get('/api/history-sales/detailed-page', async (req, res) => {
+    try {
+      const startDate = String(req.query.startDate || '2026-01-01').trim();
+      const endDate = String(req.query.endDate || '2026-10-31').trim();
+      const isHead = req.query.head === 'true';
+      const from = Math.max(0, Number(req.query.from) || 0);
+      const to = Math.max(from, Number(req.query.to) || from + 999);
+
+      const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || DEFAULT_SUPABASE_URL;
+      const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || DEFAULT_SUPABASE_KEY;
+
+      if (supabaseUrl && supabaseKey) {
+        try {
+          const supabase = createClient(supabaseUrl.replace('/rest/v1/', ''), supabaseKey);
+          if (isHead) {
+            const { count, error } = await supabase
+              .from('history_sales')
+              .select('*', { count: 'exact', head: true })
+              .gte('fecha', startDate)
+              .lte('fecha', endDate);
+            if (!error && count && count > 0) {
+              return res.json({ totalCount: count, source: 'supabase' });
+            }
+          } else {
+            const { data, error } = await supabase
+              .from('history_sales')
+              .select('*')
+              .gte('fecha', startDate)
+              .lte('fecha', endDate)
+              .order('id', { ascending: true })
+              .range(from, to);
+            if (!error && Array.isArray(data) && data.length > 0) {
+              return res.json({ rows: data, from, to, source: 'supabase' });
+            }
+          }
+        } catch (supErr) {
+          // Fallback to local detailed store below
+        }
+      }
+
+      const allLocal = ensureLocalDetailedHistoryRows().filter(
+        (r) => r.fecha >= startDate && r.fecha <= endDate
+      );
+      if (isHead) {
+        return res.json({ totalCount: allLocal.length, source: 'local_snapshot' });
+      }
+      const slice = allLocal.slice(from, to + 1);
+      return res.json({ rows: slice, from, to, source: 'local_snapshot' });
+    } catch (err: any) {
+      console.error('Error in /api/history-sales/detailed-page:', err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   // Sellers monthly volume endpoints (with Supabase and Google Sheets sync)
   const sellersVolumeCachePath = path.join(process.cwd(), 'sellers_monthly_volume_cache.json');
 
@@ -6683,11 +6839,32 @@ Responde con un JSON estructurado con:
 
   // Google Sheets Proxy with in-memory caching to eliminate browser CORS and fetch errors
   const sheetCache = new Map<string, { data: string; timestamp: number }>();
+  const OFFICIAL_SHEET_TAB_GIDS: Record<string, string> = {
+    ventas: '1176024108',
+    'cuotas volumen': '1575247832',
+    'cuotas de activacion': '1956715436',
+    inventario: '776651974',
+    productos: '1163463775',
+    clientes: '765796985',
+    supervisores: '1921442451',
+    usuarios: '228804341',
+  };
+
+  const resolveConfiguredSheetId = (): string => {
+    return (
+      (process.env.GOOGLE_SHEET_ID ||
+        process.env.VITE_GOOGLE_SHEET_ID ||
+        process.env.VITE_DATA_DASHBOARD_SHEET_ID ||
+        '16pU4iEcNU_1j6sB7rZbshu2PM8OyH5hI7a24-vYO7P0').trim()
+    );
+  };
 
   app.get('/api/sheets', async (req, res) => {
     const sheetName = req.query.sheet ? String(req.query.sheet).trim() : '';
     const forceRefresh = req.query.refresh === 'true';
-    const cacheKey = sheetName || '__main__';
+    const preferRawMatrix = req.query.raw === 'true';
+    const sheetId = resolveConfiguredSheetId();
+    const cacheKey = `${sheetId}::${sheetName || '__main__'}::${preferRawMatrix ? 'raw' : 'std'}`;
     const cached = sheetCache.get(cacheKey);
     const now = Date.now();
 
@@ -6698,9 +6875,15 @@ Responde con un JSON estructurado con:
     }
 
     try {
-      const url = sheetName
-        ? `https://docs.google.com/spreadsheets/d/16pU4iEcNU_1j6sB7rZbshu2PM8OyH5hI7a24-vYO7P0/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheetName)}`
-        : 'https://docs.google.com/spreadsheets/d/16pU4iEcNU_1j6sB7rZbshu2PM8OyH5hI7a24-vYO7P0/gviz/tq?tqx=out:csv';
+      const normalizedTabKey = (sheetName || 'ventas').toLowerCase().trim();
+      const tabGid = OFFICIAL_SHEET_TAB_GIDS[normalizedTabKey];
+
+      const url =
+        preferRawMatrix && tabGid
+          ? `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${tabGid}`
+          : sheetName
+          ? `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheetName)}`
+          : `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${OFFICIAL_SHEET_TAB_GIDS['ventas']}`;
 
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 12000);
@@ -6724,7 +6907,7 @@ Responde con un JSON estructurado con:
         }
         const extraLines: string[] = [];
         for (const [id, name] of extraMap.entries()) {
-          if (!csvText.includes(`"${id}",`)) {
+          if (!csvText.includes(`"${id}",`) && !csvText.includes(`${id},`)) {
             extraLines.push(`"${id}","${name}","GENERAL"`);
           }
         }
@@ -6749,14 +6932,15 @@ Responde con un JSON estructurado con:
   app.post('/api/sync-sheets', async (req, res) => {
     try {
       sheetCache.clear();
+      const sheetId = resolveConfiguredSheetId();
       console.log('[Sheets Sync] Cache limpiado. Sincronizando datos actualizados desde Google Sheets...');
-      const url = 'https://docs.google.com/spreadsheets/d/16pU4iEcNU_1j6sB7rZbshu2PM8OyH5hI7a24-vYO7P0/gviz/tq?tqx=out:csv';
+      const url = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${OFFICIAL_SHEET_TAB_GIDS['ventas']}`;
       const response = await fetch(url);
       if (!response.ok) {
         throw new Error(`Google Sheets respondió con status ${response.status}`);
       }
       const csvText = await response.text();
-      sheetCache.set('__main__', { data: csvText, timestamp: Date.now() });
+      sheetCache.set(`${sheetId}::__main__::std`, { data: csvText, timestamp: Date.now() });
       res.json({ success: true, message: 'Google Sheets sincronizado exitosamente', length: csvText.length });
     } catch (err: any) {
       console.error('Error sincronizando Google Sheets:', err);

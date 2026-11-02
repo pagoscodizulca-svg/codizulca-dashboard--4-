@@ -1,12 +1,14 @@
 import React, { useState, useEffect, useCallback, Suspense, lazy } from 'react';
-import Papa from 'papaparse';
 import { MonthProgressBar, MainTab, ViewLevel } from '../components/cuotas/MonthProgressBar';
 import { RubrosActivationTable } from '../components/cuotas/RubrosActivationTable';
 import { INITIAL_SELLERS_ACTIVATION, SellerActivationRow } from '../components/cuotas/cuotasData';
-import { normalizeSellerName } from '../components/cuotas/sellerSupervisorMap';
 import { calculateMonthWorkingProgress } from '../components/cuotas/volumeQuotasData';
 import maestraSnapshotSeed from '../data/maestraActivaAuditSnapshot.json';
 import type { MaestraAuditReport } from '../lib/maestraActivaTypes';
+import {
+  buildGoogleSheetRawExportUrl,
+  parseCuotasActivacionSheetMatrix,
+} from '../lib/googleSheetsMatrixParser';
 
 const ActivacionClientesSubmodule = lazy(() =>
   import('../components/cuotas/ActivacionClientesSubmodule').then((m) => ({
@@ -104,69 +106,61 @@ export const Cuotas: React.FC = () => {
     setIsCustomCutoff(isCustom);
   };
 
-  // Sincronización en vivo desde la pestaña "Cuotas de Activacion" del Google Sheet
+  // Sincronización en vivo desde la pestaña "Cuotas de Activacion" del Google Sheet (Encabezado doble A1:L28)
   useEffect(() => {
     let isMounted = true;
     const syncActivationFromSheet = async () => {
       try {
-        // Fetch Cuotas de Activacion
         let csvText = '';
         try {
-          const res = await fetch('/api/sheets?sheet=' + encodeURIComponent('Cuotas de Activacion'));
+          const res = await fetch('/api/sheets?raw=true&sheet=' + encodeURIComponent('Cuotas de Activacion'));
           if (res.ok) csvText = await res.text();
         } catch {
           // fallback
         }
         if (!csvText) {
-          const res2 = await fetch('https://docs.google.com/spreadsheets/d/16pU4iEcNU_1j6sB7rZbshu2PM8OyH5hI7a24-vYO7P0/gviz/tq?tqx=out:csv&sheet=' + encodeURIComponent('Cuotas de Activacion'));
+          const res2 = await fetch(buildGoogleSheetRawExportUrl('Cuotas de Activacion'));
           if (res2.ok) csvText = await res2.text();
         }
 
         if (csvText && isMounted) {
-          const parsed = Papa.parse(csvText, { header: false, skipEmptyLines: true });
-          const rows = parsed.data as string[][];
-          if (rows.length > 1) {
-            const parseNum = (v: any) => {
-              if (!v) return 0;
-              const n = parseFloat(String(v).replace(/,/g, '').trim());
-              return isNaN(n) ? 0 : n;
-            };
+          const parsedMatrix = parseCuotasActivacionSheetMatrix(csvText);
+          if (parsedMatrix.rows.length > 0) {
+            const sheetMap = new Map<
+              string,
+              {
+                cartera: number;
+                aceite: { meta: number; activados: number };
+                azucar: { meta: number; activados: number };
+                pollo: { meta: number; activados: number };
+                estandarAsturias: { meta: number; activados: number };
+                mortadelaSalpicaoAsturias: { meta: number; activados: number };
+              }
+            >();
 
-            const sheetMap = new Map<string, {
-              cartera: number;
-              aceite: { meta: number; activados: number };
-              azucar: { meta: number; activados: number };
-              pollo: { meta: number; activados: number };
-              estandarAsturias: { meta: number; activados: number };
-              mortadelaSalpicaoAsturias: { meta: number; activados: number };
-            }>();
-
-            for (let i = 1; i < rows.length; i++) {
-              const r = rows[i];
-              const rawName = (r[0] || '').trim();
-              if (!rawName || rawName.toUpperCase() === 'VENDEDOR' || rawName.toUpperCase().includes('TOTAL')) continue;
-              const cleanName = normalizeSellerName(rawName);
+            for (const row of parsedMatrix.rows) {
+              const cleanName = row.vendedor;
               const existing = sheetMap.get(cleanName);
               if (existing) {
-                existing.cartera += parseNum(r[1]);
-                existing.aceite.meta += parseNum(r[2]);
-                existing.aceite.activados += parseNum(r[3]);
-                existing.azucar.meta += parseNum(r[4]);
-                existing.azucar.activados += parseNum(r[5]);
-                existing.pollo.meta += parseNum(r[6]);
-                existing.pollo.activados += parseNum(r[7]);
-                existing.estandarAsturias.meta += parseNum(r[8]);
-                existing.estandarAsturias.activados += parseNum(r[9]);
-                existing.mortadelaSalpicaoAsturias.meta += parseNum(r[10]);
-                existing.mortadelaSalpicaoAsturias.activados += parseNum(r[11]);
+                existing.cartera += row.cartera;
+                existing.aceite.meta += row.categorias.aceite.meta;
+                existing.aceite.activados += row.categorias.aceite.activados;
+                existing.azucar.meta += row.categorias.azucar.meta;
+                existing.azucar.activados += row.categorias.azucar.activados;
+                existing.pollo.meta += row.categorias.pollo.meta;
+                existing.pollo.activados += row.categorias.pollo.activados;
+                existing.estandarAsturias.meta += row.categorias.estandarAsturias.meta;
+                existing.estandarAsturias.activados += row.categorias.estandarAsturias.activados;
+                existing.mortadelaSalpicaoAsturias.meta += row.categorias.mortadelaSalpicaoAsturias.meta;
+                existing.mortadelaSalpicaoAsturias.activados += row.categorias.mortadelaSalpicaoAsturias.activados;
               } else {
                 sheetMap.set(cleanName, {
-                  cartera: parseNum(r[1]),
-                  aceite: { meta: parseNum(r[2]), activados: parseNum(r[3]) },
-                  azucar: { meta: parseNum(r[4]), activados: parseNum(r[5]) },
-                  pollo: { meta: parseNum(r[6]), activados: parseNum(r[7]) },
-                  estandarAsturias: { meta: parseNum(r[8]), activados: parseNum(r[9]) },
-                  mortadelaSalpicaoAsturias: { meta: parseNum(r[10]), activados: parseNum(r[11]) },
+                  cartera: row.cartera,
+                  aceite: { ...row.categorias.aceite },
+                  azucar: { ...row.categorias.azucar },
+                  pollo: { ...row.categorias.pollo },
+                  estandarAsturias: { ...row.categorias.estandarAsturias },
+                  mortadelaSalpicaoAsturias: { ...row.categorias.mortadelaSalpicaoAsturias },
                 });
               }
             }

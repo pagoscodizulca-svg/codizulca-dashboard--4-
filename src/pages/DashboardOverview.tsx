@@ -7,6 +7,18 @@ import {
   resolveCatalogProductName,
 } from '../data/productCatalog';
 import { supabase } from '../lib/supabase';
+import {
+  NOVEMBER_STRICT_CUTOFF_DATE,
+  buildGoogleSheetRawExportUrl,
+  parseClientesCatalogCsv,
+  parseProductosCatalogCsv,
+  parseSupervisoresCatalogCsv,
+  parseVentasSheetCsv,
+} from '../lib/googleSheetsMatrixParser';
+import {
+  convertSheetVentasRowsToDetailRecords,
+  loadDetailedHistorySalesJanToOct2026,
+} from '../lib/supabaseHistoryLoader';
 import { 
   DollarSign, 
   TrendingUp,
@@ -292,14 +304,19 @@ export const DashboardOverview: React.FC = () => {
   const [rawFacturacionRows, setRawFacturacionRows] = useState<Array<{
     fecha: string;
     idCliente: string;
+    cliente?: string;
     idArt: string;
+    articulo?: string;
     vendedor: string;
+    supervisor?: string;
+    categoria?: string;
     cajas: number;
     unidades: number;
     kg: number;
     monto: number;
     costo: number;
     utilidad: number;
+    source?: 'supabase_history_sales' | 'google_sheets_november';
   }>>([]);
 
   const [selectedSkus, setSelectedSkus] = useState<string[]>([]);
@@ -317,6 +334,16 @@ export const DashboardOverview: React.FC = () => {
     const s = new Set<string>();
     rawFacturacionRows.forEach(r => {
       if (r.vendedor) s.add(r.vendedor);
+    });
+    return Array.from(s).sort((a, b) => a.localeCompare(b));
+  }, [rawFacturacionRows]);
+
+  const availableSupervisors = React.useMemo(() => {
+    const s = new Set<string>();
+    rawFacturacionRows.forEach(r => {
+      if (r.supervisor && r.supervisor !== 'SIN SUPERVISOR') {
+        s.add(r.supervisor);
+      }
     });
     return Array.from(s).sort((a, b) => a.localeCompare(b));
   }, [rawFacturacionRows]);
@@ -423,50 +450,46 @@ export const DashboardOverview: React.FC = () => {
   }, [timeView]);
 
   React.useEffect(() => {
-      // Fetch all historical data from Supabase via backend API
-      let isMounted = true;
-      const fetchAllHistorical = async () => {
-          setIsHistoricalLoading(true);
-          try {
-              const res = await fetch('/api/historical-sales');
-              if (res.ok && isMounted) {
-                  const fetchedData = await res.json();
-                  const MONTH_NAMES = ['ENERO', 'FEBRERO', 'MARZO', 'ABRIL', 'MAYO', 'JUNIO', 'JULIO', 'AGOSTO', 'SEPTIEMBRE', 'OCTUBRE', 'NOVIEMBRE', 'DICIEMBRE'];
-                  const parsed = (fetchedData as any[]).map((row: any) => {
-                      const rawMes = String(row.mes || '').trim().toUpperCase();
-                      const monthIndex = MONTH_NAMES.indexOf(rawMes);
-                      if (monthIndex === -1) return null;
-                      const gDate = `${row.ano}-${(monthIndex + 1).toString().padStart(2, '0')}`;
-                      return {
-                          idArt: String(row.id_articulo),
-                          baseName: resolveCatalogProductName(row.id_articulo, row.articulo),
-                          facturado: Number(row.monto) || 0,
-                          montoFA: Number(row.montoFA) || Number(row.monto) || 0,
-                          montoDV: Number(row.montoDV) || 0,
-                          despachado: Number(row.kgs_lts) || 0,
-                          kgFacturado: Number(row.kgs_lts) || 0,
-                          cajas: Number(row.cajas) || 0,
-                          date: gDate + '-01'
-                      };
-                  }).filter(Boolean);
-                  
-                  if (parsed.length > 0) {
-                      setHistoricalData(parsed);
-                      try {
-                        localStorage.setItem('app_historical_sales_cache_v4', JSON.stringify(parsed));
-                      } catch {
-                        // ignore
-                      }
-                  }
-              }
-          } catch (e) {
-              console.error("Failed to fetch all historical data", e);
-          } finally {
-              if (isMounted) setIsHistoricalLoading(false);
+    // Initial fallback hydration of historical aggregated data if IndexedDB detail is still loading
+    let isMounted = true;
+    const fetchFallbackHistorical = async () => {
+      if (historicalData.length > 0) return;
+      setIsHistoricalLoading(true);
+      try {
+        const res = await fetch('/api/historical-sales');
+        if (res.ok && isMounted) {
+          const fetchedData = await res.json();
+          const MONTH_NAMES = ['ENERO', 'FEBRERO', 'MARZO', 'ABRIL', 'MAYO', 'JUNIO', 'JULIO', 'AGOSTO', 'SEPTIEMBRE', 'OCTUBRE', 'NOVIEMBRE', 'DICIEMBRE'];
+          const parsed = (fetchedData as any[]).map((row: any) => {
+            const rawMes = String(row.mes || '').trim().toUpperCase();
+            const monthIndex = MONTH_NAMES.indexOf(rawMes);
+            if (monthIndex === -1) return null;
+            const gDate = `${row.ano}-${(monthIndex + 1).toString().padStart(2, '0')}`;
+            return {
+              idArt: String(row.id_articulo),
+              baseName: resolveCatalogProductName(row.id_articulo, row.articulo),
+              facturado: Number(row.monto) || 0,
+              montoFA: Number(row.montoFA) || Number(row.monto) || 0,
+              montoDV: Number(row.montoDV) || 0,
+              despachado: Number(row.kgs_lts) || 0,
+              kgFacturado: Number(row.kgs_lts) || 0,
+              cajas: Number(row.cajas) || 0,
+              date: gDate + '-01'
+            };
+          }).filter(Boolean);
+
+          if (parsed.length > 0 && isMounted) {
+            setHistoricalData(prev => (prev.length > 0 ? prev : parsed));
           }
-      };
-      fetchAllHistorical();
-      return () => { isMounted = false; };
+        }
+      } catch (e) {
+        console.error('Failed to fetch fallback historical data', e);
+      } finally {
+        if (isMounted) setIsHistoricalLoading(false);
+      }
+    };
+    fetchFallbackHistorical();
+    return () => { isMounted = false; };
   }, []);
 
   const toggleTimeGroup = (g: string) => {
@@ -477,6 +500,7 @@ export const DashboardOverview: React.FC = () => {
 
   const fetchKpis = React.useCallback(async (forceRefresh = false) => {
     setKpiData(prev => ({ ...prev, isLoading: true }));
+    setIsHistoricalLoading(true);
     try {
       if (forceRefresh) {
         try {
@@ -486,37 +510,40 @@ export const DashboardOverview: React.FC = () => {
         }
       }
 
-      const refreshParam = forceRefresh ? '?refresh=true' : '';
-      let text = '';
-      try {
-        const res = await fetch(`/api/sheets${refreshParam}`);
-        if (res.ok) {
-          text = await res.text();
-        }
-      } catch {
-        // Fallback to direct URL if needed
-      }
-
-      if (!text) {
+      const fetchSheetTabCsv = async (sheetName: 'Ventas' | 'Productos' | 'Clientes' | 'Supervisores'): Promise<string> => {
+        const qs = new URLSearchParams({ sheet: sheetName, raw: 'true' });
+        if (forceRefresh) qs.set('refresh', 'true');
         try {
-          const res = await fetch('https://docs.google.com/spreadsheets/d/16pU4iEcNU_1j6sB7rZbshu2PM8OyH5hI7a24-vYO7P0/gviz/tq?tqx=out:csv');
+          const res = await fetch(`/api/sheets?${qs.toString()}`);
           if (res.ok) {
-            text = await res.text();
+            const txt = await res.text();
+            if (txt && !txt.trim().startsWith('<!DOCTYPE html')) return txt;
           }
         } catch {
-          // direct fetch failed
+          // fallback to direct raw export URL
         }
-      }
+        try {
+          const directRes = await fetch(buildGoogleSheetRawExportUrl(sheetName));
+          if (directRes.ok) {
+            return await directRes.text();
+          }
+        } catch {
+          // ignore
+        }
+        return '';
+      };
 
-      if (!text) {
-        setKpiData(prev => ({ ...prev, isLoading: false }));
-        return;
-      }
+      // 1. Fetch Google Sheets Catalogs (Productos, Clientes, Supervisores) + Ventas in parallel
+      const [ventasCsvText, productosCsvText, clientesCsvText, supervisoresCsvText] = await Promise.all([
+        fetchSheetTabCsv('Ventas'),
+        fetchSheetTabCsv('Productos'),
+        fetchSheetTabCsv('Clientes'),
+        fetchSheetTabCsv('Supervisores'),
+      ]);
 
-      const result = Papa.parse(text, { header: true, skipEmptyLines: true });
-      
-      // Fetch product mapping first (including full 332-SKU catalog & cached historical names)
-      let productMap = new Map<string, string>(Object.entries(PRODUCT_CATALOG_BY_SKU));
+      // Build product catalog maps
+      const productMap = new Map<string, string>(Object.entries(PRODUCT_CATALOG_BY_SKU));
+      const productCategoryMap = new Map<string, string>();
       try {
         const cachedMap = localStorage.getItem('app_product_map_cache');
         if (cachedMap) {
@@ -532,190 +559,226 @@ export const DashboardOverview: React.FC = () => {
           }
         }
       } catch {}
-      try {
-        let pText = '';
-        const pRes = await fetch(`/api/sheets?sheet=Productos${forceRefresh ? '&refresh=true' : ''}`);
-        if (pRes.ok) pText = await pRes.text();
-        if (!pText) {
-           const pRes2 = await fetch('https://docs.google.com/spreadsheets/d/16pU4iEcNU_1j6sB7rZbshu2PM8OyH5hI7a24-vYO7P0/gviz/tq?tqx=out:csv&sheet=Productos');
-           if (pRes2.ok) pText = await pRes2.text();
-        }
-        if (pText) {
-            const pResult = Papa.parse(pText, { header: true, skipEmptyLines: true });
-            pResult.data.forEach((row: any) => {
-                let cod = row['Cód. Producto'] || '';
-                cod = cod.replace(/^["']|["']$/g, '').trim();
-                let name = row['Producto'] || '';
-                name = name.replace(/^["']|["']$/g, '').trim();
-                if (cod && name) {
-                    productMap.set(cod, name);
-                    productMap.set(cod.replace(/^0+/, ''), name);
-                }
-            });
-        }
-      } catch (e) {
-        console.warn("Notice: Using product mapping cache:", e);
+
+      const parsedProductos = productosCsvText ? parseProductosCatalogCsv(productosCsvText) : null;
+      if (parsedProductos) {
+        parsedProductos.byCode.forEach((entry, codeKey) => {
+          if (entry.producto) {
+            productMap.set(codeKey, entry.producto);
+          }
+          if (entry.categoria) {
+            productCategoryMap.set(codeKey, entry.categoria);
+          }
+        });
       }
+
+      const clientByCode = clientesCsvText
+        ? parseClientesCatalogCsv(clientesCsvText).byCode
+        : new Map();
+      const supervisorBySeller = supervisoresCsvText
+        ? parseSupervisoresCatalogCsv(supervisoresCsvText).bySeller
+        : new Map<string, string>();
+
+      const catalogs = {
+        productByCode: parsedProductos?.byCode,
+        clientByCode,
+        supervisorBySeller,
+      };
+
+      // 2. Parse Google Sheet 'Ventas' with STRICT CUTOFF: ignore all rows where Fecha < '2026-11-01'
+      const parsedNovemberSheet = ventasCsvText
+        ? parseVentasSheetCsv(ventasCsvText, NOVEMBER_STRICT_CUTOFF_DATE)
+        : { rows: [], ignoredBeforeCutoffCount: 0, totalRawDataRows: 0, acceptedFromCutoffCount: 0, cutoffDate: NOVEMBER_STRICT_CUTOFF_DATE };
+
+      const novemberDetailRows = convertSheetVentasRowsToDetailRecords(
+        parsedNovemberSheet.rows,
+        catalogs
+      );
+
+      // 3. Load full row-by-row history from Supabase `history_sales` (2026-01-01 .. 2026-10-31)
+      //    using 5-batch concurrent pagination (.select('*', { count: 'exact' }) + .range(from, to)) + IndexedDB cache
+      let janToOctDetailRows: Awaited<ReturnType<typeof loadDetailedHistorySalesJanToOct2026>>['rows'] = [];
+      try {
+        const historyResult = await loadDetailedHistorySalesJanToOct2026({
+          forceRefresh,
+        });
+        janToOctDetailRows = historyResult.rows;
+      } catch (histErr) {
+        console.warn('[Sync] Failed to load detailed history_sales rows:', histErr);
+      }
+
+      // 4. Combine Jan-Oct (Supabase `history_sales`) + Nov (Google Sheets `Ventas` >= 2026-11-01)
+      const unifiedDetailRows = [...janToOctDetailRows, ...novemberDetailRows];
+      setRawFacturacionRows(
+        unifiedDetailRows.map((r) => ({
+          fecha: r.fecha,
+          idCliente: r.id_cliente,
+          cliente: r.cliente,
+          idArt: r.id_articulo,
+          articulo: r.articulo,
+          vendedor: r.vendedor,
+          supervisor: supervisorBySeller.get(r.vendedor) || r.supervisor,
+          categoria: productCategoryMap.get(r.id_articulo) || 'GENERAL',
+          cajas: r.cajas,
+          unidades: r.unidades,
+          kg: r.kgs_lts,
+          monto: r.monto,
+          costo: r.costo,
+          utilidad: r.utilidad,
+          source: r.source,
+        }))
+      );
+
+      // 5. Aggregate Jan-Oct detail rows by (idArt | date) for `historicalData`
+      if (janToOctDetailRows.length > 0) {
+        const histAgg = new Map<string, {
+          idArt: string;
+          baseName: string;
+          facturado: number;
+          montoFA: number;
+          montoDV: number;
+          despachado: number;
+          kgFacturado: number;
+          cajas: number;
+          date: string;
+        }>();
+
+        janToOctDetailRows.forEach((r) => {
+          const aggKey = `${r.id_articulo}|${r.fecha}`;
+          if (!histAgg.has(aggKey)) {
+            histAgg.set(aggKey, {
+              idArt: r.id_articulo,
+              baseName: resolveCatalogProductName(r.id_articulo, r.articulo, productMap),
+              facturado: 0,
+              montoFA: 0,
+              montoDV: 0,
+              despachado: 0,
+              kgFacturado: 0,
+              cajas: 0,
+              date: r.fecha,
+            });
+          }
+          const item = histAgg.get(aggKey)!;
+          item.facturado += r.monto;
+          if (r.monto < 0) item.montoDV += r.monto;
+          else item.montoFA += r.monto;
+          item.despachado += r.kgs_lts;
+          item.kgFacturado += r.kgs_lts;
+          item.cajas += r.cajas;
+        });
+
+        const aggregatedHistorical = Array.from(histAgg.values());
+        setHistoricalData(aggregatedHistorical);
+      }
+
+      // 6. Build `rawProductData` from November rows (>= 2026-11-01)
+      const novProdAgg = new Map<string, {
+        idArt: string;
+        date: string;
+        facturado: number;
+        montoFA: number;
+        montoDV: number;
+        despachado: number;
+        kgFacturado: number;
+        kgDespachado: number;
+      }>();
+
+      novemberDetailRows.forEach((r) => {
+        if (!r.id_articulo || !r.fecha) return;
+        const aggKey = `${r.id_articulo}|${r.fecha}`;
+        if (!novProdAgg.has(aggKey)) {
+          novProdAgg.set(aggKey, {
+            idArt: r.id_articulo,
+            date: r.fecha,
+            facturado: 0,
+            montoFA: 0,
+            montoDV: 0,
+            despachado: 0,
+            kgFacturado: 0,
+            kgDespachado: 0,
+          });
+        }
+        const p = novProdAgg.get(aggKey)!;
+        p.facturado += r.monto;
+        if (r.monto < 0) p.montoDV += r.monto;
+        else p.montoFA += r.monto;
+        p.kgFacturado += r.kgs_lts;
+        p.kgDespachado += r.kgs_lts;
+      });
+
+      const pArr = Array.from(novProdAgg.values()).map((p) => ({
+        idArt: p.idArt,
+        baseName: resolveCatalogProductName(p.idArt, undefined, productMap),
+        facturado: p.facturado,
+        montoFA: p.montoFA,
+        montoDV: p.montoDV,
+        despachado: p.kgDespachado,
+        kgFacturado: p.kgFacturado,
+        date: p.date,
+      }));
+      setRawProductData(pArr);
+
+      // 7. Compute default top KPIs and Trend Chart:
+      //    Use November rows (>= 2026-11-01) when present; otherwise use the latest closed month from Supabase (2026-10)
+      const activePeriodRows =
+        novemberDetailRows.length > 0
+          ? novemberDetailRows
+          : janToOctDetailRows.filter((r) => r.fecha.startsWith('2026-10'));
 
       let facturacion = 0;
       let utilidad = 0;
       let cajas = 0;
       let kg = 0;
-        
-        const trends = new Map<string, { date: string, ventas: number, kg: number, kgFacturado: number, kgDespachado: number }>();
-        const prodAgg = new Map<string, { idArt: string, date: string, facturado: number, montoFA: number, montoDV: number, despachado: number, kgFacturado: number, kgDespachado: number }>();
-        const factRows: Array<{
-          fecha: string;
-          idCliente: string;
-          idArt: string;
-          vendedor: string;
-          cajas: number;
-          unidades: number;
-          kg: number;
-          monto: number;
-          costo: number;
-          utilidad: number;
-        }> = [];
+      const trends = new Map<string, { date: string; ventas: number; kg: number; kgFacturado: number; kgDespachado: number }>();
 
-        result.data.forEach((row: any) => {
-          const mStr = row['Monto'] || '';
-          const uStr = row['Utilidad'] || '';
-          const cStr = row['Cajas'] || '';
-          const kStr = row['Kg'] || '';
-          
-          let fStr = row['Fecha'] || '';
-          fStr = fStr.replace(/^["']|["']$/g, '').trim();
-          const dateOnly = fStr.split(' ')[0] || 'Sin Fecha';
-          
-          const idArt = String(row['Id Articulo'] || '').replace(/^["']|["']$/g, '').trim();
-          const idCliente = String(row['Id Cliente'] || row['Cliente'] || '').replace(/^["']|["']$/g, '').trim();
-          let vendedor = String(row['Vendedor'] || '').replace(/^["']|["']$/g, '').trim();
-          if (
-            vendedor === 'CUENTAS CLAVE 1' ||
-            vendedor === 'CUENTAS CLAVE 1 - MC' ||
-            vendedor === 'MARIANA CHACIN' ||
-            vendedor === 'CUENTAS CLAVE 1 - MC (MARIANA CHACIN)'
-          ) {
-            vendedor = 'CUENTAS CLAVE 1 - MC';
-          }
-          if (
-            vendedor === 'CUENTAS CLAVE 2' ||
-            vendedor === 'CUENTAS CLAVE 2 - SV' ||
-            vendedor === 'SAIRU VALLES' ||
-            vendedor === 'CUENTAS CLAVE 2 - SV (SAIRU VALLES)'
-          ) {
-            vendedor = 'CUENTAS CLAVE 2 - SV';
-          }
-          if (vendedor === 'FOOD SERVICE NORTE') {
-            vendedor = 'JAIDER MEDINA - FOOD SERVICE NORTE';
-          }
-          if (vendedor === 'FOOD SERVICE SENIOR') {
-            vendedor = 'FOOD SERVICE SENIOR - JUAN HERNANDEZ';
-          }
+      activePeriodRows.forEach((r) => {
+        facturacion += r.monto;
+        utilidad += r.utilidad;
+        cajas += r.cajas;
+        kg += r.kgs_lts;
 
-          const m = parseFloat(mStr.replace(/["',]/g, '')) || 0;
-          const u = parseFloat(uStr.replace(/["',]/g, '')) || 0;
-          const c = parseFloat(cStr.replace(/["',]/g, '')) || 0;
-          const k = parseFloat(kStr.replace(/["',]/g, '')) || 0;
-          
-          if (!isNaN(m)) facturacion += m;
-          if (!isNaN(u)) utilidad += u;
-          if (!isNaN(c)) cajas += c;
-          if (!isNaN(k)) kg += k;
-
-          if (dateOnly !== 'Sin Fecha') {
-            factRows.push({
-              fecha: dateOnly,
-              idCliente,
-              idArt,
-              vendedor,
-              cajas: c,
-              unidades: 0,
-              kg: k,
-              monto: m,
-              costo: 0,
-              utilidad: u
-            });
+        if (r.fecha && r.fecha !== 'Sin Fecha') {
+          if (!trends.has(r.fecha)) {
+            trends.set(r.fecha, { date: r.fecha, ventas: 0, kg: 0, kgFacturado: 0, kgDespachado: 0 });
           }
-          
-          if (dateOnly !== 'Sin Fecha') {
-            if (!trends.has(dateOnly)) {
-              trends.set(dateOnly, { date: dateOnly, ventas: 0, kg: 0, kgFacturado: 0, kgDespachado: 0 });
-            }
-            const t = trends.get(dateOnly)!;
-            if (!isNaN(m)) t.ventas += m;
-            if (!isNaN(k)) {
-               t.kg += k;
-               t.kgFacturado += k;
-               t.kgDespachado += k; // Kg is used for despachado visually
-            }
-          }
+          const t = trends.get(r.fecha)!;
+          t.ventas += r.monto;
+          t.kg += r.kgs_lts;
+          t.kgFacturado += r.kgs_lts;
+          t.kgDespachado += r.kgs_lts;
+        }
+      });
 
-          if (idArt && dateOnly !== 'Sin Fecha') {
-            const aggKey = `${idArt}|${dateOnly}`;
-            if (!prodAgg.has(aggKey)) {
-              prodAgg.set(aggKey, { idArt, date: dateOnly, facturado: 0, montoFA: 0, montoDV: 0, despachado: 0, kgFacturado: 0, kgDespachado: 0 });
-            }
-            const p = prodAgg.get(aggKey)!;
-            
-            if (!isNaN(m)) {
-               p.facturado += m;
-               if (m < 0) p.montoDV += m;
-               else p.montoFA += m;
-            }
-            if (!isNaN(k)) {
-               p.kgFacturado += k;
-               p.kgDespachado += k; 
-            }
-          }
-        });
-
+      if (activePeriodRows.length > 0) {
         const freshData = { facturacion, utilidad, cajas, kg, isLoading: false };
         setKpiData(freshData);
-        setRawFacturacionRows(factRows);
-        
         const sortedTrends = Array.from(trends.values()).sort((a, b) => a.date.localeCompare(b.date));
         setTrendData(sortedTrends);
-
-        const pArr = Array.from(prodAgg.values())
-          .map((p) => {
-            const baseName = resolveCatalogProductName(p.idArt, undefined, productMap);
-            return {
-                idArt: p.idArt,
-                baseName,
-                facturado: p.facturado,
-                montoFA: p.montoFA,
-                montoDV: p.montoDV,
-                despachado: p.kgDespachado,
-                kgFacturado: p.kgFacturado,
-                date: p.date
-            };
-          });
-
-        setRawProductData(pArr);
-        
         try {
           localStorage.setItem('app_kpi_cache', JSON.stringify({ facturacion, utilidad, cajas, kg }));
         } catch {
           // ignore
         }
-
-        if (forceRefresh) {
-          const nowStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-          setLastSheetSync(nowStr);
-          try {
-            localStorage.setItem('app_last_sheets_sync', nowStr);
-          } catch {}
-          setSheetSyncSuccessMessage('Google Sheets sincronizado exitosamente con el dashboard.');
-          setTimeout(() => setSheetSyncSuccessMessage(null), 4000);
-        }
-      } catch (e) {
-        console.warn("Notice: Using cached KPIs data:", e);
+      } else {
         setKpiData(prev => ({ ...prev, isLoading: false }));
       }
-    },
-    []
-  );
+
+      if (forceRefresh) {
+        const nowStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        setLastSheetSync(nowStr);
+        try {
+          localStorage.setItem('app_last_sheets_sync', nowStr);
+        } catch {}
+        setSheetSyncSuccessMessage('Google Sheets y Supabase sincronizados exitosamente con el dashboard.');
+        setTimeout(() => setSheetSyncSuccessMessage(null), 4000);
+      }
+    } catch (e) {
+      console.warn('Notice: Using cached KPIs data:', e);
+      setKpiData(prev => ({ ...prev, isLoading: false }));
+    } finally {
+      setIsHistoricalLoading(false);
+    }
+  }, []);
 
   React.useEffect(() => {
     fetchKpis(false);
@@ -966,12 +1029,14 @@ export const DashboardOverview: React.FC = () => {
     return result;
   }, [combinedProductData, skuFilter, showTop5, timeView, selectedTimeGroups, availableGroups, selectedSkus, productSortMetric, appliedFilters]);
 
-  // Dynamically filtered KPIs reflecting active filters (dates, vendor, client/search, time groups)
+  // Dynamically filtered KPIs reflecting active filters (dates, vendor, supervisor/zone, client/search, time groups)
   const activeKpis = React.useMemo(() => {
     let filtered = rawFacturacionRows;
 
     const hasDateRange = Boolean(appliedFilters.startDate || appliedFilters.endDate);
     const hasVendor = Boolean(appliedFilters.vendor && appliedFilters.vendor !== 'ALL');
+    const hasZoneOrSupervisor = Boolean(appliedFilters.zone && appliedFilters.zone !== 'ALL');
+    const hasClient = Boolean(appliedFilters.client && appliedFilters.client.trim());
     const hasSearch = Boolean(appliedFilters.search.trim());
     const hasTimeGroups = selectedTimeGroups.length > 0;
 
@@ -994,16 +1059,37 @@ export const DashboardOverview: React.FC = () => {
       filtered = filtered.filter(r => r.vendedor === appliedFilters.vendor);
     }
 
+    if (hasZoneOrSupervisor) {
+      const targetZone = appliedFilters.zone.toUpperCase();
+      filtered = filtered.filter(
+        r =>
+          (r.supervisor || '').toUpperCase() === targetZone ||
+          r.vendedor.toUpperCase().includes(targetZone)
+      );
+    }
+
+    if (hasClient) {
+      const cQuery = appliedFilters.client.trim().toLowerCase();
+      filtered = filtered.filter(
+        r =>
+          r.idCliente.toLowerCase().includes(cQuery) ||
+          (r.cliente || '').toLowerCase().includes(cQuery)
+      );
+    }
+
     if (hasSearch) {
       const q = appliedFilters.search.toLowerCase();
       filtered = filtered.filter(r =>
         r.idCliente.toLowerCase().includes(q) ||
+        (r.cliente || '').toLowerCase().includes(q) ||
         r.vendedor.toLowerCase().includes(q) ||
-        r.idArt.toLowerCase().includes(q)
+        (r.supervisor || '').toLowerCase().includes(q) ||
+        r.idArt.toLowerCase().includes(q) ||
+        (r.articulo || '').toLowerCase().includes(q)
       );
     }
 
-    const isFiltered = hasDateRange || hasVendor || hasSearch || hasTimeGroups;
+    const isFiltered = hasDateRange || hasVendor || hasZoneOrSupervisor || hasClient || hasSearch || hasTimeGroups;
 
     if (!isFiltered) {
       return {
@@ -1544,9 +1630,12 @@ export const DashboardOverview: React.FC = () => {
             <select 
               value={filterZone}
               onChange={(e) => setFilterZone(e.target.value)}
-              className="col-span-2 sm:col-span-1 md:col-span-1 bg-black/50 border border-white/10 rounded-md px-3 py-2 text-sm text-zinc-300 focus:outline-none focus:border-red-500 appearance-none w-full lg:min-w-[140px]"
+              className="col-span-2 sm:col-span-1 md:col-span-1 bg-black/50 border border-white/10 rounded-md px-3 py-2 text-sm text-zinc-300 focus:outline-none focus:border-red-500 appearance-none w-full lg:min-w-[160px]"
             >
-              <option value="ALL">Zona: Todas</option>
+              <option value="ALL">Supervisor / Zona: Todos</option>
+              {availableSupervisors.map(sup => (
+                <option key={sup} value={sup}>Sup: {sup}</option>
+              ))}
               <option value="NORTE">Zona Norte</option>
               <option value="SUR">Zona Sur</option>
               <option value="CENTRO">Zona Centro</option>
