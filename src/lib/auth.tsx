@@ -180,7 +180,7 @@ export const DASHBOARD_CORPORATE_PROFILES: DashboardCorporateProfile[] = [
   {
     id: 'CORP-JOHNATAN01',
     username: 'Johnatan01',
-    name: 'Johnatan Garcia',
+    name: 'Johnatan Soto',
     email: 'Johnatan01@codizulca.com',
     passwordHint: 'Codi.03',
     roleKey: 'supervisor',

@@ -39,7 +39,7 @@ describe('Perfiles corporativos asignados del Dashboard de Gerencia', () => {
       { user: 'Mari01', pass: '123456', role: 'Analista', name: 'Marialbert Cabreras', trazabilidad: false },
       { user: 'Americo01', pass: 'Codi.01', role: 'Directivo', name: 'Sr. Americo', trazabilidad: true },
       { user: 'Grecia01', pass: 'Codi.02', role: 'Trade Marketing', name: 'Grecia', trazabilidad: false },
-      { user: 'Johnatan01', pass: 'Codi.03', role: 'Supervisor', name: 'Johnatan Garcia', trazabilidad: false },
+      { user: 'Johnatan01', pass: 'Codi.03', role: 'Supervisor', name: 'Johnatan Soto', trazabilidad: false },
       { user: 'Ali01', pass: 'Codi.04', role: 'Supervisor', name: 'Ali Perez', trazabilidad: false },
     ];
 
