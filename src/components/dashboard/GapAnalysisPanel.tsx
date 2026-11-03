@@ -8,6 +8,10 @@ import {
   isGenericProductLabel,
   resolveCatalogProductName,
 } from '../../data/productCatalog';
+import {
+  fetchHistorialOctubre2026,
+  isStrictNovember2026Date,
+} from '../../lib/supabaseHistoryLoader';
 
 const KNOWN_PRODUCT_NAMES_BY_SKU = PRODUCT_CATALOG_BY_SKU;
 const resolveBestProductName = resolveCatalogProductName;
@@ -21,15 +25,36 @@ interface GapAnalysisPanelProps {
     cajas: number;
     kg: number;
   };
+  novemberKpis?: {
+    facturacion: number;
+    utilidad: number;
+    cajas: number;
+    kg: number;
+  };
+  onConsultOctober2026?: () => void;
   syncKey?: string | null;
 }
 
-export const GapAnalysisPanel: React.FC<GapAnalysisPanelProps> = ({ kpiId, kpiLabel, octoberKpis, syncKey }) => {
+export const GapAnalysisPanel: React.FC<GapAnalysisPanelProps> = ({
+  kpiId,
+  kpiLabel,
+  octoberKpis,
+  novemberKpis,
+  onConsultOctober2026,
+  syncKey,
+}) => {
   const [selectedMonths, setSelectedMonths] = useState<string[]>([]);
   const [allSalesData, setAllSalesData] = useState<any[]>([]);
+  const [octoberSupabaseTotals, setOctoberSupabaseTotals] = useState<{
+    facturacion: number;
+    utilidad: number;
+    cajas: number;
+    kg: number;
+  } | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
   const monthsList = [
+    { id: '2026-11', label: 'Noviembre 2026 (En Curso)' },
     { id: '2026-10', label: 'Octubre 2026' },
     { id: '2026-09', label: 'Septiembre 2026' },
     { id: '2026-08', label: 'Agosto 2026' },
@@ -43,6 +68,9 @@ export const GapAnalysisPanel: React.FC<GapAnalysisPanelProps> = ({ kpiId, kpiLa
   ];
 
   const handleMonthToggle = (monthId: string) => {
+    if (monthId === '2026-10' && onConsultOctober2026) {
+      onConsultOctober2026();
+    }
     setSelectedMonths(prev => {
       if (prev.includes(monthId)) {
         return prev.filter(m => m !== monthId);
@@ -125,18 +153,25 @@ export const GapAnalysisPanel: React.FC<GapAnalysisPanelProps> = ({ kpiId, kpiLa
         const skuToName = await fetchProductMap();
         const idToName = skuToName;
 
-        // 2. Fetch past months from Supabase historical sales API FIRST so we also enrich skuToName with all historical product names
-        const historyMonthIds = monthsList.map(m => m.id).filter(id => id !== '2026-10');
+        // 2. Fetch past closed months (Enero 2026 .. Octubre 2026) from Supabase historical sales API + fetchHistorialOctubre2026()
+        const historyMonthIds = monthsList
+          .map((m) => m.id)
+          .filter((id) => id !== '2026-11');
         let supabaseData: any[] = [];
-        
+
         try {
-          const historyRes = await fetch('/api/historical-sales');
-          if (historyRes.ok) {
+          const [historyRes, octSummary] = await Promise.all([
+            fetch('/api/historical-sales').catch(() => null),
+            fetchHistorialOctubre2026().catch(() => null),
+          ]);
+
+          const rawMap = new Map<string, any>();
+
+          if (historyRes && historyRes.ok) {
             const historyRaw = await historyRes.json();
             const MONTH_NAMES = ['ENERO', 'FEBRERO', 'MARZO', 'ABRIL', 'MAYO', 'JUNIO', 'JULIO', 'AGOSTO', 'SEPTIEMBRE', 'OCTUBRE', 'NOVIEMBRE', 'DICIEMBRE'];
-            const rawMap = new Map();
 
-            // Primero enriquecer el catálogo skuToName con todos los nombres reales del historial (incluyendo Octubre)
+            // Enriquecer el catálogo skuToName con todos los nombres reales del historial (incluyendo Octubre)
             (historyRaw as any[]).forEach((row: any) => {
               const rawId = String(row.id_articulo || '').trim();
               const cleanId = rawId.replace(/^0+/, '');
@@ -152,14 +187,14 @@ export const GapAnalysisPanel: React.FC<GapAnalysisPanelProps> = ({ kpiId, kpiLa
             } catch {
               // ignore
             }
-            
+
             (historyRaw as any[]).forEach((row: any) => {
               const rawMes = String(row.mes || '').trim().toUpperCase();
               const monthIndex = MONTH_NAMES.indexOf(rawMes);
               if (monthIndex === -1) return;
               const period = `${row.ano}-${(monthIndex + 1).toString().padStart(2, '0')}`;
               if (!historyMonthIds.includes(period)) return;
-              
+
               const prodId = String(row.id_articulo || '').trim();
               const key = `${period}_${prodId}`;
               if (!rawMap.has(key)) {
@@ -170,8 +205,9 @@ export const GapAnalysisPanel: React.FC<GapAnalysisPanelProps> = ({ kpiId, kpiLa
                   total_boxes_sold: 0,
                   total_revenue: 0,
                   total_kgs: 0,
+                  total_utilidad: 0,
                   total_fa: 0,
-                  total_dv: 0
+                  total_dv: 0,
                 });
               } else {
                 const existing = rawMap.get(key);
@@ -183,17 +219,61 @@ export const GapAnalysisPanel: React.FC<GapAnalysisPanelProps> = ({ kpiId, kpiLa
               p.total_revenue += Number(row.monto) || 0;
               p.total_boxes_sold += Number(row.cajas) || 0;
               p.total_kgs += Number(row.kgs_lts) || 0;
+              p.total_utilidad += Number(row.utilidad) || 0;
               p.total_fa += Number(row.montoFA) || Number(row.monto) || 0;
               p.total_dv += Number(row.montoDV) || 0;
             });
-            supabaseData = Array.from(rawMap.values());
           }
+
+          // Garantizar que Octubre 2026 ('2026-10') use el cierre real completo desde Supabase (fetchHistorialOctubre2026)
+          if (octSummary && octSummary.rows.length > 0) {
+            setOctoberSupabaseTotals({
+              facturacion: octSummary.facturacionTotal,
+              utilidad: octSummary.utilidadBruta,
+              cajas: octSummary.cajasDespachadas,
+              kg: octSummary.totalKilogramos,
+            });
+
+            // Reemplazar cualquier parcial de 2026-10 con la agregación exacta de las filas paginadas de Supabase
+            for (const key of Array.from(rawMap.keys())) {
+              if (key.startsWith('2026-10_')) {
+                rawMap.delete(key);
+              }
+            }
+
+            octSummary.rows.forEach((row) => {
+              const prodId = String(row.id_articulo || '').trim();
+              const key = `2026-10_${prodId}`;
+              if (!rawMap.has(key)) {
+                rawMap.set(key, {
+                  period: '2026-10',
+                  product_id: prodId,
+                  product_name: resolveBestProductName(prodId, row.articulo, idToName),
+                  total_boxes_sold: 0,
+                  total_revenue: 0,
+                  total_kgs: 0,
+                  total_utilidad: 0,
+                  total_fa: 0,
+                  total_dv: 0,
+                });
+              }
+              const p = rawMap.get(key)!;
+              p.total_revenue += Number(row.monto) || 0;
+              p.total_boxes_sold += Number(row.cajas) || 0;
+              p.total_kgs += Number(row.kgs_lts) || 0;
+              p.total_utilidad += Number(row.utilidad) || 0;
+              if (row.monto < 0) p.total_dv += row.monto;
+              else p.total_fa += row.monto;
+            });
+          }
+
+          supabaseData = Array.from(rawMap.values());
         } catch (err) {
           console.warn('Failed to load historical data in GapAnalysisPanel:', err);
         }
 
-        // 3. Fetch current month (October) from Google Sheets live data using the enriched skuToName map
-        const fetchOctoberData = async () => {
+        // 3. Fetch current active month (Noviembre 2026: 2026-11-01 .. 2026-11-30) from Google Sheets live data
+        const fetchNovemberData = async () => {
           try {
             let text = '';
             try {
@@ -215,31 +295,34 @@ export const GapAnalysisPanel: React.FC<GapAnalysisPanelProps> = ({ kpiId, kpiLa
             if (text) {
               const result = Papa.parse(text, { header: true, skipEmptyLines: true });
               const productMap = new Map();
-              
+
               result.data.forEach((row: any) => {
+                // Filtrar estrictamente registros de Noviembre 2026 (2026-11-01 a 2026-11-30)
+                if (!isStrictNovember2026Date(row['Fecha'])) return;
+
                 let rawSku = String(row['Id Articulo'] || '').replace(/^["']|["']$/g, '').trim();
                 const sku = rawSku || 'SIN-SKU';
-                
+
                 const amountStr = String(row['Monto'] || '');
                 const boxesStr = String(row['Cajas'] || '');
                 const kgStr = String(row['Kg'] || row['Kgs'] || row['KGS'] || '');
                 const utilStr = String(row['Utilidad'] || '');
-                
+
                 const amount = parseFloat(amountStr.replace(/["',]/g, '')) || 0;
                 const boxes = parseFloat(boxesStr.replace(/["',]/g, '')) || 0;
                 const kgs = parseFloat(kgStr.replace(/["',]/g, '')) || 0;
                 const utilidad = parseFloat(utilStr.replace(/["',]/g, '')) || 0;
-                
+
                 if (amount !== 0 || boxes !== 0 || kgs !== 0 || utilidad !== 0) {
                   if (!productMap.has(sku)) {
                     productMap.set(sku, {
-                      period: '2026-10',
+                      period: '2026-11',
                       product_id: sku,
                       product_name: resolveBestProductName(sku, row['Articulo'] || row['Producto'], skuToName),
                       total_boxes_sold: 0,
                       total_revenue: 0,
                       total_kgs: 0,
-                      total_utilidad: 0
+                      total_utilidad: 0,
                     });
                   }
                   const p = productMap.get(sku);
@@ -250,40 +333,22 @@ export const GapAnalysisPanel: React.FC<GapAnalysisPanelProps> = ({ kpiId, kpiLa
                 }
               });
 
-              const parsedOct = Array.from(productMap.values());
-              if (parsedOct.length > 0) {
-                return parsedOct;
-              }
-            }
-
-            // Last-resort offline fallback
-            try {
-              const octRes = await fetch('/october_gap_products.json');
-              if (octRes.ok) {
-                const octJson = await octRes.json();
-                if (Array.isArray(octJson) && octJson.length > 0) {
-                  return octJson.map((item: any) => ({
-                    ...item,
-                    product_name: resolveBestProductName(item.product_id, item.product_name, skuToName),
-                  }));
-                }
-              }
-            } catch {
-              // ignore
+              return Array.from(productMap.values());
             }
 
             return [];
           } catch (e) {
-            console.error("Error fetching Google Sheet for October:", e);
+            console.error('Error fetching Google Sheet for November:', e);
             return [];
           }
         };
 
-        const sheetData = await fetchOctoberData();
+        const sheetData = await fetchNovemberData();
 
         // Fallback for historical baseline from exact monthly totals using real Codizulca SKUs
         if (supabaseData.length === 0) {
           const exactMonthlyTotals: Record<string, number> = {
+            '2026-10': 3014509.07,
             '2026-09': 4098138.40,
             '2026-08': 6452231.90,
             '2026-07': 6360990.80,
@@ -294,7 +359,7 @@ export const GapAnalysisPanel: React.FC<GapAnalysisPanelProps> = ({ kpiId, kpiLa
             '2026-02': 4253479.80,
             '2026-01': 18239236.00,
           };
-          
+
           const realCodizulcaProducts = [
             { id: '1478', name: 'MORTADELA ESPECIAL TAPARA 1KG CODIZULCA', weight: 0.35 },
             { id: '979', name: 'JAMON COCIDO SUPERIOR PREMIUM CODIZULCA', weight: 0.25 },
@@ -309,10 +374,10 @@ export const GapAnalysisPanel: React.FC<GapAnalysisPanelProps> = ({ kpiId, kpiLa
               realCodizulcaProducts.forEach((prod, index) => {
                 const variance = 1 + (Math.sin(parseInt(monthId.split('-')[1]) + index) * 0.05);
                 let prodTotal = total * prod.weight * variance;
-                
+
                 if (index === realCodizulcaProducts.length - 1) {
-                   const currentSum = supabaseData.filter(d => d.period === monthId).reduce((sum, d) => sum + d.total_revenue, 0);
-                   prodTotal = total - currentSum;
+                  const currentSum = supabaseData.filter(d => d.period === monthId).reduce((sum, d) => sum + d.total_revenue, 0);
+                  prodTotal = total - currentSum;
                 }
 
                 supabaseData.push({
@@ -320,7 +385,7 @@ export const GapAnalysisPanel: React.FC<GapAnalysisPanelProps> = ({ kpiId, kpiLa
                   product_id: prod.id,
                   product_name: prod.name,
                   total_boxes_sold: Math.round(prodTotal / 32),
-                  total_revenue: prodTotal
+                  total_revenue: prodTotal,
                 });
               });
             }
@@ -329,7 +394,7 @@ export const GapAnalysisPanel: React.FC<GapAnalysisPanelProps> = ({ kpiId, kpiLa
 
         setAllSalesData([...sheetData, ...supabaseData]);
       } catch (err) {
-        console.error("General error fetching data:", err);
+        console.error('General error fetching data:', err);
       } finally {
         setIsLoading(false);
       }
@@ -342,20 +407,35 @@ export const GapAnalysisPanel: React.FC<GapAnalysisPanelProps> = ({ kpiId, kpiLa
       case 'facturacion': return row.total_revenue || 0;
       case 'cajas': return row.total_boxes_sold || 0;
       case 'kilogramos': return row.total_kgs || 0;
-      case 'utilidad': return row.total_utilidad || (row.total_revenue || 0) * 0.25;
+      case 'utilidad': return row.total_utilidad !== undefined ? row.total_utilidad : (row.total_revenue || 0) * 0.25;
       case 'margen': return 0; // Margin doesn't sum
       default: return row.total_revenue || 0;
     }
   };
 
-  const getOctoberLiveTotal = (): number | null => {
-    if (!octoberKpis || octoberKpis.facturacion <= 0) return null;
+  const getOctoberClosedTotal = (): number | null => {
+    const source =
+      octoberKpis && octoberKpis.facturacion > 1000000
+        ? octoberKpis
+        : octoberSupabaseTotals;
+    if (!source || source.facturacion <= 0) return null;
     switch (kpiId) {
-      case 'facturacion': return octoberKpis.facturacion;
-      case 'utilidad': return octoberKpis.utilidad;
-      case 'cajas': return octoberKpis.cajas;
-      case 'kilogramos': return octoberKpis.kg;
-      default: return octoberKpis.facturacion;
+      case 'facturacion': return source.facturacion;
+      case 'utilidad': return source.utilidad;
+      case 'cajas': return source.cajas;
+      case 'kilogramos': return source.kg;
+      default: return source.facturacion;
+    }
+  };
+
+  const getNovemberLiveTotal = (): number | null => {
+    if (!novemberKpis) return null;
+    switch (kpiId) {
+      case 'facturacion': return novemberKpis.facturacion;
+      case 'utilidad': return novemberKpis.utilidad;
+      case 'cajas': return novemberKpis.cajas;
+      case 'kilogramos': return novemberKpis.kg;
+      default: return novemberKpis.facturacion;
     }
   };
 
@@ -367,12 +447,16 @@ export const GapAnalysisPanel: React.FC<GapAnalysisPanelProps> = ({ kpiId, kpiLa
         totals[row.period] += getValue(row);
       }
     });
-    const octLive = getOctoberLiveTotal();
-    if (octLive !== null) {
-      totals['2026-10'] = octLive;
+    const octClosed = getOctoberClosedTotal();
+    if (octClosed !== null) {
+      totals['2026-10'] = octClosed;
+    }
+    const novLive = getNovemberLiveTotal();
+    if (novLive !== null) {
+      totals['2026-11'] = novLive;
     }
     return totals;
-  }, [allSalesData, kpiId, octoberKpis]);
+  }, [allSalesData, kpiId, octoberKpis, octoberSupabaseTotals, novemberKpis]);
 
   const formatVal = (val: number, showLabel = true) => {
     if (kpiId === 'facturacion' || kpiId === 'utilidad') {
@@ -413,10 +497,16 @@ export const GapAnalysisPanel: React.FC<GapAnalysisPanelProps> = ({ kpiId, kpiLa
       }
     });
 
-    const octLive = getOctoberLiveTotal();
-    if (octLive !== null) {
-      if (m1 === '2026-10') v1 = octLive;
-      if (m2 === '2026-10') v2 = octLive;
+    const octClosed = getOctoberClosedTotal();
+    if (octClosed !== null) {
+      if (m1 === '2026-10') v1 = octClosed;
+      if (m2 === '2026-10') v2 = octClosed;
+    }
+
+    const novLive = getNovemberLiveTotal();
+    if (novLive !== null) {
+      if (m1 === '2026-11') v1 = novLive;
+      if (m2 === '2026-11') v2 = novLive;
     }
 
     const diff = v2 - v1;
@@ -459,7 +549,7 @@ export const GapAnalysisPanel: React.FC<GapAnalysisPanelProps> = ({ kpiId, kpiLa
       topDecline,
       chartData
     };
-  }, [selectedMonths, allSalesData, kpiId, octoberKpis]);
+  }, [selectedMonths, allSalesData, kpiId, octoberKpis, octoberSupabaseTotals, novemberKpis]);
 
   return (
     <div className="bg-zinc-950/80 border border-white/10 rounded-xl mt-2 overflow-hidden shadow-2xl animate-in slide-in-from-top-4 duration-300">
@@ -490,7 +580,12 @@ export const GapAnalysisPanel: React.FC<GapAnalysisPanelProps> = ({ kpiId, kpiLa
                 >
                   <div className="flex flex-col items-start text-left">
                     <span className={isSelected ? 'font-bold' : 'font-medium'}>{month.label}</span>
-                    <span className="text-[10px] text-zinc-500 font-mono mt-0.5">{formatVal(val, false)}</span>
+                    <span className="text-[10px] text-zinc-400 font-mono mt-0.5">{formatVal(val, false)}</span>
+                    {month.id === '2026-10' && (
+                      <span className="text-[9px] text-amber-400/90 font-semibold mt-0.5">
+                        Cierre Supabase • Clic para consultar
+                      </span>
+                    )}
                   </div>
                   {isSelected && <div className="h-2 w-2 rounded-full bg-red-500 shadow-[0_0_5px_rgba(220,38,38,0.8)] animate-pulse" />}
                 </button>

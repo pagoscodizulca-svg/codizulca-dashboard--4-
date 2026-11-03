@@ -407,6 +407,185 @@ async function fetchHistorySalesViaServerProxy(
 }
 
 /**
+ * Verifica estrictamente si una fecha (en formato `DD/MM/YYYY`, `YYYY-MM-DD` o timestamp)
+ * pertenece a Noviembre 2026 (`2026-11-01` al `2026-11-30`, `año === 2026 && mes === 11`),
+ * excluyendo rotundamente cualquier registro de Octubre (`2026-10-XX`) o meses previos.
+ */
+export function isStrictNovember2026Date(rawDate: unknown): boolean {
+  const iso = parseCaracasLocalDate(rawDate);
+  if (!iso) return false;
+  const parts = iso.split('-');
+  if (parts.length !== 3) return false;
+  const year = Number(parts[0]);
+  const month = Number(parts[1]);
+  const day = Number(parts[2]);
+  return year === 2026 && month === 11 && day >= 1 && day <= 30;
+}
+
+/**
+ * Filtra una colección de registros dejando únicamente aquellos cuya `fecha` normalizada
+ * pertenece estrictamente a Noviembre 2026 (`2026-11-01` a `2026-11-30`).
+ */
+export function filterStrictNovember2026Rows<T extends { fecha?: unknown }>(rows: T[]): T[] {
+  if (!Array.isArray(rows)) return [];
+  const result: T[] = [];
+  for (const row of rows) {
+    const iso = parseCaracasLocalDate(row.fecha);
+    if (iso && isStrictNovember2026Date(iso)) {
+      result.push({
+        ...row,
+        fecha: iso,
+      });
+    }
+  }
+  return result;
+}
+
+export interface HistorialOctubre2026DailyPoint {
+  date: string;
+  ventas: number;
+  kg: number;
+  kgFacturado: number;
+  kgDespachado: number;
+  cajas: number;
+  utilidad: number;
+}
+
+export interface HistorialOctubre2026Summary {
+  periodo: '2026-10';
+  label: string;
+  sourceLabel: string;
+  facturacionTotal: number;
+  utilidadBruta: number;
+  porcentajeUtilidad: number;
+  cajasDespachadas: number;
+  totalKilogramos: number;
+  tendenciaDiaria: HistorialOctubre2026DailyPoint[];
+  rows: HistorySalesDetailRecord[];
+  totalRegistros: number;
+}
+
+/**
+ * Calcula con precisión contable los KPIs y la serie diaria del cierre de Octubre 2026
+ * a partir de los registros de `history_sales` en Supabase (`2026-10-01` a `2026-10-31`).
+ */
+export function calculateOctober2026SummaryFromRows(
+  inputRows: HistorySalesDetailRecord[]
+): HistorialOctubre2026Summary {
+  const octoberRows = (inputRows || []).filter((r) => {
+    const iso = parseCaracasLocalDate(r.fecha) || r.fecha;
+    return (
+      (iso >= '2026-10-01' && iso <= '2026-10-31') ||
+      (String(r.mes || '').toUpperCase() === 'OCTUBRE' && Number(r.ano) === 2026)
+    );
+  });
+
+  let facturacionTotal = 0;
+  let utilidadBruta = 0;
+  let cajasDespachadas = 0;
+  let totalKilogramos = 0;
+
+  const dailyMap = new Map<string, HistorialOctubre2026DailyPoint>();
+
+  for (const r of octoberRows) {
+    const monto = Number(r.monto) || 0;
+    const utilidad = Number(r.utilidad) || 0;
+    const cajas = Number(r.cajas) || 0;
+    const kg = Number(r.kgs_lts) || 0;
+
+    facturacionTotal += monto;
+    utilidadBruta += utilidad;
+    cajasDespachadas += cajas;
+    totalKilogramos += kg;
+
+    const isoDate = parseCaracasLocalDate(r.fecha) || r.fecha;
+    if (isoDate && isoDate >= '2026-10-01' && isoDate <= '2026-10-31') {
+      if (!dailyMap.has(isoDate)) {
+        dailyMap.set(isoDate, {
+          date: isoDate,
+          ventas: 0,
+          kg: 0,
+          kgFacturado: 0,
+          kgDespachado: 0,
+          cajas: 0,
+          utilidad: 0,
+        });
+      }
+      const d = dailyMap.get(isoDate)!;
+      d.ventas += monto;
+      d.kg += kg;
+      d.kgFacturado += kg;
+      d.kgDespachado += kg;
+      d.cajas += cajas;
+      d.utilidad += utilidad;
+    }
+  }
+
+  facturacionTotal = Math.round(facturacionTotal * 100) / 100;
+  utilidadBruta = Math.round(utilidadBruta * 100) / 100;
+  cajasDespachadas = Math.round(cajasDespachadas * 100) / 100;
+  totalKilogramos = Math.round(totalKilogramos * 100) / 100;
+  const porcentajeUtilidad =
+    facturacionTotal > 0 ? (utilidadBruta / facturacionTotal) * 100 : 0;
+
+  const tendenciaDiaria = Array.from(dailyMap.values()).sort((a, b) =>
+    a.date.localeCompare(b.date)
+  );
+
+  return {
+    periodo: '2026-10',
+    label: 'Octubre 2026',
+    sourceLabel: 'Modo Consulta Histórica: Octubre 2026 (Fuente: Supabase)',
+    facturacionTotal,
+    utilidadBruta,
+    porcentajeUtilidad,
+    cajasDespachadas,
+    totalKilogramos,
+    tendenciaDiaria,
+    rows: octoberRows,
+    totalRegistros: octoberRows.length,
+  };
+}
+
+/**
+ * Función dedicada que obtiene desde Supabase (`history_sales`) el 100% de los registros
+ * del cierre de Octubre 2026 (`fecha >= '2026-10-01'` y `fecha <= '2026-10-31'`)
+ * mediante paginación automática por bloques (`.range(from, to)`), sin truncar jamás en 1.000 filas.
+ */
+export async function fetchHistorialOctubre2026(
+  options: FetchHistorySalesOptions = {}
+): Promise<HistorialOctubre2026Summary> {
+  const octStart = '2026-10-01';
+  const octEnd = '2026-10-31';
+
+  // Si ya existe en IndexedDB el historial completo Enero-Octubre verificado y no se pide forceRefresh,
+  // extraer de inmediato las filas de Octubre 2026 si están completas (> 1,000 filas).
+  if (!options.forceRefresh) {
+    try {
+      const cachedAll = await getCachedHistorySalesRows(DEFAULT_HISTORY_CACHE_KEY);
+      if (cachedAll && Array.isArray(cachedAll.rows) && cachedAll.rows.length > 1000) {
+        const octCached = cachedAll.rows.filter(
+          (r) => r.fecha >= octStart && r.fecha <= octEnd
+        );
+        if (octCached.length > 1000) {
+          return calculateOctober2026SummaryFromRows(octCached);
+        }
+      }
+    } catch {
+      // continuar con la carga paginada dedicada
+    }
+  }
+
+  const loaded = await loadDetailedHistorySalesJanToOct2026({
+    ...options,
+    startDate: octStart,
+    endDate: octEnd,
+  });
+
+  return calculateOctober2026SummaryFromRows(loaded.rows);
+}
+
+/**
  * Convierte las filas aceptadas de la pestaña `Ventas` (`Fecha >= '2026-11-01'`)
  * al mismo contrato `HistorySalesDetailRecord`, cruzando con los catálogos de Productos, Clientes y Supervisores.
  */
@@ -419,8 +598,9 @@ export function convertSheetVentasRowsToDetailRecords(
   }
 ): HistorySalesDetailRecord[] {
   return sheetRows
-    .filter((r) => r.fecha >= '2026-11-01')
+    .filter((r) => isStrictNovember2026Date(r.fecha))
     .map((r, idx) => {
+      const isoFecha = parseCaracasLocalDate(r.fecha) || r.fecha;
       const prodEntry =
         catalogs?.productByCode?.get(r.idArticulo) ||
         catalogs?.productByCode?.get(r.idArticulo.replace(/^0+/, ''));
@@ -445,9 +625,9 @@ export function convertSheetVentasRowsToDetailRecords(
         id: 9000000 + idx + 1,
         numero: r.rowNumber,
         tipo_doc: r.tipoDoc,
-        fecha: r.fecha,
-        mes: r.mes,
-        ano: r.ano,
+        fecha: isoFecha,
+        mes: 'NOVIEMBRE',
+        ano: 2026,
         id_cliente: r.idCliente,
         cliente,
         vendedor: r.vendedor,

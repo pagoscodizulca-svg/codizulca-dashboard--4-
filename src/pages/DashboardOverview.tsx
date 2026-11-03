@@ -16,7 +16,11 @@ import {
   parseVentasSheetCsv,
 } from '../lib/googleSheetsMatrixParser';
 import {
+  calculateOctober2026SummaryFromRows,
   convertSheetVentasRowsToDetailRecords,
+  fetchHistorialOctubre2026,
+  HistorialOctubre2026Summary,
+  isStrictNovember2026Date,
   loadDetailedHistorySalesJanToOct2026,
 } from '../lib/supabaseHistoryLoader';
 import { 
@@ -214,13 +218,28 @@ const ProductTooltip = ({ active, payload, label }: any) => {
 
 export const DashboardOverview: React.FC = () => {
   const [selectedKpi, setSelectedKpi] = useState<{ id: string, label: string } | null>(null);
+  const [periodoActivo, setPeriodoActivo] = useState<'2026-11' | '2026-10'>('2026-11');
+  const [novemberSummary, setNovemberSummary] = useState<{
+    facturacionTotal: number;
+    utilidadBruta: number;
+    porcentajeUtilidad: number;
+    cajasDespachadas: number;
+    totalKilogramos: number;
+    tendenciaDiaria: Array<{ date: string; ventas: number; kg: number; kgFacturado: number; kgDespachado: number }>;
+    isLoading: boolean;
+  }>({
+    facturacionTotal: 0,
+    utilidadBruta: 0,
+    porcentajeUtilidad: 0,
+    cajasDespachadas: 0,
+    totalKilogramos: 0,
+    tendenciaDiaria: [],
+    isLoading: true,
+  });
+  const [historialOctubre2026, setHistorialOctubre2026] = useState<HistorialOctubre2026Summary | null>(null);
   const [kpiData, setKpiData] = useState(() => {
     try {
-      const saved = localStorage.getItem('app_kpi_cache');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        return { ...parsed, isLoading: false };
-      }
+      localStorage.removeItem('app_kpi_cache');
     } catch {
       // ignore
     }
@@ -394,10 +413,10 @@ export const DashboardOverview: React.FC = () => {
   }, []);
 
   const combinedProductData = React.useMemo(() => {
-    const histWithoutDuplicateOct = rawProductData.length > 0
-      ? historicalData.filter(h => !String(h.date || '').startsWith('2026-10'))
+    const histWithoutDuplicateNov = rawProductData.length > 0
+      ? historicalData.filter(h => !String(h.date || '').startsWith('2026-11'))
       : historicalData;
-    return [...rawProductData, ...histWithoutDuplicateOct];
+    return [...rawProductData, ...histWithoutDuplicateNov];
   }, [rawProductData, historicalData]);
 
   const availableSkus = React.useMemo(() => {
@@ -718,30 +737,40 @@ export const DashboardOverview: React.FC = () => {
       }));
       setRawProductData(pArr);
 
-      // 7. Compute default top KPIs and Trend Chart:
-      //    Use November rows (>= 2026-11-01) when present; otherwise use the latest closed month from Supabase (2026-10)
-      const activePeriodRows =
-        novemberDetailRows.length > 0
-          ? novemberDetailRows
-          : janToOctDetailRows.filter((r) => r.fecha.startsWith('2026-10'));
+      // 7. Calcular el Cierre Histórico de Octubre 2026 desde Supabase (`fetchHistorialOctubre2026`)
+      let octSummary = calculateOctober2026SummaryFromRows(janToOctDetailRows);
+      if (octSummary.rows.length === 0) {
+        try {
+          octSummary = await fetchHistorialOctubre2026({ forceRefresh });
+        } catch (octErr) {
+          console.warn('[Sync] Failed dedicated fetchHistorialOctubre2026:', octErr);
+        }
+      }
+      setHistorialOctubre2026(octSummary);
 
-      let facturacion = 0;
-      let utilidad = 0;
-      let cajas = 0;
-      let kg = 0;
-      const trends = new Map<string, { date: string; ventas: number; kg: number; kgFacturado: number; kgDespachado: number }>();
+      // 8. Calcular estrictamente el período activo "Noviembre 2026" (2026-11-01 a 2026-11-30)
+      //    EXCLUYENDO rotundamente cualquier registro de Octubre (2026-10-XX)
+      const strictNovemberRows = novemberDetailRows.filter((r) =>
+        isStrictNovember2026Date(r.fecha)
+      );
 
-      activePeriodRows.forEach((r) => {
-        facturacion += r.monto;
-        utilidad += r.utilidad;
-        cajas += r.cajas;
-        kg += r.kgs_lts;
+      let novFacturacion = 0;
+      let novUtilidad = 0;
+      let novCajas = 0;
+      let novKg = 0;
+      const novTrends = new Map<string, { date: string; ventas: number; kg: number; kgFacturado: number; kgDespachado: number }>();
 
-        if (r.fecha && r.fecha !== 'Sin Fecha') {
-          if (!trends.has(r.fecha)) {
-            trends.set(r.fecha, { date: r.fecha, ventas: 0, kg: 0, kgFacturado: 0, kgDespachado: 0 });
+      strictNovemberRows.forEach((r) => {
+        novFacturacion += r.monto;
+        novUtilidad += r.utilidad;
+        novCajas += r.cajas;
+        novKg += r.kgs_lts;
+
+        if (r.fecha && isStrictNovember2026Date(r.fecha)) {
+          if (!novTrends.has(r.fecha)) {
+            novTrends.set(r.fecha, { date: r.fecha, ventas: 0, kg: 0, kgFacturado: 0, kgDespachado: 0 });
           }
-          const t = trends.get(r.fecha)!;
+          const t = novTrends.get(r.fecha)!;
           t.ventas += r.monto;
           t.kg += r.kgs_lts;
           t.kgFacturado += r.kgs_lts;
@@ -749,19 +778,32 @@ export const DashboardOverview: React.FC = () => {
         }
       });
 
-      if (activePeriodRows.length > 0) {
-        const freshData = { facturacion, utilidad, cajas, kg, isLoading: false };
-        setKpiData(freshData);
-        const sortedTrends = Array.from(trends.values()).sort((a, b) => a.date.localeCompare(b.date));
-        setTrendData(sortedTrends);
-        try {
-          localStorage.setItem('app_kpi_cache', JSON.stringify({ facturacion, utilidad, cajas, kg }));
-        } catch {
-          // ignore
-        }
-      } else {
-        setKpiData(prev => ({ ...prev, isLoading: false }));
-      }
+      novFacturacion = Math.round(novFacturacion * 100) / 100;
+      novUtilidad = Math.round(novUtilidad * 100) / 100;
+      novCajas = Math.round(novCajas * 100) / 100;
+      novKg = Math.round(novKg * 100) / 100;
+      const novPctUtilidad = novFacturacion > 0 ? (novUtilidad / novFacturacion) * 100 : 0;
+      const sortedNovTrends = Array.from(novTrends.values()).sort((a, b) => a.date.localeCompare(b.date));
+
+      setNovemberSummary({
+        facturacionTotal: novFacturacion,
+        utilidadBruta: novUtilidad,
+        porcentajeUtilidad: novPctUtilidad,
+        cajasDespachadas: novCajas,
+        totalKilogramos: novKg,
+        tendenciaDiaria: sortedNovTrends,
+        isLoading: false,
+      });
+
+      // Si hay 0 registros en Noviembre 2026, abre limpiamente en 0,00 sin caer jamás en datos de Octubre
+      setKpiData({
+        facturacion: novFacturacion,
+        utilidad: novUtilidad,
+        cajas: novCajas,
+        kg: novKg,
+        isLoading: false,
+      });
+      setTrendData(sortedNovTrends);
 
       if (forceRefresh) {
         const nowStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -1048,7 +1090,7 @@ export const DashboardOverview: React.FC = () => {
     return result;
   }, [combinedProductData, skuFilter, showTop5, timeView, selectedTimeGroups, availableGroups, selectedSkus, productSortMetric, appliedFilters]);
 
-  // Dynamically filtered KPIs reflecting active filters (dates, vendor, supervisor/zone, client/search, time groups)
+  // Dynamically filtered KPIs reflecting active period ('2026-11' vs '2026-10') and active filters
   const activeKpis = React.useMemo(() => {
     let filtered = rawFacturacionRows;
 
@@ -1072,6 +1114,12 @@ export const DashboardOverview: React.FC = () => {
       } else {
         filtered = filtered.filter(r => selectedTimeGroups.includes(r.fecha.slice(0, 7)));
       }
+    } else if (periodoActivo === '2026-11') {
+      // Aislar estrictamente las filas de Noviembre 2026 (2026-11-01 a 2026-11-30)
+      filtered = filtered.filter(r => isStrictNovember2026Date(r.fecha));
+    } else {
+      // Modo Consulta Histórica: Octubre 2026 (2026-10-01 a 2026-10-31)
+      filtered = filtered.filter(r => r.fecha >= '2026-10-01' && r.fecha <= '2026-10-31');
     }
 
     if (hasVendor) {
@@ -1111,14 +1159,25 @@ export const DashboardOverview: React.FC = () => {
     const isFiltered = hasDateRange || hasVendor || hasZoneOrSupervisor || hasClient || hasSearch || hasTimeGroups;
 
     if (!isFiltered) {
+      if (periodoActivo === '2026-10' && historialOctubre2026) {
+        return {
+          facturacion: historialOctubre2026.facturacionTotal,
+          utilidad: historialOctubre2026.utilidadBruta,
+          cajas: historialOctubre2026.cajasDespachadas,
+          kg: historialOctubre2026.totalKilogramos,
+          isFiltered: false,
+          count: historialOctubre2026.totalRegistros,
+          isLoading: isHistoricalLoading && historialOctubre2026.totalRegistros === 0,
+        };
+      }
       return {
-        facturacion: kpiData.facturacion,
-        utilidad: kpiData.utilidad,
-        cajas: kpiData.cajas,
-        kg: kpiData.kg,
+        facturacion: novemberSummary.facturacionTotal,
+        utilidad: novemberSummary.utilidadBruta,
+        cajas: novemberSummary.cajasDespachadas,
+        kg: novemberSummary.totalKilogramos,
         isFiltered: false,
-        count: rawFacturacionRows.length,
-        isLoading: kpiData.isLoading
+        count: filtered.length,
+        isLoading: novemberSummary.isLoading,
       };
     }
 
@@ -1141,24 +1200,38 @@ export const DashboardOverview: React.FC = () => {
       kg,
       isFiltered: true,
       count: filtered.length,
-      isLoading: kpiData.isLoading
+      isLoading: novemberSummary.isLoading
     };
-  }, [rawFacturacionRows, appliedFilters, selectedTimeGroups, timeView, kpiData]);
+  }, [rawFacturacionRows, appliedFilters, selectedTimeGroups, timeView, periodoActivo, novemberSummary, historialOctubre2026, isHistoricalLoading]);
 
-  // Dynamically filtered trend chart data
+  // Dynamically filtered trend chart data strictly isolated by periodoActivo
   const activeTrendData = React.useMemo(() => {
-    let list = trendData;
+    let list =
+      periodoActivo === '2026-10'
+        ? historialOctubre2026?.tendenciaDiaria || []
+        : novemberSummary.tendenciaDiaria.filter((t) => isStrictNovember2026Date(t.date));
+
     if (appliedFilters.startDate || appliedFilters.endDate) {
-      list = list.filter(t => {
-        if (appliedFilters.startDate && t.date < appliedFilters.startDate) return false;
-        if (appliedFilters.endDate && t.date > appliedFilters.endDate) return false;
-        return true;
+      // Si el usuario aplica un rango de fechas personalizado, construir tendencia sobre las filas filtradas
+      const customTrends = new Map<string, { date: string; ventas: number; kg: number; kgFacturado: number; kgDespachado: number }>();
+      rawFacturacionRows.forEach((r) => {
+        if (appliedFilters.startDate && r.fecha < appliedFilters.startDate) return;
+        if (appliedFilters.endDate && r.fecha > appliedFilters.endDate) return;
+        if (!customTrends.has(r.fecha)) {
+          customTrends.set(r.fecha, { date: r.fecha, ventas: 0, kg: 0, kgFacturado: 0, kgDespachado: 0 });
+        }
+        const pt = customTrends.get(r.fecha)!;
+        pt.ventas += r.monto;
+        pt.kg += r.kg;
+        pt.kgFacturado += r.kg;
+        pt.kgDespachado += r.kg;
       });
+      list = Array.from(customTrends.values()).sort((a, b) => a.date.localeCompare(b.date));
     } else if (selectedTimeGroups.length > 0 && timeView === 'day') {
       list = list.filter(t => selectedTimeGroups.includes(t.date));
     }
     return list;
-  }, [trendData, appliedFilters, selectedTimeGroups, timeView]);
+  }, [periodoActivo, novemberSummary, historialOctubre2026, rawFacturacionRows, appliedFilters, selectedTimeGroups, timeView]);
   
   const monthComparisonData = React.useMemo(() => {
     if (selectedTimeGroups.length !== 2) return null;
@@ -1480,6 +1553,10 @@ export const DashboardOverview: React.FC = () => {
         productMap.get(p.idArt)!.value += amt;
       });
 
+      if (mKey === '2026-10' && historialOctubre2026 && historialOctubre2026.facturacionTotal > 0) {
+        totalMonthSales = historialOctubre2026.facturacionTotal;
+      }
+
       const sorted = Array.from(productMap.values())
         .sort((a, b) => b.value - a.value)
         .slice(0, 3);
@@ -1499,7 +1576,7 @@ export const DashboardOverview: React.FC = () => {
         products
       };
     });
-  }, [topProductsMonthFilters, combinedProductData]);
+  }, [topProductsMonthFilters, combinedProductData, historialOctubre2026]);
 
   const topProductsPieData = React.useMemo(() => {
     return monthChartsData.length > 0 ? monthChartsData[0].products : [];
@@ -1566,32 +1643,77 @@ export const DashboardOverview: React.FC = () => {
     <div className="space-y-6 animate-in fade-in-50 duration-500 font-sans text-zinc-100 max-w-[1600px] mx-auto pb-10">
       
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl sm:text-2xl md:text-3xl font-black tracking-widest uppercase drop-shadow-[0_0_15px_rgba(255,255,255,0.2)] flex flex-wrap items-center gap-1.5 md:gap-2">
-            <span className="text-white">DASHBOARD</span>
-            <span className="text-red-600 drop-shadow-[0_0_15px_rgba(220,38,38,0.5)]">GERENCIA</span>
-          </h2>
+          <div className="flex flex-wrap items-center gap-2.5">
+            <h2 className="text-xl sm:text-2xl md:text-3xl font-black tracking-widest uppercase drop-shadow-[0_0_15px_rgba(255,255,255,0.2)] flex flex-wrap items-center gap-1.5 md:gap-2">
+              <span className="text-white">DASHBOARD</span>
+              <span className="text-red-600 drop-shadow-[0_0_15px_rgba(220,38,38,0.5)]">GERENCIA</span>
+            </h2>
+            {periodoActivo === '2026-11' ? (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-950/60 border border-emerald-500/40 text-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.2)]">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                Noviembre 2026 (Mes en Curso)
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-950/60 border border-amber-500/40 text-amber-300 shadow-[0_0_12px_rgba(245,158,11,0.2)]">
+                <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                Modo Consulta Histórica: Octubre 2026 (Fuente: Supabase)
+              </span>
+            )}
+          </div>
           <p className="text-sm text-zinc-500 mt-1">
-            Dashboard consolidado de métricas operativas y de ventas sincronizado con Google Sheets.
+            {periodoActivo === '2026-11'
+              ? 'Período activo en curso (2026-11-01 al 2026-11-30) sincronizado con Google Sheets, aislado del cierre de Octubre.'
+              : 'Visualizando el cierre consolidado completo de Octubre 2026 (2026-10-01 al 2026-10-31) almacenado en Supabase.'}
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={handleManualSyncSheets}
-          disabled={isSyncingSheets}
-          className="inline-flex items-center gap-2 self-start sm:self-auto px-3.5 py-2 bg-zinc-900 hover:bg-zinc-800 text-zinc-200 border border-zinc-700/80 rounded-lg text-xs font-semibold tracking-wide transition-all shadow-sm active:scale-95 disabled:opacity-50 cursor-pointer"
-          title="Actualizar datos desde Google Sheets en tiempo real"
-        >
-          <RefreshCw className={`w-3.5 h-3.5 text-red-500 ${isSyncingSheets ? 'animate-spin' : ''}`} />
-          <span>{isSyncingSheets ? 'Sincronizando...' : 'Sincronizar Google Sheets'}</span>
-          {lastSheetSync && (
-            <span className="text-[10px] text-zinc-400 font-normal ml-1">
-              ({lastSheetSync})
-            </span>
-          )}
-        </button>
+        <div className="flex flex-wrap items-center gap-2.5 self-start lg:self-auto">
+          {/* Selector / Conmutador Visual de Período en la UI */}
+          <div className="inline-flex items-center bg-zinc-950 border border-zinc-800 rounded-lg p-1 gap-1">
+            <button
+              type="button"
+              onClick={() => setPeriodoActivo('2026-11')}
+              className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all cursor-pointer ${
+                periodoActivo === '2026-11'
+                  ? 'bg-emerald-600 text-white shadow-[0_0_12px_rgba(16,185,129,0.35)]'
+                  : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900'
+              }`}
+              title="Ver métricas activas de Noviembre 2026 (Mes en Curso)"
+            >
+              Noviembre 2026 (Mes en Curso)
+            </button>
+            <button
+              type="button"
+              onClick={() => setPeriodoActivo('2026-10')}
+              className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all cursor-pointer ${
+                periodoActivo === '2026-10'
+                  ? 'bg-amber-600 text-white shadow-[0_0_12px_rgba(245,158,11,0.35)]'
+                  : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900'
+              }`}
+              title="Consultar el cierre histórico de Octubre 2026 desde Supabase"
+            >
+              Octubre 2026 (Historial Supabase)
+            </button>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleManualSyncSheets}
+            disabled={isSyncingSheets}
+            className="inline-flex items-center gap-2 px-3.5 py-2 bg-zinc-900 hover:bg-zinc-800 text-zinc-200 border border-zinc-700/80 rounded-lg text-xs font-semibold tracking-wide transition-all shadow-sm active:scale-95 disabled:opacity-50 cursor-pointer"
+            title="Actualizar datos desde Google Sheets y Supabase en tiempo real"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 text-red-500 ${isSyncingSheets ? 'animate-spin' : ''}`} />
+            <span>{isSyncingSheets ? 'Sincronizando...' : 'Sincronizar Google Sheets'}</span>
+            {lastSheetSync && (
+              <span className="text-[10px] text-zinc-400 font-normal ml-1">
+                ({lastSheetSync})
+              </span>
+            )}
+          </button>
+        </div>
       </div>
 
       {/* Sync Notification Banner */}
@@ -1729,39 +1851,73 @@ export const DashboardOverview: React.FC = () => {
         <GapAnalysisPanel
           kpiId={selectedKpi.id}
           kpiLabel={selectedKpi.label}
-          octoberKpis={{
-            facturacion: kpiData.facturacion,
-            utilidad: kpiData.utilidad,
-            cajas: kpiData.cajas,
-            kg: kpiData.kg,
+          octoberKpis={
+            historialOctubre2026
+              ? {
+                  facturacion: historialOctubre2026.facturacionTotal,
+                  utilidad: historialOctubre2026.utilidadBruta,
+                  cajas: historialOctubre2026.cajasDespachadas,
+                  kg: historialOctubre2026.totalKilogramos,
+                }
+              : undefined
+          }
+          novemberKpis={{
+            facturacion: novemberSummary.facturacionTotal,
+            utilidad: novemberSummary.utilidadBruta,
+            cajas: novemberSummary.cajasDespachadas,
+            kg: novemberSummary.totalKilogramos,
           }}
+          onConsultOctober2026={() => setPeriodoActivo('2026-10')}
           syncKey={lastSheetSync}
         />
       )}
 
       {/* Chart 1: Tendencia por Fecha */}
       <div className="bg-zinc-950/60 border border-white/5 rounded-xl p-6 shadow-[0_4px_20px_rgba(0,0,0,0.5)]">
-        <h3 className="text-sm font-bold text-white mb-6 uppercase tracking-wider">
-          Tendencia por Fecha (Ventas vs Kilogramos)
-        </h3>
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-6">
+          <h3 className="text-sm font-bold text-white uppercase tracking-wider">
+            Tendencia por Fecha (Ventas vs Kilogramos)
+          </h3>
+          {periodoActivo === '2026-11' ? (
+            <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-emerald-950/50 border border-emerald-500/30 text-emerald-400">
+              Noviembre 2026 (2026-11-01 al 2026-11-30)
+            </span>
+          ) : (
+            <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-amber-950/50 border border-amber-500/30 text-amber-300">
+              Modo Consulta Histórica: Octubre 2026 (Fuente: Supabase)
+            </span>
+          )}
+        </div>
         <div className="h-[300px] w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={activeTrendData} margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
-              <defs>
-                <linearGradient id="colorVentas" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.8} />
-                  <stop offset="100%" stopColor="#1d4ed8" stopOpacity={0.2} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#333" />
-              <XAxis dataKey="date" tick={{ fill: '#71717a', fontSize: 12 }} axisLine={false} tickLine={false} dy={10} />
-              <YAxis yAxisId="left" tickFormatter={(v) => v >= 1000 ? `$${(v/1000).toFixed(1)}k` : `$${v}`} tick={{ fill: '#71717a', fontSize: 12 }} axisLine={false} tickLine={false} dx={-10} />
-              <YAxis yAxisId="right" orientation="right" tickFormatter={(v) => v >= 1000 ? `${(v/1000).toFixed(1)}k` : v} tick={{ fill: '#71717a', fontSize: 12 }} axisLine={false} tickLine={false} dx={10} />
-              <Tooltip content={<CustomTooltip />} />
-              <Bar yAxisId="left" dataKey="ventas" fill="url(#colorVentas)" barSize={30} radius={[6, 6, 0, 0]} />
-              <Line yAxisId="right" type="monotone" dataKey="kg" stroke="#dc2626" strokeWidth={3} dot={{ r: 4, fill: '#dc2626', strokeWidth: 2, stroke: '#000' }} />
-            </ComposedChart>
-          </ResponsiveContainer>
+          {activeTrendData.length > 0 ? (
+            <ResponsiveContainer width="100%" height="100%">
+              <ComposedChart data={activeTrendData} margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
+                <defs>
+                  <linearGradient id="colorVentas" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.8} />
+                    <stop offset="100%" stopColor="#1d4ed8" stopOpacity={0.2} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#333" />
+                <XAxis dataKey="date" tick={{ fill: '#71717a', fontSize: 12 }} axisLine={false} tickLine={false} dy={10} />
+                <YAxis yAxisId="left" tickFormatter={(v) => v >= 1000 ? `$${(v/1000).toFixed(1)}k` : `$${v}`} tick={{ fill: '#71717a', fontSize: 12 }} axisLine={false} tickLine={false} dx={-10} />
+                <YAxis yAxisId="right" orientation="right" tickFormatter={(v) => v >= 1000 ? `${(v/1000).toFixed(1)}k` : v} tick={{ fill: '#71717a', fontSize: 12 }} axisLine={false} tickLine={false} dx={10} />
+                <Tooltip content={<CustomTooltip />} />
+                <Bar yAxisId="left" dataKey="ventas" fill="url(#colorVentas)" barSize={30} radius={[6, 6, 0, 0]} />
+                <Line yAxisId="right" type="monotone" dataKey="kg" stroke="#dc2626" strokeWidth={3} dot={{ r: 4, fill: '#dc2626', strokeWidth: 2, stroke: '#000' }} />
+              </ComposedChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="h-full w-full flex flex-col items-center justify-center border border-dashed border-zinc-800 rounded-lg bg-black/30 p-6 text-center">
+              <CalendarIcon className="w-8 h-8 text-emerald-500/70 mb-2.5" />
+              <p className="text-sm font-bold text-zinc-200">
+                Noviembre 2026 aperturado - Esperando primeros registros del mes
+              </p>
+              <p className="text-xs text-zinc-500 mt-1">
+                Rango activo: 2026-11-01 al 2026-11-30 • Sin mezclar datos de Octubre 2026
+              </p>
+            </div>
+          )}
         </div>
         <div className="flex items-center justify-center gap-6 mt-4">
           <div className="flex items-center gap-2">
@@ -2544,13 +2700,25 @@ export const DashboardOverview: React.FC = () => {
               const isMultiMonth = monthChartsData.length > 1;
               const isThreePlus = monthChartsData.length >= 3;
 
+              const isOctoberCard = m.monthKey === '2026-10';
+
               return (
                 <div 
                   key={m.monthKey} 
-                  className="bg-zinc-950/70 border border-white/10 rounded-xl p-4 sm:p-5 hover:border-red-500/30 transition-all flex flex-col justify-between overflow-hidden shadow-xl"
+                  onClick={
+                    isOctoberCard
+                      ? () => {
+                          setPeriodoActivo('2026-10');
+                          window.scrollTo({ top: 0, behavior: 'smooth' });
+                        }
+                      : undefined
+                  }
+                  className={`bg-zinc-950/70 border border-white/10 rounded-xl p-4 sm:p-5 hover:border-red-500/30 transition-all flex flex-col justify-between overflow-hidden shadow-xl ${
+                    isOctoberCard ? 'cursor-pointer ring-1 ring-amber-500/20 hover:ring-amber-500/50' : ''
+                  }`}
                 >
                   {/* Month Card Header */}
-                  <div className="pb-3 mb-3 border-b border-white/5 flex items-center justify-between gap-2">
+                  <div className="pb-3 mb-3 border-b border-white/5 flex flex-wrap items-center justify-between gap-2">
                     <div className="flex items-center gap-2 min-w-0">
                       <span className="w-2 h-2 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.6)] shrink-0" />
                       <h4 
@@ -2559,6 +2727,16 @@ export const DashboardOverview: React.FC = () => {
                       >
                         {m.monthLabel}
                       </h4>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-black font-mono text-zinc-100 bg-white/5 border border-white/10 px-2 py-0.5 rounded">
+                        {formatUSD(m.totalMonthSales)}
+                      </span>
+                      {isOctoberCard && (
+                        <span className="text-[10px] font-bold text-amber-300 bg-amber-950/60 border border-amber-500/30 px-2 py-0.5 rounded">
+                          Ver Cierre Supabase
+                        </span>
+                      )}
                     </div>
                   </div>
 

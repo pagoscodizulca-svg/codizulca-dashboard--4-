@@ -27,7 +27,11 @@ import {
   HISTORY_SALES_START_DATE,
   HISTORY_SALES_TABLE,
   POSTGREST_PAGE_SIZE,
+  calculateOctober2026SummaryFromRows,
   fetchAllHistorySalesPaginatedFromSupabase,
+  fetchHistorialOctubre2026,
+  filterStrictNovember2026Rows,
+  isStrictNovember2026Date,
   loadDetailedHistorySalesJanToOct2026,
 } from '../lib/supabaseHistoryLoader';
 
@@ -291,6 +295,100 @@ describe('Data Sync & Accounting Reconciliation (Supabase history_sales + Google
       expect(loadedFromCache.source).toBe('indexeddb');
       expect(loadedFromCache.rows).toHaveLength(2500);
       expect(loadedFromCache.rows[0].vendedor).toBe('OSCAR ORTIZ- LA COSTA');
+    });
+
+    it('strictly isolates Noviembre 2026 (2026-11-01..2026-11-30) and computes exact Octubre 2026 closing via fetchHistorialOctubre2026', async () => {
+      // 1. Validate strict November 2026 date normalization and filtering
+      expect(isStrictNovember2026Date('2026-11-01')).toBe(true);
+      expect(isStrictNovember2026Date('2026-11-02 0:00:00')).toBe(true);
+      expect(isStrictNovember2026Date('15/11/2026')).toBe(true);
+      expect(isStrictNovember2026Date('2026-10-31')).toBe(false);
+      expect(isStrictNovember2026Date('31/10/2026')).toBe(false);
+
+      const mixedRows = [
+        { fecha: '2026-10-31', monto: 5000 },
+        { fecha: '02/11/2026', monto: 1200 },
+        { fecha: '2026-11-03 0:00:00', monto: 800 },
+      ];
+      const novOnly = filterStrictNovember2026Rows(mixedRows);
+      expect(novOnly).toHaveLength(2);
+      expect(novOnly.map((r) => r.fecha)).toEqual(['2026-11-02', '2026-11-03']);
+
+      // 2. Validate calculateOctober2026SummaryFromRows & fetchHistorialOctubre2026
+      const sampleHistoryRows: any[] = [
+        {
+          id: 1,
+          tipo_doc: 'FA',
+          fecha: '2026-10-10',
+          mes: 'OCTUBRE',
+          ano: 2026,
+          id_cliente: '100',
+          cliente: 'CLIENTE A',
+          vendedor: 'ELISA SOLER',
+          id_articulo: '1478',
+          articulo: 'MORTADELA ESPECIAL TAPARA 1KG',
+          cajas: 100,
+          unidades: 1000,
+          kgs_lts: 1000,
+          monto: 2000,
+          costo: 1500,
+          utilidad: 500,
+          pct_utilidad: 25,
+          source: 'supabase_history_sales',
+        },
+        {
+          id: 2,
+          tipo_doc: 'DV',
+          fecha: '2026-10-15',
+          mes: 'OCTUBRE',
+          ano: 2026,
+          id_cliente: '101',
+          cliente: 'CLIENTE B',
+          vendedor: 'ELISA SOLER',
+          id_articulo: '28',
+          articulo: 'HUEVOS',
+          cajas: -10,
+          unidades: -120,
+          kgs_lts: -200,
+          monto: -400,
+          costo: -300,
+          utilidad: -100,
+          pct_utilidad: 25,
+          source: 'supabase_history_sales',
+        },
+        {
+          id: 3,
+          tipo_doc: 'FA',
+          fecha: '2026-11-02',
+          mes: 'NOVIEMBRE',
+          ano: 2026,
+          id_cliente: '186',
+          cliente: 'CLIENTE C',
+          vendedor: 'ELISA SOLER',
+          id_articulo: '28',
+          articulo: 'HUEVOS',
+          cajas: 50,
+          unidades: 600,
+          kgs_lts: 1140,
+          monto: 3000,
+          costo: 2802.03,
+          utilidad: 197.97,
+          pct_utilidad: 7.07,
+          source: 'google_sheets_november',
+        },
+      ];
+
+      const summary = calculateOctober2026SummaryFromRows(sampleHistoryRows);
+      expect(summary.periodo).toBe('2026-10');
+      expect(summary.sourceLabel).toBe('Modo Consulta Histórica: Octubre 2026 (Fuente: Supabase)');
+      expect(summary.totalRegistros).toBe(2); // Excludes the 2026-11-02 row
+      expect(summary.facturacionTotal).toBe(1600);
+      expect(summary.utilidadBruta).toBe(400);
+      expect(summary.porcentajeUtilidad).toBeCloseTo(25, 2);
+      expect(summary.cajasDespachadas).toBe(90);
+      expect(summary.totalKilogramos).toBe(800);
+      expect(summary.tendenciaDiaria).toHaveLength(2);
+      expect(summary.tendenciaDiaria.map((d) => d.date)).toEqual(['2026-10-10', '2026-10-15']);
     });
   });
 });
