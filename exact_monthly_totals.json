@@ -106,17 +106,5 @@
     "totalNeto": 4098138.4000000064,
     "totalCajas": 563544.4000000012,
     "totalKgs": 1474745.7499999998
-  },
-  "2026 OCTUBRE": {
-    "ano": 2026,
-    "mes": "OCTUBRE",
-    "totalRows": 15148,
-    "faRows": 13532,
-    "dvRows": 1616,
-    "totalFA": 3186979.18,
-    "totalDV": -172470.11,
-    "totalNeto": 3014509.07,
-    "totalCajas": 374392,
-    "totalKgs": 1157026.11
   }
 }

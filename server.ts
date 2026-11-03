@@ -91,13 +91,21 @@ async function startServer() {
   try {
     const aggFile = path.join(process.cwd(), 'historical_sales_aggregated.json');
     if (fs.existsSync(aggFile)) {
-      historicalAllCache = JSON.parse(fs.readFileSync(aggFile, 'utf8'));
+      const rawAgg = JSON.parse(fs.readFileSync(aggFile, 'utf8'));
+      // Excluir cualquier snapshot local truncado de OCTUBRE (3,014,509.07); Octubre 2026 se lee exclusivamente de Supabase en vivo
+      historicalAllCache = Array.isArray(rawAgg)
+        ? rawAgg.filter((r: any) => String(r.mes || '').trim().toUpperCase() !== 'OCTUBRE')
+        : [];
       historicalAllCacheTime = Date.now();
-      console.log(`[Historical Sales] Loaded ${historicalAllCache?.length} aggregated historical records from disk.`);
+      console.log(`[Historical Sales] Loaded ${historicalAllCache?.length} aggregated historical records (Jan-Sep) from disk.`);
     }
     const totalsFile = path.join(process.cwd(), 'exact_monthly_totals.json');
     if (fs.existsSync(totalsFile)) {
-      monthlyTotalsCache = JSON.parse(fs.readFileSync(totalsFile, 'utf8'));
+      const rawTotals = JSON.parse(fs.readFileSync(totalsFile, 'utf8'));
+      if (rawTotals && typeof rawTotals === 'object') {
+        delete rawTotals['2026 OCTUBRE'];
+      }
+      monthlyTotalsCache = rawTotals;
       console.log(`[Historical Sales] Loaded exact monthly totals from disk.`);
     }
   } catch (e) {
@@ -278,42 +286,169 @@ async function startServer() {
       }
     }
 
-    // 2. Octubre 2026 fila por fila (15.148 renglones reales con cliente, vendedor, artículo, cajas, kgs_lts, monto, utilidad)
-    const octFile = path.join(process.cwd(), 'october_sales_rows.json');
-    if (fs.existsSync(octFile)) {
-      try {
-        const octRaw: any[] = JSON.parse(fs.readFileSync(octFile, 'utf8'));
-        for (const r of octRaw) {
-          rows.push({
-            id: Number(r.id) || seqId++,
-            numero: Number(r.numero) || 0,
-            tipo_doc: r.tipo_doc === 'DV' || Number(r.monto) < 0 ? 'DV' : 'FA',
-            fecha: String(r.fecha || '2026-10-01').slice(0, 10),
-            mes: String(r.mes || 'OCTUBRE').trim().toUpperCase(),
-            ano: Number(r.ano) || 2026,
-            id_cliente: Number(r.id_cliente) || 0,
-            cliente: String(r.cliente || '').trim(),
-            id_vendedor: Number(r.id_vendedor) || 0,
-            vendedor: String(r.vendedor || '').trim(),
-            id_articulo: Number(r.id_articulo) || 0,
-            articulo: String(r.articulo || '').trim(),
-            cajas: Number(r.cajas) || 0,
-            unidades: Number(r.unidades) || 0,
-            kgs_lts: Number(r.kgs_lts) || 0,
-            monto: Number(r.monto) || 0,
-            costo: Number(r.costo) || 0,
-            utilidad: Number(r.utilidad) || 0,
-          });
-        }
-      } catch (e) {
-        console.warn('[DetailedHistory] Error reading october_sales_rows.json:', e);
-      }
-    }
+    // Nota de Integridad (Paso 3): Octubre 2026 jamás se carga desde el snapshot local truncado
+    // `october_sales_rows.json` ($3,014,509.07); se consulta exclusivamente en vivo desde Supabase.
 
     rows.sort((a, b) => Number(a.id) - Number(b.id));
     detailedHistoryRowsMemoryCache = rows;
     return rows;
   };
+
+  app.get('/api/history-sales/october-2026', async (_req, res) => {
+    try {
+      const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || DEFAULT_SUPABASE_URL;
+      const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || DEFAULT_SUPABASE_KEY;
+      const limit = 1000;
+      const allRawRows: any[] = [];
+      let sourceTable = 'history_sales';
+
+      if (supabaseUrl && supabaseKey) {
+        try {
+          const supabase = createClient(supabaseUrl.replace('/rest/v1/', ''), supabaseKey);
+
+          // 1. Consultar por rango de fecha 2026-10-01 .. 2026-10-31 con paginación .range(from, to)
+          const { count: dateCount, error: dateCountErr } = await supabase
+            .from('history_sales')
+            .select('*', { count: 'exact', head: true })
+            .gte('fecha', '2026-10-01')
+            .lte('fecha', '2026-10-31');
+
+          if (!dateCountErr && dateCount && dateCount > 0) {
+            const totalPages = Math.ceil(dateCount / limit);
+            for (let page = 0; page < totalPages; page++) {
+              const from = page * limit;
+              const to = from + limit - 1;
+              const { data, error } = await supabase
+                .from('history_sales')
+                .select('*')
+                .gte('fecha', '2026-10-01')
+                .lte('fecha', '2026-10-31')
+                .order('id', { ascending: true })
+                .range(from, to);
+              if (!error && Array.isArray(data)) {
+                allRawRows.push(...data);
+              }
+            }
+          }
+
+          // 2. Si por columna `fecha` dio 0, verificar por `ano = 2026` y `mes = 'OCTUBRE'` en `history_sales`
+          if (allRawRows.length === 0) {
+            const { count: mesCount, error: mesCountErr } = await supabase
+              .from('history_sales')
+              .select('*', { count: 'exact', head: true })
+              .eq('ano', 2026)
+              .eq('mes', 'OCTUBRE');
+
+            if (!mesCountErr && mesCount && mesCount > 0) {
+              const totalPages = Math.ceil(mesCount / limit);
+              for (let page = 0; page < totalPages; page++) {
+                const from = page * limit;
+                const to = from + limit - 1;
+                const { data, error } = await supabase
+                  .from('history_sales')
+                  .select('*')
+                  .eq('ano', 2026)
+                  .eq('mes', 'OCTUBRE')
+                  .order('id', { ascending: true })
+                  .range(from, to);
+                if (!error && Array.isArray(data)) {
+                  allRawRows.push(...data);
+                }
+              }
+            }
+          }
+        } catch (supErr) {
+          console.warn('[October 2026 Supabase] Error querying history_sales:', supErr);
+        }
+      }
+
+      // 3. Si history_sales tiene 0 filas, verificar `ventas_historial` en GERENCIA_FDV_SUPABASE_URL para ano=2026, mes=10
+      if (allRawRows.length === 0) {
+        const gerenciaUrl =
+          process.env.GERENCIA_SUPABASE_URL ||
+          process.env.VITE_GERENCIA_SUPABASE_URL ||
+          'https://nudltbgyewyiklqdyujk.supabase.co';
+        const gerenciaKey =
+          process.env.GERENCIA_SUPABASE_ANON_KEY ||
+          process.env.VITE_GERENCIA_SUPABASE_ANON_KEY ||
+          'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im51ZGx0Ymd5ZXd5aWtscWR5dWprIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MTgzMDA3OCwiZXhwIjoyMTA3NDA2MDc4fQ.k92vdZiuVkTzAWNK8Fq71m1Xi_MoWtpx_eRQcZTw1cA';
+
+        try {
+          const gerenciaSb = createClient(gerenciaUrl.replace('/rest/v1/', ''), gerenciaKey);
+          const { count: vhCount, error: vhErr } = await gerenciaSb
+            .from('ventas_historial')
+            .select('*', { count: 'exact', head: true })
+            .eq('ano', 2026)
+            .eq('mes', 10);
+
+          if (!vhErr && vhCount && vhCount > 0) {
+            sourceTable = 'ventas_historial';
+            const totalPages = Math.ceil(vhCount / limit);
+            for (let page = 0; page < totalPages; page++) {
+              const from = page * limit;
+              const to = from + limit - 1;
+              const { data, error } = await gerenciaSb
+                .from('ventas_historial')
+                .select('*')
+                .eq('ano', 2026)
+                .eq('mes', 10)
+                .range(from, to);
+              if (!error && Array.isArray(data)) {
+                allRawRows.push(
+                  ...data.map((r: any, idx: number) => ({
+                    ...r,
+                    id: from + idx + 1,
+                    fecha: '2026-10-01',
+                    mes: 'OCTUBRE',
+                    ano: 2026,
+                    kgs_lts: r.kgs ?? r.kgs_lts ?? 0,
+                  }))
+                );
+              }
+            }
+          }
+        } catch (gerErr) {
+          console.warn('[October 2026 Supabase] Error querying ventas_historial:', gerErr);
+        }
+      }
+
+      // Filtro de filas basura en el backend (excluye TOTAL / SUBTOTAL / nulos)
+      let garbageRowsFiltered = 0;
+      const cleanRows = allRawRows.filter((r: any) => {
+        if (!r || typeof r !== 'object') {
+          garbageRowsFiltered++;
+          return false;
+        }
+        const cli = String(r.cliente ?? r.id_cliente ?? '').trim();
+        const ven = String(r.vendedor ?? r.id_vendedor ?? '').trim();
+        const art = String(r.articulo ?? r.id_articulo ?? '').trim();
+        if (
+          !cli ||
+          !ven ||
+          !art ||
+          /\b(SUB)?TOTAL\b/i.test(cli) ||
+          /\b(SUB)?TOTAL\b/i.test(ven) ||
+          /\b(SUB)?TOTAL\b/i.test(art)
+        ) {
+          garbageRowsFiltered++;
+          return false;
+        }
+        return true;
+      });
+
+      return res.json({
+        rows: cleanRows,
+        sourceTable,
+        rawRowsCount: allRawRows.length,
+        validRowsCount: cleanRows.length,
+        garbageRowsFiltered,
+        source: 'supabase',
+      });
+    } catch (err: any) {
+      console.error('Error in /api/history-sales/october-2026:', err);
+      res.status(500).json({ error: err.message });
+    }
+  });
 
   app.get('/api/history-sales/detailed-page', async (req, res) => {
     try {

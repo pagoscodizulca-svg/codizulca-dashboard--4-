@@ -31,6 +31,7 @@ import {
   fetchAllHistorySalesPaginatedFromSupabase,
   fetchHistorialOctubre2026,
   filterStrictNovember2026Rows,
+  isGarbageHistorySalesRow,
   isStrictNovember2026Date,
   loadDetailedHistorySalesJanToOct2026,
 } from '../lib/supabaseHistoryLoader';
@@ -378,10 +379,66 @@ describe('Data Sync & Accounting Reconciliation (Supabase history_sales + Google
         },
       ];
 
-      const summary = calculateOctober2026SummaryFromRows(sampleHistoryRows);
+      const summary = calculateOctober2026SummaryFromRows([
+        ...sampleHistoryRows,
+        // Duplicate of row 1 (should be deduplicated)
+        { ...sampleHistoryRows[0], id: 999 },
+        // Garbage row: TOTAL summary row (should be excluded)
+        {
+          id: 1000,
+          tipo_doc: 'FA',
+          fecha: '2026-10-31',
+          mes: 'OCTUBRE',
+          ano: 2026,
+          id_cliente: 'TOTAL',
+          cliente: 'TOTAL GENERAL OCTUBRE',
+          vendedor: 'ELISA SOLER',
+          id_articulo: '1478',
+          articulo: 'SUBTOTAL ARTICULO',
+          cajas: 5000,
+          unidades: 50000,
+          kgs_lts: 50000,
+          monto: 3014509.07,
+          costo: 2000000,
+          utilidad: 1014509.07,
+          pct_utilidad: 33.65,
+          source: 'supabase_history_sales',
+        },
+        // Garbage row: empty seller/article (should be excluded)
+        {
+          id: 1001,
+          tipo_doc: 'FA',
+          fecha: '2026-10-20',
+          mes: 'OCTUBRE',
+          ano: 2026,
+          id_cliente: '',
+          cliente: '',
+          vendedor: '',
+          id_articulo: '',
+          articulo: '',
+          cajas: 10,
+          unidades: 10,
+          kgs_lts: 100,
+          monto: 50000,
+          costo: 40000,
+          utilidad: 10000,
+          pct_utilidad: 20,
+          source: 'supabase_history_sales',
+        },
+      ]);
+
+      expect(isGarbageHistorySalesRow({ id_cliente: 'TOTAL', vendedor: 'V1', id_articulo: '1' })).toBe(true);
+      expect(isGarbageHistorySalesRow({ cliente: 'SUBTOTAL MES', vendedor: 'V1', id_articulo: '1' })).toBe(true);
+      expect(isGarbageHistorySalesRow({ id_cliente: '', cliente: '', vendedor: 'V1', id_articulo: '1' })).toBe(true);
+      expect(isGarbageHistorySalesRow(sampleHistoryRows[0])).toBe(false);
+
       expect(summary.periodo).toBe('2026-10');
       expect(summary.sourceLabel).toBe('Modo Consulta Histórica: Octubre 2026 (Fuente: Supabase)');
-      expect(summary.totalRegistros).toBe(2); // Excludes the 2026-11-02 row
+      expect(summary.sourceTable).toBe('history_sales');
+      expect(summary.auditBadgeText).toBe('Fuente: Tabla history_sales en Supabase • 2 registros válidos procesados');
+      expect(summary.totalRegistros).toBe(2); // Excludes 2026-11-02 row, duplicate row, and 2 garbage rows
+      expect(summary.garbageRowsFiltered).toBe(2);
+      expect(summary.duplicateRowsRemoved).toBe(1);
       expect(summary.facturacionTotal).toBe(1600);
       expect(summary.utilidadBruta).toBe(400);
       expect(summary.porcentajeUtilidad).toBeCloseTo(25, 2);

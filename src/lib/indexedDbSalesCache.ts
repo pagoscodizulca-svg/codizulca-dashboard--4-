@@ -34,7 +34,7 @@ export interface IndexedDbHistoryCachePayload {
 const DB_NAME = 'codizulca_gerencia_sync_db';
 const DB_VERSION = 1;
 const STORE_NAME = 'history_sales_cache_v1';
-export const DEFAULT_HISTORY_CACHE_KEY = 'history_sales_2026_01_01_to_2026_10_31';
+export const DEFAULT_HISTORY_CACHE_KEY = 'history_sales_2026_01_01_to_2026_10_31_v2_supabase_only';
 
 // Fallback en memoria para entornos sin IndexedDB (ej. SSR / Node / Vitest)
 const memoryFallbackStore = new Map<string, IndexedDbHistoryCachePayload>();

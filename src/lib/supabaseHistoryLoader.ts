@@ -56,6 +56,76 @@ export interface FetchHistorySalesOptions {
   onProgress?: (progress: HistoryLoaderProgress) => void;
 }
 
+const GARBAGE_SUMMARY_TOKEN_REGEX = /\b(SUB\s*[-]?\s*TOTAL|TOTAL\s*GENERAL|TOTAL\s*MES|GRAN\s*TOTAL|^TOTAL$|^SUBTOTAL$)\b/i;
+
+/**
+ * Filtro estricto de filas basura:
+ * Excluye cualquier fila donde el cliente, vendedor o artículo sea nulo/vacío
+ * o contenga palabras de cierre/resumen como "TOTAL" o "SUBTOTAL".
+ */
+export function isGarbageHistorySalesRow(raw: Record<string, any> | null | undefined): boolean {
+  if (!raw || typeof raw !== 'object') return true;
+
+  const rawIdCliente = String(raw.id_cliente ?? raw.idCliente ?? '').trim();
+  const rawCliente = String(raw.cliente ?? '').trim();
+  if (!rawIdCliente && !rawCliente) return true;
+  if (
+    GARBAGE_SUMMARY_TOKEN_REGEX.test(rawIdCliente) ||
+    GARBAGE_SUMMARY_TOKEN_REGEX.test(rawCliente) ||
+    /\b(SUB)?TOTAL\b/i.test(rawCliente) ||
+    /\b(SUB)?TOTAL\b/i.test(rawIdCliente)
+  ) {
+    return true;
+  }
+
+  const rawVendedor = String(raw.vendedor ?? '').trim();
+  const rawIdVendedor = String(raw.id_vendedor ?? '').trim();
+  if (!rawVendedor && !rawIdVendedor) return true;
+  if (
+    rawVendedor.toUpperCase() === 'SIN VENDEDOR' ||
+    GARBAGE_SUMMARY_TOKEN_REGEX.test(rawVendedor) ||
+    /\b(SUB)?TOTAL\b/i.test(rawVendedor)
+  ) {
+    return true;
+  }
+
+  const rawIdArticulo = String(raw.id_articulo ?? raw.idArt ?? '').trim();
+  const rawArticulo = String(raw.articulo ?? '').trim();
+  if (!rawIdArticulo && !rawArticulo) return true;
+  if (
+    GARBAGE_SUMMARY_TOKEN_REGEX.test(rawIdArticulo) ||
+    GARBAGE_SUMMARY_TOKEN_REGEX.test(rawArticulo) ||
+    /\b(SUB)?TOTAL\b/i.test(rawArticulo) ||
+    /\b(SUB)?TOTAL\b/i.test(rawIdArticulo)
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Construye una llave determinística de negocio para deduplicar transacciones
+ * que hayan sido cargadas más de una vez en distintos lotes.
+ */
+export function buildHistorySalesDedupKey(row: HistorySalesDetailRecord): string {
+  const numPart =
+    row.numero !== undefined && row.numero !== null && row.numero !== 0
+      ? String(row.numero)
+      : '';
+  return [
+    row.fecha,
+    numPart,
+    row.tipo_doc,
+    String(row.id_cliente || '').trim().toUpperCase(),
+    String(row.id_articulo || '').trim().toUpperCase(),
+    String(row.vendedor || '').trim().toUpperCase(),
+    Number(row.cajas || 0).toFixed(2),
+    Number(row.kgs_lts || 0).toFixed(2),
+    Number(row.monto || 0).toFixed(2),
+  ].join('|');
+}
+
 /**
  * Normaliza una fila cruda de `public.history_sales` (16 columnas oficiales de Supabase)
  * al contrato unificado de detalle fila por fila `HistorySalesDetailRecord`.
@@ -64,6 +134,8 @@ export function mapRawSupabaseHistoryRowToDetail(
   raw: Record<string, any>,
   fallbackIndex: number = 0
 ): HistorySalesDetailRecord | null {
+  if (isGarbageHistorySalesRow(raw)) return null;
+
   const rawMes = normalizeCatalogKey(raw.mes);
   const rawAno = Number(raw.ano) || 2026;
 
@@ -94,6 +166,8 @@ export function mapRawSupabaseHistoryRowToDetail(
   const vendedor = rawVendedor.startsWith('OSCAR ORTIZ-')
     ? rawVendedor
     : normalizeSellerName(rawVendedor) || rawVendedor || 'SIN VENDEDOR';
+  if (!vendedor || vendedor === 'SIN VENDEDOR') return null;
+
   const supervisor =
     normalizeSheetSellerOrSupervisorKey(raw.supervisor) ||
     getSellerMetadata(vendedor).supervisor;
@@ -455,6 +529,8 @@ export interface HistorialOctubre2026Summary {
   periodo: '2026-10';
   label: string;
   sourceLabel: string;
+  sourceTable: string;
+  auditBadgeText: string;
   facturacionTotal: number;
   utilidadBruta: number;
   porcentajeUtilidad: number;
@@ -463,22 +539,55 @@ export interface HistorialOctubre2026Summary {
   tendenciaDiaria: HistorialOctubre2026DailyPoint[];
   rows: HistorySalesDetailRecord[];
   totalRegistros: number;
+  rawRowsCount: number;
+  garbageRowsFiltered: number;
+  duplicateRowsRemoved: number;
+}
+
+export interface CalculateOctoberSummaryOptions {
+  sourceTable?: string;
+  rawRowsCount?: number;
+  garbageRowsFiltered?: number;
 }
 
 /**
  * Calcula con precisión contable los KPIs y la serie diaria del cierre de Octubre 2026
- * a partir de los registros de `history_sales` en Supabase (`2026-10-01` a `2026-10-31`).
+ * a partir de los registros de `history_sales` en Supabase (`2026-10-01` a `2026-10-31`),
+ * aplicando filtro de filas basura (TOTAL/SUBTOTAL/nulos), deduplicación por llave de negocio
+ * y saneamiento numérico estricto.
  */
 export function calculateOctober2026SummaryFromRows(
-  inputRows: HistorySalesDetailRecord[]
+  inputRows: HistorySalesDetailRecord[],
+  options: CalculateOctoberSummaryOptions = {}
 ): HistorialOctubre2026Summary {
-  const octoberRows = (inputRows || []).filter((r) => {
+  const sourceTable = options.sourceTable || HISTORY_SALES_TABLE;
+  const candidateRows = (inputRows || []).filter((r) => {
+    if (!r) return false;
     const iso = parseCaracasLocalDate(r.fecha) || r.fecha;
     return (
       (iso >= '2026-10-01' && iso <= '2026-10-31') ||
       (String(r.mes || '').toUpperCase() === 'OCTUBRE' && Number(r.ano) === 2026)
     );
   });
+
+  let garbageFiltered = options.garbageRowsFiltered || 0;
+  let duplicatesRemoved = 0;
+  const seenKeys = new Set<string>();
+  const octoberRows: HistorySalesDetailRecord[] = [];
+
+  for (const r of candidateRows) {
+    if (isGarbageHistorySalesRow(r as any)) {
+      garbageFiltered++;
+      continue;
+    }
+    const dedupKey = buildHistorySalesDedupKey(r);
+    if (seenKeys.has(dedupKey)) {
+      duplicatesRemoved++;
+      continue;
+    }
+    seenKeys.add(dedupKey);
+    octoberRows.push(r);
+  }
 
   let facturacionTotal = 0;
   let utilidadBruta = 0;
@@ -488,10 +597,10 @@ export function calculateOctober2026SummaryFromRows(
   const dailyMap = new Map<string, HistorialOctubre2026DailyPoint>();
 
   for (const r of octoberRows) {
-    const monto = Number(r.monto) || 0;
-    const utilidad = Number(r.utilidad) || 0;
-    const cajas = Number(r.cajas) || 0;
-    const kg = Number(r.kgs_lts) || 0;
+    const monto = parseStrictAccountingNumber(r.monto);
+    const utilidad = parseStrictAccountingNumber(r.utilidad);
+    const cajas = parseStrictAccountingNumber(r.cajas);
+    const kg = parseStrictAccountingNumber(r.kgs_lts);
 
     facturacionTotal += monto;
     utilidadBruta += utilidad;
@@ -532,10 +641,16 @@ export function calculateOctober2026SummaryFromRows(
     a.date.localeCompare(b.date)
   );
 
+  const rawRowsCount =
+    options.rawRowsCount !== undefined ? options.rawRowsCount : candidateRows.length;
+  const auditBadgeText = `Fuente: Tabla ${sourceTable} en Supabase • ${octoberRows.length} registros válidos procesados`;
+
   return {
     periodo: '2026-10',
     label: 'Octubre 2026',
     sourceLabel: 'Modo Consulta Histórica: Octubre 2026 (Fuente: Supabase)',
+    sourceTable,
+    auditBadgeText,
     facturacionTotal,
     utilidadBruta,
     porcentajeUtilidad,
@@ -544,13 +659,17 @@ export function calculateOctober2026SummaryFromRows(
     tendenciaDiaria,
     rows: octoberRows,
     totalRegistros: octoberRows.length,
+    rawRowsCount,
+    garbageRowsFiltered: garbageFiltered,
+    duplicateRowsRemoved: duplicatesRemoved,
   };
 }
 
 /**
- * Función dedicada que obtiene desde Supabase (`history_sales`) el 100% de los registros
+ * Función dedicada que obtiene exclusivamente desde Supabase (`history_sales`) el 100% de los registros
  * del cierre de Octubre 2026 (`fecha >= '2026-10-01'` y `fecha <= '2026-10-31'`)
- * mediante paginación automática por bloques (`.range(from, to)`), sin truncar jamás en 1.000 filas.
+ * mediante paginación automática por bloques (`.range(from, to)`), sin truncar jamás en 1.000 filas
+ * y PROHIBIENDO cualquier fallback estático (`3014509.07`, `october_sales_rows.json` o `localStorage`).
  */
 export async function fetchHistorialOctubre2026(
   options: FetchHistorySalesOptions = {}
@@ -558,31 +677,68 @@ export async function fetchHistorialOctubre2026(
   const octStart = '2026-10-01';
   const octEnd = '2026-10-31';
 
-  // Si ya existe en IndexedDB el historial completo Enero-Octubre verificado y no se pide forceRefresh,
-  // extraer de inmediato las filas de Octubre 2026 si están completas (> 1,000 filas).
-  if (!options.forceRefresh) {
+  // Limpiar cualquier caché antiguo en localStorage que haya guardado snapshots locales de Octubre
+  if (typeof localStorage !== 'undefined') {
     try {
-      const cachedAll = await getCachedHistorySalesRows(DEFAULT_HISTORY_CACHE_KEY);
-      if (cachedAll && Array.isArray(cachedAll.rows) && cachedAll.rows.length > 1000) {
-        const octCached = cachedAll.rows.filter(
-          (r) => r.fecha >= octStart && r.fecha <= octEnd
-        );
-        if (octCached.length > 1000) {
-          return calculateOctober2026SummaryFromRows(octCached);
-        }
-      }
+      localStorage.removeItem('app_historical_sales_cache_v4');
+      localStorage.removeItem('october_2026_closing_cache');
     } catch {
-      // continuar con la carga paginada dedicada
+      // ignore
     }
   }
 
-  const loaded = await loadDetailedHistorySalesJanToOct2026({
-    ...options,
-    startDate: octStart,
-    endDate: octEnd,
-  });
+  // 1. Consulta paginada directa contra Supabase (.range(from, to) en bloques de 1.000 filas)
+  try {
+    const directRows = await fetchAllHistorySalesPaginatedFromSupabase({
+      ...options,
+      startDate: octStart,
+      endDate: octEnd,
+    });
+    if (directRows.length > 0) {
+      return calculateOctober2026SummaryFromRows(directRows, {
+        sourceTable: HISTORY_SALES_TABLE,
+        rawRowsCount: directRows.length,
+      });
+    }
+  } catch (err) {
+    console.warn('[fetchHistorialOctubre2026] Consulta directa a Supabase falló, intentando endpoint dedicado:', err);
+  }
 
-  return calculateOctober2026SummaryFromRows(loaded.rows);
+  // 2. Consulta al endpoint dedicado del servidor `/api/history-sales/october-2026`
+  //    (que consulta exclusivamente Supabase con service_role sin usar jamás october_sales_rows.json)
+  try {
+    const res = await fetch('/api/history-sales/october-2026');
+    if (res.ok) {
+      const json = await res.json();
+      const rawServerRows = Array.isArray(json.rows) ? json.rows : [];
+      const mappedRows: HistorySalesDetailRecord[] = [];
+      let garbageCount = Number(json.garbageRowsFiltered) || 0;
+
+      for (let i = 0; i < rawServerRows.length; i++) {
+        const mapped = mapRawSupabaseHistoryRowToDetail(rawServerRows[i], i);
+        if (mapped) {
+          mappedRows.push(mapped);
+        } else {
+          garbageCount++;
+        }
+      }
+
+      return calculateOctober2026SummaryFromRows(mappedRows, {
+        sourceTable: String(json.sourceTable || HISTORY_SALES_TABLE),
+        rawRowsCount: Number(json.rawRowsCount) || rawServerRows.length,
+        garbageRowsFiltered: garbageCount,
+      });
+    }
+  } catch (err) {
+    console.warn('[fetchHistorialOctubre2026] Error consultando /api/history-sales/october-2026:', err);
+  }
+
+  // Sin fallback estático: si Supabase tiene 0 registros de Octubre 2026, retorna 0 con trazabilidad limpia
+  return calculateOctober2026SummaryFromRows([], {
+    sourceTable: HISTORY_SALES_TABLE,
+    rawRowsCount: 0,
+    garbageRowsFiltered: 0,
+  });
 }
 
 /**

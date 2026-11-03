@@ -24,6 +24,7 @@ interface GapAnalysisPanelProps {
     utilidad: number;
     cajas: number;
     kg: number;
+    auditBadgeText?: string;
   };
   novemberKpis?: {
     facturacion: number;
@@ -50,6 +51,7 @@ export const GapAnalysisPanel: React.FC<GapAnalysisPanelProps> = ({
     utilidad: number;
     cajas: number;
     kg: number;
+    auditBadgeText?: string;
   } | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -193,7 +195,8 @@ export const GapAnalysisPanel: React.FC<GapAnalysisPanelProps> = ({
               const monthIndex = MONTH_NAMES.indexOf(rawMes);
               if (monthIndex === -1) return;
               const period = `${row.ano}-${(monthIndex + 1).toString().padStart(2, '0')}`;
-              if (!historyMonthIds.includes(period)) return;
+              // Octubre 2026 ('2026-10') se obtiene exclusivamente de fetchHistorialOctubre2026()
+              if (period === '2026-10' || !historyMonthIds.includes(period)) return;
 
               const prodId = String(row.id_articulo || '').trim();
               const key = `${period}_${prodId}`;
@@ -225,21 +228,15 @@ export const GapAnalysisPanel: React.FC<GapAnalysisPanelProps> = ({
             });
           }
 
-          // Garantizar que Octubre 2026 ('2026-10') use el cierre real completo desde Supabase (fetchHistorialOctubre2026)
-          if (octSummary && octSummary.rows.length > 0) {
+          // Garantizar que Octubre 2026 ('2026-10') use exclusivamente la lectura limpia de Supabase (fetchHistorialOctubre2026)
+          if (octSummary) {
             setOctoberSupabaseTotals({
               facturacion: octSummary.facturacionTotal,
               utilidad: octSummary.utilidadBruta,
               cajas: octSummary.cajasDespachadas,
               kg: octSummary.totalKilogramos,
+              auditBadgeText: octSummary.auditBadgeText,
             });
-
-            // Reemplazar cualquier parcial de 2026-10 con la agregación exacta de las filas paginadas de Supabase
-            for (const key of Array.from(rawMap.keys())) {
-              if (key.startsWith('2026-10_')) {
-                rawMap.delete(key);
-              }
-            }
 
             octSummary.rows.forEach((row) => {
               const prodId = String(row.id_articulo || '').trim();
@@ -345,10 +342,10 @@ export const GapAnalysisPanel: React.FC<GapAnalysisPanelProps> = ({
 
         const sheetData = await fetchNovemberData();
 
-        // Fallback for historical baseline from exact monthly totals using real Codizulca SKUs
+        // Fallback for historical baseline (Enero - Septiembre) using real Codizulca SKUs.
+        // Octubre 2026 ('2026-10') JAMÁS usa valores estáticos de fallback (eliminado 3014509.07).
         if (supabaseData.length === 0) {
           const exactMonthlyTotals: Record<string, number> = {
-            '2026-10': 3014509.07,
             '2026-09': 4098138.40,
             '2026-08': 6452231.90,
             '2026-07': 6360990.80,
@@ -369,6 +366,7 @@ export const GapAnalysisPanel: React.FC<GapAnalysisPanelProps> = ({
           ];
 
           historyMonthIds.forEach(monthId => {
+            if (monthId === '2026-10') return;
             const total = exactMonthlyTotals[monthId];
             if (total !== undefined) {
               realCodizulcaProducts.forEach((prod, index) => {
@@ -414,11 +412,8 @@ export const GapAnalysisPanel: React.FC<GapAnalysisPanelProps> = ({
   };
 
   const getOctoberClosedTotal = (): number | null => {
-    const source =
-      octoberKpis && octoberKpis.facturacion > 1000000
-        ? octoberKpis
-        : octoberSupabaseTotals;
-    if (!source || source.facturacion <= 0) return null;
+    const source = octoberKpis ?? octoberSupabaseTotals;
+    if (!source) return null;
     switch (kpiId) {
       case 'facturacion': return source.facturacion;
       case 'utilidad': return source.utilidad;
@@ -582,9 +577,19 @@ export const GapAnalysisPanel: React.FC<GapAnalysisPanelProps> = ({
                     <span className={isSelected ? 'font-bold' : 'font-medium'}>{month.label}</span>
                     <span className="text-[10px] text-zinc-400 font-mono mt-0.5">{formatVal(val, false)}</span>
                     {month.id === '2026-10' && (
-                      <span className="text-[9px] text-amber-400/90 font-semibold mt-0.5">
-                        Cierre Supabase • Clic para consultar
-                      </span>
+                      <>
+                        <span className="text-[9px] text-amber-400/90 font-semibold mt-0.5">
+                          Cierre Supabase • Clic para consultar
+                        </span>
+                        {(octoberKpis?.auditBadgeText || octoberSupabaseTotals?.auditBadgeText) && (
+                          <span
+                            className="text-[8px] text-zinc-500 font-mono mt-0.5 leading-tight"
+                            title={octoberKpis?.auditBadgeText || octoberSupabaseTotals?.auditBadgeText}
+                          >
+                            {octoberKpis?.auditBadgeText || octoberSupabaseTotals?.auditBadgeText}
+                          </span>
+                        )}
+                      </>
                     )}
                   </div>
                   {isSelected && <div className="h-2 w-2 rounded-full bg-red-500 shadow-[0_0_5px_rgba(220,38,38,0.8)] animate-pulse" />}

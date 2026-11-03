@@ -273,16 +273,8 @@ export const DashboardOverview: React.FC = () => {
     try {
       localStorage.removeItem('app_historical_sales_cache'); // Purge stale un-ordered cache
       localStorage.removeItem('app_historical_sales_cache_v3'); // Purge pre-September sync cache
-      const cached = localStorage.getItem('app_historical_sales_cache_v4');
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed.map((p: any) => ({
-            ...p,
-            baseName: resolveCatalogProductName(p.idArt, p.baseName),
-          }));
-        }
-      }
+      localStorage.removeItem('app_historical_sales_cache_v4'); // Purge legacy October snapshot cache ($3,014,509.07)
+      localStorage.removeItem('october_2026_closing_cache');
     } catch {
       // ignore
     }
@@ -484,6 +476,7 @@ export const DashboardOverview: React.FC = () => {
             const monthIndex = MONTH_NAMES.indexOf(rawMes);
             if (monthIndex === -1) return null;
             const gDate = `${row.ano}-${(monthIndex + 1).toString().padStart(2, '0')}`;
+            if (gDate === '2026-10') return null; // Octubre 2026 se lee exclusivamente desde Supabase
             return {
               idArt: String(row.id_articulo),
               baseName: resolveCatalogProductName(row.id_articulo, row.articulo),
@@ -1656,16 +1649,31 @@ export const DashboardOverview: React.FC = () => {
                 Noviembre 2026 (Mes en Curso)
               </span>
             ) : (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-950/60 border border-amber-500/40 text-amber-300 shadow-[0_0_12px_rgba(245,158,11,0.2)]">
-                <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
-                Modo Consulta Histórica: Octubre 2026 (Fuente: Supabase)
-              </span>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-950/60 border border-amber-500/40 text-amber-300 shadow-[0_0_12px_rgba(245,158,11,0.2)]">
+                  <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                  Modo Consulta Histórica: Octubre 2026 (Fuente: Supabase)
+                </span>
+                <span
+                  className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-mono bg-zinc-900/90 border border-zinc-700/80 text-zinc-300"
+                  title={
+                    historialOctubre2026?.auditBadgeText ||
+                    'Fuente: Tabla history_sales en Supabase • 0 registros válidos procesados'
+                  }
+                >
+                  {historialOctubre2026?.auditBadgeText ||
+                    'Fuente: Tabla history_sales en Supabase • 0 registros válidos procesados'}
+                </span>
+              </div>
             )}
           </div>
           <p className="text-sm text-zinc-500 mt-1">
             {periodoActivo === '2026-11'
               ? 'Período activo en curso (2026-11-01 al 2026-11-30) sincronizado con Google Sheets, aislado del cierre de Octubre.'
-              : 'Visualizando el cierre consolidado completo de Octubre 2026 (2026-10-01 al 2026-10-31) almacenado en Supabase.'}
+              : `Visualizando el cierre consolidado completo de Octubre 2026 (2026-10-01 al 2026-10-31) almacenado en Supabase (${
+                  historialOctubre2026?.auditBadgeText ||
+                  'Fuente: Tabla history_sales en Supabase • 0 registros válidos procesados'
+                }).`}
           </p>
         </div>
 
@@ -1828,10 +1836,16 @@ export const DashboardOverview: React.FC = () => {
           { id: 'kilogramos', label: 'TOTAL KILOGRAMOS', value: activeKpis.isLoading ? 'Cargando...' : formatNum(activeKpis.kg), icon: Settings, color: 'text-red-500' }, 
         ].map((kpi, i) => {
           const isSelected = selectedKpi?.id === kpi.id;
+          const octAuditBadge =
+            periodoActivo === '2026-10'
+              ? historialOctubre2026?.auditBadgeText ||
+                'Fuente: Tabla history_sales en Supabase • 0 registros válidos procesados'
+              : undefined;
           return (
             <div 
               key={i} 
               onClick={() => setSelectedKpi(isSelected ? null : { id: kpi.id, label: kpi.label })}
+              title={octAuditBadge}
               className={`bg-zinc-950/60 border rounded-xl p-3 sm:p-4 lg:p-5 flex flex-col items-center justify-center text-center shadow-[0_4px_20px_rgba(0,0,0,0.5)] cursor-pointer transition-all ${
                 isSelected ? 'border-red-500 bg-red-950/20 shadow-[0_0_25px_rgba(220,38,38,0.2)]' : 'border-white/5 hover:border-white/20 hover:bg-zinc-900'
               }`}
@@ -1841,6 +1855,11 @@ export const DashboardOverview: React.FC = () => {
               </div>
               <p className="text-[9px] sm:text-[10px] font-bold tracking-widest text-zinc-500 mb-0.5 sm:mb-1 line-clamp-1">{kpi.label}</p>
               <p className="text-lg sm:text-xl lg:text-2xl font-black text-white tracking-wide">{kpi.value}</p>
+              {octAuditBadge && (
+                <p className="text-[9px] text-amber-400/80 font-mono mt-1 line-clamp-1">
+                  {octAuditBadge}
+                </p>
+              )}
             </div>
           );
         })}
@@ -1858,6 +1877,7 @@ export const DashboardOverview: React.FC = () => {
                   utilidad: historialOctubre2026.utilidadBruta,
                   cajas: historialOctubre2026.cajasDespachadas,
                   kg: historialOctubre2026.totalKilogramos,
+                  auditBadgeText: historialOctubre2026.auditBadgeText,
                 }
               : undefined
           }
@@ -1883,9 +1903,15 @@ export const DashboardOverview: React.FC = () => {
               Noviembre 2026 (2026-11-01 al 2026-11-30)
             </span>
           ) : (
-            <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-amber-950/50 border border-amber-500/30 text-amber-300">
-              Modo Consulta Histórica: Octubre 2026 (Fuente: Supabase)
-            </span>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-amber-950/50 border border-amber-500/30 text-amber-300">
+                Modo Consulta Histórica: Octubre 2026 (Fuente: Supabase)
+              </span>
+              <span className="text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-zinc-900 border border-zinc-700/70 text-zinc-300">
+                {historialOctubre2026?.auditBadgeText ||
+                  'Fuente: Tabla history_sales en Supabase • 0 registros válidos procesados'}
+              </span>
+            </div>
           )}
         </div>
         <div className="h-[300px] w-full">
@@ -1907,6 +1933,17 @@ export const DashboardOverview: React.FC = () => {
                 <Line yAxisId="right" type="monotone" dataKey="kg" stroke="#dc2626" strokeWidth={3} dot={{ r: 4, fill: '#dc2626', strokeWidth: 2, stroke: '#000' }} />
               </ComposedChart>
             </ResponsiveContainer>
+          ) : periodoActivo === '2026-10' ? (
+            <div className="h-full w-full flex flex-col items-center justify-center border border-dashed border-amber-800/40 rounded-lg bg-black/30 p-6 text-center">
+              <CalendarIcon className="w-8 h-8 text-amber-500/70 mb-2.5" />
+              <p className="text-sm font-bold text-zinc-200">
+                Octubre 2026 (Consulta Directa a Supabase)
+              </p>
+              <p className="text-xs text-amber-400/90 font-mono mt-1">
+                {historialOctubre2026?.auditBadgeText ||
+                  'Fuente: Tabla history_sales en Supabase • 0 registros válidos procesados'}
+              </p>
+            </div>
           ) : (
             <div className="h-full w-full flex flex-col items-center justify-center border border-dashed border-zinc-800 rounded-lg bg-black/30 p-6 text-center">
               <CalendarIcon className="w-8 h-8 text-emerald-500/70 mb-2.5" />
