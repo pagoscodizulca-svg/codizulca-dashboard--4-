@@ -807,12 +807,31 @@ export const DashboardOverview: React.FC = () => {
 
     if (selectedSkus.length > 0) {
       filtered = filtered.filter(p => selectedSkus.includes(p.idArt));
-    } else if (skuFilter) {
-      const lowerFilter = skuFilter.toLowerCase();
-      filtered = filtered.filter(p => 
-        p.idArt.toLowerCase().includes(lowerFilter) || 
-        p.baseName.toLowerCase().includes(lowerFilter)
-      );
+    } else if (skuFilter && skuFilter.trim()) {
+      const tokens = skuFilter
+        .split(',')
+        .map(t => t.trim())
+        .filter(Boolean);
+      filtered = filtered.filter(p => {
+        const cleanId = String(p.idArt || '').trim().replace(/^0+/, '') || '0';
+        const rawId = String(p.idArt || '').trim();
+        const normName = String(p.baseName || '')
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .toUpperCase();
+        return tokens.some(tk => {
+          const codeMatch = /^(?:sku[-\s]*)?0*(\d+)$/i.exec(tk);
+          if (codeMatch) {
+            const targetCode = codeMatch[1].trim();
+            return rawId === targetCode || cleanId === targetCode;
+          }
+          const normTk = tk
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .toUpperCase();
+          return normName.includes(normTk);
+        });
+      });
     }
     
     const mapGroupDate = (date: string) => {

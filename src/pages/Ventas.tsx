@@ -204,6 +204,31 @@ export const Ventas: React.FC = () => {
       selectedSeller,
       selectedMonths,
     });
+    const isolateBySku = Boolean(debouncedSkuQuery.trim()) && quantityScope === 'sku';
+    if (isolateBySku) {
+      let skuFA = 0;
+      let skuDV = 0;
+      for (const r of allStatusMatch.rows) {
+        const amt = r.skuMatch?.skuTotalAmount ?? 0;
+        if (r.status === 'DEVOLUCION' || amt < 0) {
+          skuDV += Math.abs(amt);
+        } else if (r.status === 'EMITIDA') {
+          skuFA += amt;
+        }
+      }
+      const skuNet = skuFA - skuDV;
+      const skuReturnRate = skuFA > 0 ? (skuDV / skuFA) * 100 : 0;
+      return {
+        totalFA: Math.round(skuFA * 100) / 100,
+        totalDV: Math.round(skuDV * 100) / 100,
+        netTotal: Math.round(skuNet * 100) / 100,
+        faCount: allStatusMatch.kpis.issuedInvoicesCount,
+        dvCount: allStatusMatch.kpis.dvCount,
+        totalBoxes: allStatusMatch.kpis.skuUnitsTotal,
+        totalKgs: allStatusMatch.kpis.skuKgsTotal,
+        returnRate: Math.round(skuReturnRate * 100) / 100,
+      };
+    }
     return {
       totalFA: allStatusMatch.kpis.totalFA,
       totalDV: allStatusMatch.kpis.totalDV,
@@ -1094,7 +1119,10 @@ export const Ventas: React.FC = () => {
 
                       {/* Cajas */}
                       <td className="p-3.5 text-right font-mono font-bold text-white border-r border-white/10">
-                        {row.boxes.toLocaleString('es-VE')}
+                        {(skuMatch && skuMatch.hasMatch && quantityScope === 'sku'
+                          ? skuMatch.skuEffectiveQuantity
+                          : row.boxes
+                        ).toLocaleString('es-VE')}
                       </td>
 
                       {/* Total */}
@@ -1103,7 +1131,11 @@ export const Ventas: React.FC = () => {
                           isDV ? 'text-zinc-300' : 'text-white'
                         }`}
                       >
-                        {formatCurrency(row.total)}
+                        {formatCurrency(
+                          skuMatch && skuMatch.hasMatch && quantityScope === 'sku'
+                            ? skuMatch.skuTotalAmount
+                            : row.total
+                        )}
                       </td>
 
                       {/* Acción */}

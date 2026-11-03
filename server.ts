@@ -603,13 +603,12 @@ async function startServer() {
       }
     }
 
-    // Si Supabase no estaba disponible o no devolvió datos históricos, usar el caché de Ene-Ago existente para vendedores válidos
+    // Si Supabase no estaba disponible o no devolvió datos históricos, usar el caché histórico existente (Ene-Oct) para vendedores válidos
     if (sellerMonthMap.size === 0 && fs.existsSync(sellersVolumeCachePath)) {
       try {
         const cached = JSON.parse(fs.readFileSync(sellersVolumeCachePath, 'utf8'));
         if (cached && Array.isArray(cached.sellerMonthlyData)) {
           cached.sellerMonthlyData.forEach((r: any) => {
-            if (r.mes === 'OCTUBRE') return; // Octubre se sincroniza siempre desde Google Sheets
             const normVendedor = normalizeSellerName(r.vendedor || '');
             if (!isValidVolumeSeller(normVendedor)) return;
             const key = `${normVendedor}|||${r.mes}`;
@@ -633,29 +632,46 @@ async function startServer() {
       }
     }
 
-    // Sincronizar Octubre 2026 actualizado desde Google Sheets
+    // Sincronizar lo que va del mes en curso desde Google Sheets (16pU4iEcNU_1j6sB7rZbshu2PM8OyH5hI7a24-vYO7P0 gid=1176024108)
     try {
       const sheetsUrl = 'https://docs.google.com/spreadsheets/d/16pU4iEcNU_1j6sB7rZbshu2PM8OyH5hI7a24-vYO7P0/gviz/tq?tqx=out:csv&gid=1176024108';
       const sheetRes = await fetch(sheetsUrl);
       if (sheetRes.ok) {
         const sheetCsv = await sheetRes.text();
         const parsed = Papa.parse(sheetCsv, { header: true, skipEmptyLines: true });
-        if (parsed.data && Array.isArray(parsed.data)) {
+        if (parsed.data && Array.isArray(parsed.data) && parsed.data.length > 0) {
+          const MONTH_NUM_MAP: Record<string, string> = {
+            '01': 'ENERO', '02': 'FEBRERO', '03': 'MARZO', '04': 'ABRIL',
+            '05': 'MAYO', '06': 'JUNIO', '07': 'JULIO', '08': 'AGOSTO',
+            '09': 'SEPTIEMBRE', '10': 'OCTUBRE', '11': 'NOVIEMBRE', '12': 'DICIEMBRE',
+          };
+          const liveSheetMap = new Map<string, any>();
+          const liveMonthsSeen = new Set<string>();
+
           parsed.data.forEach((r: any) => {
-            const normVendedor = normalizeSellerName(r['Vendedor'] || '');
+            const normVendedor = normalizeSellerName(r['Vendedor'] || r['vendedor'] || '');
             if (!isValidVolumeSeller(normVendedor)) {
               return;
             }
-            const mes = 'OCTUBRE';
+            const rawFecha = String(r['Fecha'] || r['fecha'] || '').trim();
+            let mes = String(r['Mes'] || r['mes'] || '').trim().toUpperCase();
+            if (!mes && rawFecha.length >= 7) {
+              const mm = rawFecha.slice(5, 7);
+              mes = MONTH_NUM_MAP[mm] || 'NOVIEMBRE';
+            }
+            if (!mes) mes = 'NOVIEMBRE';
+
             const ano = 2026;
-            const cajas = parseFloat(r['Cajas']) || 0;
-            const kgs = parseFloat(r['Kg']) || 0;
+            const cajas = parseFloat(String(r['Cajas'] || '0').replace(/,/g, '')) || 0;
+            const kgs = parseFloat(String(r['Kg'] || '0').replace(/,/g, '')) || 0;
             const monto = parseFloat(String(r['Monto'] || '0').replace(/,/g, '')) || 0;
+            if (cajas === 0 && kgs === 0 && monto === 0) return;
             const isDV = monto < 0 || cajas < 0;
 
+            liveMonthsSeen.add(mes);
             const key = `${normVendedor}|||${mes}`;
-            if (!sellerMonthMap.has(key)) {
-              sellerMonthMap.set(key, {
+            if (!liveSheetMap.has(key)) {
+              liveSheetMap.set(key, {
                 vendedor: normVendedor,
                 mes,
                 ano,
@@ -669,7 +685,7 @@ async function startServer() {
                 facturasCount: 0
               });
             }
-            const sObj = sellerMonthMap.get(key);
+            const sObj = liveSheetMap.get(key);
             sObj.cajas += cajas;
             sObj.kgs += kgs;
             sObj.montoNeto += monto;
@@ -683,10 +699,19 @@ async function startServer() {
             sObj.facturasCount++;
             sheetRowsCount++;
           });
+
+          if (liveSheetMap.size > 0) {
+            for (const [k, v] of Array.from(sellerMonthMap.entries())) {
+              if (liveMonthsSeen.has(v.mes)) {
+                sellerMonthMap.delete(k);
+              }
+            }
+            liveSheetMap.forEach((v, k) => sellerMonthMap.set(k, v));
+          }
         }
       }
     } catch (sheetErr: any) {
-      console.warn('[Sync] Could not fetch October from Google Sheets:', sheetErr?.message);
+      console.warn('[Sync] Could not fetch current month from Google Sheets:', sheetErr?.message);
     }
 
     // Calcular monthlyTotalsMap basado estrictamente en los vendedores válidos
@@ -1893,6 +1918,94 @@ Responde EXCLUSIVAMENTE con un objeto JSON válido con la siguiente estructura (
     return { catalog: salesSkuCatalogCache, byArticulo: salesSkuByArticuloMap };
   };
 
+  let historicalClientSkuByMonthCache: Map<string, any[]> | null = null;
+
+  const ensureHistoricalClientSkuByMonth = (): Map<string, any[]> => {
+    if (historicalClientSkuByMonthCache) return historicalClientSkuByMonthCache;
+    const map = new Map<string, any[]>();
+    const { catalog } = ensureSalesSkuCatalog();
+    const nameById = new Map<number, string>();
+    for (const item of catalog) {
+      nameById.set(item.id_articulo, item.articulo);
+    }
+
+    const MONTH_INDEX_MAP: Record<string, number> = {
+      ENERO: 1, FEBRERO: 2, MARZO: 3, ABRIL: 4, MAYO: 5, JUNIO: 6,
+      JULIO: 7, AGOSTO: 8, SEPTIEMBRE: 9
+    };
+
+    const cpcDir = path.join(process.cwd(), 'cache_product_clients');
+    if (fs.existsSync(cpcDir)) {
+      try {
+        const files = fs.readdirSync(cpcDir).filter((f) => f.endsWith('.json'));
+        const docSeqByMonthClient = new Map<string, number>();
+        let nextSeq = 1;
+
+        for (const f of files) {
+          const idArt = Number(f.replace(/\.json$/i, ''));
+          if (!idArt || idArt <= 0) continue;
+          const artName = nameById.get(idArt) || `PRODUCTO SKU-${idArt}`;
+          let parsed: any = null;
+          try {
+            parsed = JSON.parse(fs.readFileSync(path.join(cpcDir, f), 'utf8'));
+          } catch {
+            continue;
+          }
+          const clients = Array.isArray(parsed?.clients) ? parsed.clients : [];
+          for (const c of clients) {
+            const monthsObj = c.months && typeof c.months === 'object' ? c.months : null;
+            if (!monthsObj) continue;
+            const idCliente = c.id_cliente || '0';
+            const clienteName = String(c.cliente || '').trim();
+            const vendedorName = String(c.vendedor || '').trim();
+
+            for (const [mKey, mv] of Object.entries(monthsObj as Record<string, any>)) {
+              const mUpper = mKey.trim().toUpperCase();
+              const mIdx = MONTH_INDEX_MAP[mUpper];
+              if (!mIdx) continue;
+              const netM = Number(mv?.monto) || 0;
+              const netC = Number(mv?.cajas) || 0;
+              const netK = Number(mv?.kgs) || 0;
+              if (netM === 0 && netC === 0 && netK === 0) continue;
+
+              const tipoDoc = netM >= 0 ? 'FA' : 'DV';
+              const compositeDocKey = `${mUpper}|${tipoDoc}|${idCliente}|${vendedorName}`;
+              let docNumero = docSeqByMonthClient.get(compositeDocKey);
+              if (!docNumero) {
+                docNumero = 400000 + mIdx * 100000 + (nextSeq++ % 99999);
+                docSeqByMonthClient.set(compositeDocKey, docNumero);
+              }
+
+              const monthStr = String(mIdx).padStart(2, '0');
+              if (!map.has(mUpper)) map.set(mUpper, []);
+              map.get(mUpper)!.push({
+                id: docNumero,
+                numero: docNumero,
+                tipo_doc: tipoDoc,
+                fecha: `2026-${monthStr}-15`,
+                mes: mUpper,
+                ano: 2026,
+                id_cliente: idCliente,
+                cliente: clienteName,
+                vendedor: vendedorName,
+                id_articulo: idArt,
+                articulo: artName,
+                cajas: netC,
+                kgs_lts: netK,
+                monto: netM,
+              });
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('[SalesDocs] Error building historical SKU rows from cache_product_clients:', e);
+      }
+    }
+
+    historicalClientSkuByMonthCache = map;
+    return map;
+  };
+
   const buildGroupedSalesDocumentsForMonth = (monthUpper: string, ano: number = 2026): any[] => {
     if (!salesDocsByMonthCache) {
       salesDocsByMonthCache = new Map<string, any[]>();
@@ -1913,52 +2026,44 @@ Responde EXCLUSIVAMENTE con un objeto JSON válido con la siguiente estructura (
           rawRows.push(...octData);
         } catch {}
       }
-    } else if (paretoMemoryCache?.clients) {
-      const MONTH_INDEX_MAP: Record<string, number> = {
-        ENERO: 1, FEBRERO: 2, MARZO: 3, ABRIL: 4, MAYO: 5, JUNIO: 6,
-        JULIO: 7, AGOSTO: 8, SEPTIEMBRE: 9
-      };
-      let bestName = 'PORTAFOLIO MULTIMARCA CODIZULCA';
-      let bestIdArticulo = 8;
-      let bestVal = 0;
-      if (Array.isArray(paretoMemoryCache.products)) {
-        for (const p of paretoMemoryCache.products) {
-          const mv = p.months?.[monthUpper]?.monto || 0;
-          if (mv > bestVal) {
-            bestVal = mv;
-            bestName = p.articulo;
-            bestIdArticulo = Number(p.id_articulo) || byArticulo.get(String(p.articulo || '').trim().toUpperCase()) || 8;
-          }
+    } else {
+      const histByMonth = ensureHistoricalClientSkuByMonth();
+      const monthRows = histByMonth.get(monthUpper);
+      if (monthRows && monthRows.length > 0) {
+        rawRows.push(...monthRows);
+      } else if (paretoMemoryCache?.clients) {
+        const MONTH_INDEX_MAP: Record<string, number> = {
+          ENERO: 1, FEBRERO: 2, MARZO: 3, ABRIL: 4, MAYO: 5, JUNIO: 6,
+          JULIO: 7, AGOSTO: 8, SEPTIEMBRE: 9
+        };
+        const mIdx = MONTH_INDEX_MAP[monthUpper] || 9;
+        const monthStr = String(mIdx).padStart(2, '0');
+        for (const c of paretoMemoryCache.clients) {
+          const cidNum = Number(c.id_cliente) || 1000;
+          const mv = c.months?.[monthUpper];
+          if (!mv || (mv.monto === 0 && mv.cajas === 0 && mv.kgs === 0)) continue;
+          const baseNum = 400000 + mIdx * 10000 + (cidNum % 9999);
+          const netM = Number(mv.monto) || 0;
+          const netC = Number(mv.cajas) || 0;
+          const netK = Number(mv.kgs) || 0;
+
+          rawRows.push({
+            id: baseNum,
+            numero: baseNum,
+            tipo_doc: netM >= 0 ? 'FA' : 'DV',
+            fecha: `${ano}-${monthStr}-15`,
+            mes: monthUpper,
+            ano,
+            id_cliente: c.id_cliente,
+            cliente: c.cliente,
+            vendedor: c.vendedor,
+            id_articulo: 8,
+            articulo: 'PORTAFOLIO MULTIMARCA CODIZULCA',
+            cajas: netC,
+            kgs_lts: netK,
+            monto: netM,
+          });
         }
-      }
-
-      const mIdx = MONTH_INDEX_MAP[monthUpper] || 9;
-      const monthStr = String(mIdx).padStart(2, '0');
-      for (const c of paretoMemoryCache.clients) {
-        const cidNum = Number(c.id_cliente) || 1000;
-        const mv = c.months?.[monthUpper];
-        if (!mv || (mv.monto === 0 && mv.cajas === 0 && mv.kgs === 0)) continue;
-        const baseNum = 400000 + mIdx * 10000 + (cidNum % 9999);
-        const netM = Number(mv.monto) || 0;
-        const netC = Number(mv.cajas) || 0;
-        const netK = Number(mv.kgs) || 0;
-
-        rawRows.push({
-          id: baseNum,
-          numero: baseNum,
-          tipo_doc: netM >= 0 ? 'FA' : 'DV',
-          fecha: `${ano}-${monthStr}-15`,
-          mes: monthUpper,
-          ano,
-          id_cliente: c.id_cliente,
-          cliente: c.cliente,
-          vendedor: c.vendedor,
-          id_articulo: bestIdArticulo,
-          articulo: bestName,
-          cajas: netC,
-          kgs_lts: netK,
-          monto: netM,
-        });
       }
     }
 
@@ -2078,12 +2183,14 @@ Responde EXCLUSIVAMENTE con un objeto JSON válido con la siguiente estructura (
         allPeriodDocs.push(...monthDocs);
       }
 
-      const normSku = normalizeSalesSkuText(skuQuery);
+      const normSku = String(skuQuery || '').trim();
       const normSearch = normalizeSalesSkuText(search);
       const normCliente = normalizeSalesSkuText(cliente);
       const parseBound = (v?: string): number | null => {
-        if (!v || !String(v).trim()) return null;
-        const n = Number(String(v).trim().replace(',', '.'));
+        if (v === undefined || v === null) return null;
+        const trimmed = String(v).trim().replace(',', '.');
+        if (!trimmed) return null;
+        const n = Number(trimmed);
         return Number.isFinite(n) && n >= 0 ? n : null;
       };
       const minBound = parseBound(minQtyRaw);
@@ -2102,28 +2209,33 @@ Responde EXCLUSIVAMENTE con un objeto JSON válido con la siguiente estructura (
         return Math.abs(Number(doc.kgs_lts) || 0);
       };
 
-      const itemMatchesSku = (it: any, qNorm: string): boolean => {
-        if (!qNorm) return true;
+      const itemMatchesSku = (it: any, rawQuery: string): boolean => {
+        const tokens = String(rawQuery || '')
+          .split(',')
+          .map((t) => t.trim())
+          .filter(Boolean);
+        if (tokens.length === 0) return true;
         const hasVol = Math.abs(Number(it.cajas) || 0) > 0 || Math.abs(Number(it.kgs_lts) || 0) > 0 || Math.abs(Number(it.monto) || 0) > 0;
         if (!hasVol) return false;
-        const skuNorm = normalizeSalesSkuText(it.sku || (it.id_articulo ? `SKU-${it.id_articulo}` : ''));
-        const idStr = it.id_articulo ? String(it.id_articulo) : '';
-        const artNorm = normalizeSalesSkuText(it.articulo || '');
+        const rawIdStr = it.id_articulo !== undefined && it.id_articulo !== null ? String(it.id_articulo).trim() : '';
+        const cleanIdStr = rawIdStr.replace(/^0+/, '') || (rawIdStr ? '0' : '');
+        const skuCodeClean = String(it.sku || '')
+          .trim()
+          .replace(/^sku[-\s]*/i, '')
+          .replace(/^0+/, '');
+        const artUpper = normalizeSalesSkuText(it.articulo || '').toUpperCase();
 
-        const explicitSku = /^sku[-\s]*(\d+)$/i.exec(qNorm);
-        if (explicitSku) {
-          return idStr === explicitSku[1] || skuNorm === `sku-${explicitSku[1]}`;
-        }
-        if (/^\d+$/.test(qNorm)) {
-          return idStr === qNorm || skuNorm === `sku-${qNorm}` || idStr.includes(qNorm) || artNorm.includes(qNorm);
-        }
-        if (skuNorm.includes(qNorm) || artNorm.includes(qNorm)) return true;
-        const tokens = qNorm.split(' ').filter(Boolean);
-        if (tokens.length > 1) {
-          const comb = `${skuNorm} ${artNorm}`;
-          return tokens.every((tk) => comb.includes(tk));
-        }
-        return false;
+        return tokens.some((tk) => {
+          const codeMatch = /^(?:sku[-\s]*)?0*(\d+)$/i.exec(tk);
+          if (codeMatch) {
+            const targetCode = codeMatch[1].trim();
+            return rawIdStr === targetCode || cleanIdStr === targetCode || skuCodeClean === targetCode;
+          }
+          const normTk = normalizeSalesSkuText(tk).toUpperCase();
+          const words = normTk.split(' ').filter(Boolean);
+          if (words.length <= 1) return artUpper.includes(normTk);
+          return words.every((w) => artUpper.includes(w));
+        });
       };
 
       const withinBounds = (val: number): boolean => {

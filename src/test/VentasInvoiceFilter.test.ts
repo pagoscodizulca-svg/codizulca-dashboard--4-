@@ -227,11 +227,43 @@ describe('Módulo de Ventas y Facturas — Motor de Filtrado por Estado, SKU y C
     expect(res.kpis.totalInvoiceUnits).toBe(55);
   });
 
-  it('6. parseQuantityBound soporta enteros, decimales con punto o coma, y valores vacíos', () => {
+  it('6. parseQuantityBound soporta enteros, decimales con punto o coma, el cero (0), y valores vacíos', () => {
     expect(parseQuantityBound('')).toBeNull();
     expect(parseQuantityBound('   ')).toBeNull();
+    expect(parseQuantityBound('0')).toBe(0);
+    expect(parseQuantityBound(0)).toBe(0);
     expect(parseQuantityBound('15')).toBe(15);
     expect(parseQuantityBound('12,5')).toBe(12.5);
     expect(parseQuantityBound('12.75')).toBe(12.75);
+  });
+
+  it('7. coincidencia exacta (===) para códigos numéricos/SKU- separados por comas y aislamiento estricto de renglones en modo "sku"', () => {
+    const item28 = { id_articulo: 28, sku: 'SKU-28', articulo: 'HUEVOS DE CONSUMO', cajas: 10, kgs_lts: 150, monto: 500 };
+    const item128 = { id_articulo: 128, sku: 'SKU-128', articulo: 'QUESO BLANCO LOTE 28', cajas: 5, kgs_lts: 50, monto: 250 };
+    const item280 = { id_articulo: 280, sku: 'SKU-280', articulo: 'SALCHICHA POLACA', cajas: 8, kgs_lts: 80, monto: 300 };
+
+    // Prohibido .includes() en códigos numéricos: "28" NO debe coincidir con 128 ni 280
+    expect(doesItemMatchSkuQuery(item28, '28')).toBe(true);
+    expect(doesItemMatchSkuQuery(item28, 'SKU-28')).toBe(true);
+    expect(doesItemMatchSkuQuery(item128, '28')).toBe(false);
+    expect(doesItemMatchSkuQuery(item280, '28')).toBe(false);
+
+    // Múltiples tokens separados por coma
+    expect(doesItemMatchSkuQuery(item28, 'SKU-28, 1464')).toBe(true);
+    expect(doesItemMatchSkuQuery(item128, 'SKU-28, 1464')).toBe(false);
+    expect(doesItemMatchSkuQuery(item128, 'SKU-28, QUESO')).toBe(true);
+
+    // En modo 'sku', los renglones que no pertenecen al SKU filtrado se descartan de row.transaction.items
+    const res = filterAndSummarizeInvoices(mockTransactions, {
+      statusFilter: 'EMITIDAS',
+      skuQuery: '28',
+      minQuantity: '10',
+      maxQuantity: '50',
+      quantityScope: 'sku',
+    });
+    expect(res.rows).toHaveLength(2);
+    for (const r of res.rows) {
+      expect(r.transaction.items.every((it) => it.id_articulo === 28)).toBe(true);
+    }
   });
 });

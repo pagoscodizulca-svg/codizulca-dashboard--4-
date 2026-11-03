@@ -146,12 +146,51 @@ export function resolveInvoiceStatus(
   return 'ANULADA';
 }
 
+export interface ParsedSkuFilterToken {
+  kind: 'code' | 'text';
+  cleanCode: string;
+  normalizedText: string;
+}
+
 /**
- * Evalúa si un renglón (`SalesItem`) coincide con la búsqueda de SKU (código SKU o descripción del producto).
+ * Divide el texto ingresado en FILTRO POR SKU / PRODUCTO por comas (`,`),
+ * aplica `.trim()` y filtra tokens vacíos.
+ * - Si un token tiene formato de código (ej. "SKU-28", "28", "1464"), limpia el prefijo "SKU-"
+ *   y clasifica como `kind: 'code'` para comparación exacta (`===`).
+ * - Solo si el token es alfabético/descriptivo (ej. "HUEVOS", "MORTADELA"), clasifica como `kind: 'text'`
+ *   para búsqueda parcial normalizada (sin acentos y en mayúsculas).
+ */
+export function parseSkuFilterTokens(rawSkuQuery?: string | null): ParsedSkuFilterToken[] {
+  if (!rawSkuQuery) return [];
+  return String(rawSkuQuery)
+    .split(',')
+    .map((t) => t.trim())
+    .filter(Boolean)
+    .map((rawToken) => {
+      const codeMatch = /^(?:sku[-\s]*)?0*(\d+)$/i.exec(rawToken);
+      if (codeMatch) {
+        return {
+          kind: 'code' as const,
+          cleanCode: codeMatch[1].trim(),
+          normalizedText: codeMatch[1].trim(),
+        };
+      }
+      return {
+        kind: 'text' as const,
+        cleanCode: '',
+        normalizedText: normalizeSkuSearchText(rawToken).toUpperCase(),
+      };
+    })
+    .filter((tk) => (tk.kind === 'code' ? Boolean(tk.cleanCode) : Boolean(tk.normalizedText)));
+}
+
+/**
+ * Evalúa si un renglón (`SalesItem`) coincide con la búsqueda de SKU (código SKU exacto o descripción parcial).
+ * PROHIBIDO usar `.includes()` para códigos numéricos: buscar "28" o "SKU-28" compara estrictamente `===`.
  */
 export function doesItemMatchSkuQuery(item: SalesItem, rawSkuQuery: string): boolean {
-  const qNorm = normalizeSkuSearchText(rawSkuQuery);
-  if (!qNorm) return true;
+  const tokens = parseSkuFilterTokens(rawSkuQuery);
+  if (tokens.length === 0) return true;
 
   // Ignorar renglones anulados en cero (0 cajas, 0 kgs y $0 monto)
   const hasVolumeOrAmount =
@@ -160,37 +199,32 @@ export function doesItemMatchSkuQuery(item: SalesItem, rawSkuQuery: string): boo
     Math.abs(Number(item.monto) || 0) > 0;
   if (!hasVolumeOrAmount) return false;
 
-  const skuCode = formatItemSkuCode(item);
-  const skuNorm = normalizeSkuSearchText(skuCode); // ej. "sku-28"
-  const idStr = item.id_articulo !== undefined && item.id_articulo !== null ? String(item.id_articulo).trim() : '';
-  const articuloNorm = normalizeSkuSearchText(item.articulo);
+  const rawIdStr =
+    item.id_articulo !== undefined && item.id_articulo !== null
+      ? String(item.id_articulo).trim()
+      : '';
+  const cleanIdStr = rawIdStr.replace(/^0+/, '') || (rawIdStr ? '0' : '');
+  const skuCodeClean = String(item.sku || '')
+    .trim()
+    .replace(/^sku[-\s]*/i, '')
+    .replace(/^0+/, '');
+  const articuloUpper = normalizeSkuSearchText(item.articulo).toUpperCase();
 
-  // Caso 1: El usuario escribió explícitamente el prefijo "sku-" o "sku " (ej. "sku-28", "sku 28", "sku28")
-  const explicitSkuMatch = /^sku[-\s]*(\d+)$/i.exec(qNorm);
-  if (explicitSkuMatch) {
-    const targetId = explicitSkuMatch[1];
-    return idStr === targetId || skuNorm === `sku-${targetId}`;
-  }
-
-  // Caso 2: El usuario escribió un número puro (ej. "28" o "1464")
-  if (/^\d+$/.test(qNorm)) {
-    if (idStr === qNorm || skuNorm === `sku-${qNorm}`) return true;
-    if (idStr.includes(qNorm)) return true;
-    return articuloNorm.includes(qNorm);
-  }
-
-  // Caso 3: Búsqueda inteligente por código parcial o múltiples tokens de la descripción del producto
-  if (skuNorm.includes(qNorm) || articuloNorm.includes(qNorm)) {
-    return true;
-  }
-
-  const tokens = qNorm.split(' ').filter(Boolean);
-  if (tokens.length > 1) {
-    const combined = `${skuNorm} ${articuloNorm}`;
-    return tokens.every((tk) => combined.includes(tk));
-  }
-
-  return false;
+  return tokens.some((tk) => {
+    if (tk.kind === 'code') {
+      return (
+        rawIdStr === tk.cleanCode ||
+        cleanIdStr === tk.cleanCode ||
+        skuCodeClean === tk.cleanCode
+      );
+    }
+    // Token alfabético/descriptivo: búsqueda parcial normalizada (sin acentos y en mayúsculas)
+    const words = tk.normalizedText.split(' ').filter(Boolean);
+    if (words.length <= 1) {
+      return articuloUpper.includes(tk.normalizedText);
+    }
+    return words.every((w) => articuloUpper.includes(w));
+  });
 }
 
 /**
@@ -200,10 +234,10 @@ export function getInvoiceSkuMatchSummary(
   tx: SalesTransaction,
   rawSkuQuery: string
 ): InvoiceSkuMatchInfo | null {
-  const qNorm = normalizeSkuSearchText(rawSkuQuery);
-  if (!qNorm) return null;
+  const tokens = parseSkuFilterTokens(rawSkuQuery);
+  if (tokens.length === 0) return null;
 
-  const matchedItems = (tx.items || []).filter((item) => doesItemMatchSkuQuery(item, qNorm));
+  const matchedItems = (tx.items || []).filter((item) => doesItemMatchSkuQuery(item, rawSkuQuery));
   if (matchedItems.length === 0) {
     return {
       hasMatch: false,
@@ -279,11 +313,12 @@ export function filterAndSummarizeInvoices(
   kpis: FilteredInvoicesReactiveKPIs;
 } {
   const statusFilter = params.statusFilter || 'EMITIDAS';
-  const normSku = normalizeSkuSearchText(params.skuQuery);
+  const rawSkuQuery = String(params.skuQuery || '');
+  const skuTokens = parseSkuFilterTokens(rawSkuQuery);
   const normSearch = normalizeSkuSearchText(params.searchTerm);
   const minBound = parseQuantityBound(params.minQuantity);
   const maxBound = parseQuantityBound(params.maxQuantity);
-  const hasSkuFilter = Boolean(normSku);
+  const hasSkuFilter = skuTokens.length > 0;
   const hasQuantityFilter = minBound !== null || maxBound !== null;
   const quantityScope: QuantityFilterScope = params.quantityScope || 'sku';
 
@@ -356,7 +391,7 @@ export function filterAndSummarizeInvoices(
     }
 
     // 5. Filtro por SKU
-    const skuMatch = hasSkuFilter ? getInvoiceSkuMatchSummary(tx, normSku) : null;
+    const skuMatch = hasSkuFilter ? getInvoiceSkuMatchSummary(tx, rawSkuQuery) : null;
     if (hasSkuFilter && (!skuMatch || !skuMatch.hasMatch)) {
       continue;
     }
@@ -391,9 +426,21 @@ export function filterAndSummarizeInvoices(
       }
     }
 
+    // En modo 'Cantidad del SKU filtrado' con SKU activo, descartar de tx.items los renglones que NO pertenezcan al SKU filtrado
+    const rowTransaction: SalesTransaction =
+      hasSkuFilter && quantityScope === 'sku' && skuMatch
+        ? {
+            ...tx,
+            items: skuMatch.matchedItems,
+            itemsCount: skuMatch.matchedItems.length,
+            topProduct: skuMatch.primarySkuName || tx.topProduct,
+            topProductSku: skuMatch.primarySkuCode || tx.topProductSku,
+          }
+        : tx;
+
     // Acumular KPIs reactivos de la selección filtrada
     matchedRows.push({
-      transaction: tx,
+      transaction: rowTransaction,
       status: docStatus,
       totalQuantity: invoiceTotalQty,
       skuMatch,

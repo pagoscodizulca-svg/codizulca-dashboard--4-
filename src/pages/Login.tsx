@@ -33,7 +33,7 @@ const LoginContent: React.FC = () => {
   const navigate = useNavigate();
   const [authError, setAuthError] = useState<string | null>(null);
   
-  const from = location.state?.from?.pathname || '/dashboard/trade';
+  const from = location.state?.from?.pathname || '/dashboard';
 
   const {
     register,
@@ -85,7 +85,12 @@ const LoginContent: React.FC = () => {
         false
       );
 
-      navigate('/dashboard/trade', { replace: true });
+      const defaultRoute = getDefaultDashboardRoute(activeCorp);
+      const targetPath =
+        from && from !== '/dashboard' && canAccessDashboardRoute(activeCorp, from)
+          ? from
+          : defaultRoute;
+      navigate(targetPath, { replace: true });
       return;
     }
 
@@ -167,7 +172,10 @@ const LoginContent: React.FC = () => {
   };
 
   if (user) {
-    return <Navigate to="/dashboard/trade" replace />;
+    const safeDestination = canAccessDashboardRoute(corporateProfile, from)
+      ? from
+      : getDefaultDashboardRoute(corporateProfile);
+    return <Navigate to={safeDestination} replace />;
   }
 
   return (

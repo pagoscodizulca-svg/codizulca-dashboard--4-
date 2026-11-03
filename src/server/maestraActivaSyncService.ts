@@ -58,25 +58,36 @@ export interface SyncMaestraOptions {
 
 export async function fetchAllSupabaseActivacionRows(
   fdvSupabase: SupabaseClient,
-  periodo = '2026-10'
+  periodo = '2026-11'
 ): Promise<ExistingActivationRecordLike[]> {
-  const rows: ExistingActivationRecordLike[] = [];
-  let from = 0;
-  const pageSize = 1000;
-  while (from < 25000) {
-    const { data, error } = await fdvSupabase
-      .from('activacion_clientes')
-      .select('*')
-      .eq('periodo', periodo)
-      .order('id', { ascending: true })
-      .range(from, from + pageSize - 1);
-    if (error) {
-      throw new Error(`Error consultando public.activacion_clientes: ${error.message}`);
+  const fetchForPeriod = async (targetPeriod: string): Promise<ExistingActivationRecordLike[]> => {
+    const rows: ExistingActivationRecordLike[] = [];
+    let from = 0;
+    const pageSize = 1000;
+    while (from < 25000) {
+      const { data, error } = await fdvSupabase
+        .from('activacion_clientes')
+        .select('*')
+        .eq('periodo', targetPeriod)
+        .order('id', { ascending: true })
+        .range(from, from + pageSize - 1);
+      if (error) {
+        throw new Error(`Error consultando public.activacion_clientes: ${error.message}`);
+      }
+      if (!data || data.length === 0) break;
+      rows.push(...(data as ExistingActivationRecordLike[]));
+      if (data.length < pageSize) break;
+      from += pageSize;
     }
-    if (!data || data.length === 0) break;
-    rows.push(...(data as ExistingActivationRecordLike[]));
-    if (data.length < pageSize) break;
-    from += pageSize;
+    return rows;
+  };
+
+  let rows = await fetchForPeriod(periodo);
+  if (rows.length === 0 && periodo !== '2026-11') {
+    rows = await fetchForPeriod('2026-11');
+  }
+  if (rows.length === 0 && periodo !== '2026-10') {
+    rows = await fetchForPeriod('2026-10');
   }
   return rows;
 }
