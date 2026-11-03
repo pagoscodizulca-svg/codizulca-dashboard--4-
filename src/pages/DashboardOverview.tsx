@@ -476,7 +476,6 @@ export const DashboardOverview: React.FC = () => {
             const monthIndex = MONTH_NAMES.indexOf(rawMes);
             if (monthIndex === -1) return null;
             const gDate = `${row.ano}-${(monthIndex + 1).toString().padStart(2, '0')}`;
-            if (gDate === '2026-10') return null; // Octubre 2026 se lee exclusivamente desde Supabase
             return {
               idArt: String(row.id_articulo),
               baseName: resolveCatalogProductName(row.id_articulo, row.articulo),
@@ -1664,6 +1663,11 @@ export const DashboardOverview: React.FC = () => {
                   {historialOctubre2026?.auditBadgeText ||
                     'Fuente: Tabla history_sales en Supabase • 0 registros válidos procesados'}
                 </span>
+                {historialOctubre2026 && historialOctubre2026.totalRegistros > 0 && (
+                  <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-mono bg-emerald-950/60 border border-emerald-500/40 text-emerald-300">
+                    FA: ${historialOctubre2026.montoFA.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} | DV: ${historialOctubre2026.montoDV.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} | Kgs Bruto: {historialOctubre2026.kgsBrutoAbsoluto.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                )}
               </div>
             )}
           </div>

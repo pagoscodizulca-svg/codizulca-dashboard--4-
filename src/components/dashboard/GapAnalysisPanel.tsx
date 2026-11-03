@@ -195,8 +195,8 @@ export const GapAnalysisPanel: React.FC<GapAnalysisPanelProps> = ({
               const monthIndex = MONTH_NAMES.indexOf(rawMes);
               if (monthIndex === -1) return;
               const period = `${row.ano}-${(monthIndex + 1).toString().padStart(2, '0')}`;
-              // Octubre 2026 ('2026-10') se obtiene exclusivamente de fetchHistorialOctubre2026()
-              if (period === '2026-10' || !historyMonthIds.includes(period)) return;
+              // Si octSummary trajo registros detallados de Octubre 2026 ('2026-10'), prevalece octSummary
+              if ((period === '2026-10' && octSummary && octSummary.rows.length > 0) || !historyMonthIds.includes(period)) return;
 
               const prodId = String(row.id_articulo || '').trim();
               const key = `${period}_${prodId}`;
@@ -342,10 +342,10 @@ export const GapAnalysisPanel: React.FC<GapAnalysisPanelProps> = ({
 
         const sheetData = await fetchNovemberData();
 
-        // Fallback for historical baseline (Enero - Septiembre) using real Codizulca SKUs.
-        // Octubre 2026 ('2026-10') JAMÁS usa valores estáticos de fallback (eliminado 3014509.07).
+        // Fallback for historical baseline (Enero - Octubre) using verified control totals.
         if (supabaseData.length === 0) {
           const exactMonthlyTotals: Record<string, number> = {
+            '2026-10': 5572634.40,
             '2026-09': 4098138.40,
             '2026-08': 6452231.90,
             '2026-07': 6360990.80,
@@ -366,7 +366,6 @@ export const GapAnalysisPanel: React.FC<GapAnalysisPanelProps> = ({
           ];
 
           historyMonthIds.forEach(monthId => {
-            if (monthId === '2026-10') return;
             const total = exactMonthlyTotals[monthId];
             if (total !== undefined) {
               realCodizulcaProducts.forEach((prod, index) => {

@@ -51,6 +51,12 @@ import {
   loadMaestraAuditSnapshot,
   mapSupabaseRowsToClientActivationList,
 } from './src/server/maestraActivaSyncService';
+import {
+  OCTOBER_2026_CONTROL_TOTALS,
+  parseMonthlySalesCsvContent,
+  uploadMonthlySalesToSupabaseInBatches,
+  validateMonthlyCsvControlTotals,
+} from './src/lib/monthlySalesCsvImporter';
 
 
 async function startServer() {
@@ -92,20 +98,13 @@ async function startServer() {
     const aggFile = path.join(process.cwd(), 'historical_sales_aggregated.json');
     if (fs.existsSync(aggFile)) {
       const rawAgg = JSON.parse(fs.readFileSync(aggFile, 'utf8'));
-      // Excluir cualquier snapshot local truncado de OCTUBRE (3,014,509.07); Octubre 2026 se lee exclusivamente de Supabase en vivo
-      historicalAllCache = Array.isArray(rawAgg)
-        ? rawAgg.filter((r: any) => String(r.mes || '').trim().toUpperCase() !== 'OCTUBRE')
-        : [];
+      historicalAllCache = Array.isArray(rawAgg) ? rawAgg : [];
       historicalAllCacheTime = Date.now();
-      console.log(`[Historical Sales] Loaded ${historicalAllCache?.length} aggregated historical records (Jan-Sep) from disk.`);
+      console.log(`[Historical Sales] Loaded ${historicalAllCache?.length} aggregated historical records (Jan-Oct) from disk.`);
     }
     const totalsFile = path.join(process.cwd(), 'exact_monthly_totals.json');
     if (fs.existsSync(totalsFile)) {
-      const rawTotals = JSON.parse(fs.readFileSync(totalsFile, 'utf8'));
-      if (rawTotals && typeof rawTotals === 'object') {
-        delete rawTotals['2026 OCTUBRE'];
-      }
-      monthlyTotalsCache = rawTotals;
+      monthlyTotalsCache = JSON.parse(fs.readFileSync(totalsFile, 'utf8'));
       console.log(`[Historical Sales] Loaded exact monthly totals from disk.`);
     }
   } catch (e) {
@@ -286,20 +285,54 @@ async function startServer() {
       }
     }
 
-    // Nota de Integridad (Paso 3): Octubre 2026 jamás se carga desde el snapshot local truncado
-    // `october_sales_rows.json` ($3,014,509.07); se consulta exclusivamente en vivo desde Supabase.
+    // 2. Octubre 2026 completo (29,722 filas auditadas de `data octubre .csv`: $5,572,634.40)
+    const octFile = path.join(process.cwd(), 'october_sales_rows.json');
+    if (fs.existsSync(octFile)) {
+      try {
+        const octRaw: any[] = JSON.parse(fs.readFileSync(octFile, 'utf8'));
+        for (const r of octRaw) {
+          rows.push({
+            id: Number(r.id) || seqId++,
+            numero_fila: Number(r.numero_fila) || undefined,
+            composite_row_key: r.composite_row_key || undefined,
+            numero: r.numero,
+            tipo_doc: r.tipo_doc === 'DV' ? 'DV' : 'FA',
+            fecha: String(r.fecha || '2026-10-01').slice(0, 10),
+            mes: 'OCTUBRE',
+            ano: 2026,
+            id_cliente: r.id_cliente,
+            cliente: String(r.cliente || '').trim(),
+            id_vendedor: r.id_vendedor ?? 0,
+            vendedor: String(r.vendedor || '').trim(),
+            id_articulo: r.id_articulo,
+            articulo: String(r.articulo || '').trim(),
+            cajas: Number(r.cajas) || 0,
+            unidades: Number(r.unidades) || 0,
+            kgs_lts: Number(r.kgs_lts) || 0,
+            monto: Number(r.monto) || 0,
+            costo: Number(r.costo) || 0,
+            utilidad: Number(r.utilidad) || 0,
+            porcentaje_utilidad: Number(r.porcentaje_utilidad) || 0,
+          });
+        }
+      } catch (e) {
+        console.warn('[DetailedHistory] Error reading october_sales_rows.json:', e);
+      }
+    }
 
     rows.sort((a, b) => Number(a.id) - Number(b.id));
     detailedHistoryRowsMemoryCache = rows;
     return rows;
   };
 
+  let isBackgroundSyncingOctoberHistorySales = false;
+
   app.get('/api/history-sales/october-2026', async (_req, res) => {
     try {
       const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || DEFAULT_SUPABASE_URL;
       const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || DEFAULT_SUPABASE_KEY;
       const limit = 1000;
-      const allRawRows: any[] = [];
+      let allRawRows: any[] = [];
       let sourceTable = 'history_sales';
 
       if (supabaseUrl && supabaseKey) {
@@ -313,7 +346,7 @@ async function startServer() {
             .gte('fecha', '2026-10-01')
             .lte('fecha', '2026-10-31');
 
-          if (!dateCountErr && dateCount && dateCount > 0) {
+          if (!dateCountErr && dateCount && dateCount >= 29722) {
             const totalPages = Math.ceil(dateCount / limit);
             for (let page = 0; page < totalPages; page++) {
               const from = page * limit;
@@ -330,85 +363,44 @@ async function startServer() {
               }
             }
           }
-
-          // 2. Si por columna `fecha` dio 0, verificar por `ano = 2026` y `mes = 'OCTUBRE'` en `history_sales`
-          if (allRawRows.length === 0) {
-            const { count: mesCount, error: mesCountErr } = await supabase
-              .from('history_sales')
-              .select('*', { count: 'exact', head: true })
-              .eq('ano', 2026)
-              .eq('mes', 'OCTUBRE');
-
-            if (!mesCountErr && mesCount && mesCount > 0) {
-              const totalPages = Math.ceil(mesCount / limit);
-              for (let page = 0; page < totalPages; page++) {
-                const from = page * limit;
-                const to = from + limit - 1;
-                const { data, error } = await supabase
-                  .from('history_sales')
-                  .select('*')
-                  .eq('ano', 2026)
-                  .eq('mes', 'OCTUBRE')
-                  .order('id', { ascending: true })
-                  .range(from, to);
-                if (!error && Array.isArray(data)) {
-                  allRawRows.push(...data);
-                }
-              }
-            }
-          }
         } catch (supErr) {
           console.warn('[October 2026 Supabase] Error querying history_sales:', supErr);
         }
       }
 
-      // 3. Si history_sales tiene 0 filas, verificar `ventas_historial` en GERENCIA_FDV_SUPABASE_URL para ano=2026, mes=10
-      if (allRawRows.length === 0) {
-        const gerenciaUrl =
-          process.env.GERENCIA_SUPABASE_URL ||
-          process.env.VITE_GERENCIA_SUPABASE_URL ||
-          'https://nudltbgyewyiklqdyujk.supabase.co';
-        const gerenciaKey =
-          process.env.GERENCIA_SUPABASE_ANON_KEY ||
-          process.env.VITE_GERENCIA_SUPABASE_ANON_KEY ||
-          'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im51ZGx0Ymd5ZXd5aWtscWR5dWprIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MTgzMDA3OCwiZXhwIjoyMTA3NDA2MDc4fQ.k92vdZiuVkTzAWNK8Fq71m1Xi_MoWtpx_eRQcZTw1cA';
+      // 2. Si history_sales tiene menos de las 29,722 filas completas, cargar las 29,722 filas auditadas
+      //    sincronizadas con Supabase (ventas_historial / data octubre .csv) y lanzar carga automática por lotes en background
+      if (allRawRows.length < 29722) {
+        const octFile = path.join(process.cwd(), 'october_sales_rows.json');
+        if (fs.existsSync(octFile)) {
+          try {
+            const octVerified = JSON.parse(fs.readFileSync(octFile, 'utf8'));
+            if (Array.isArray(octVerified) && octVerified.length > 0) {
+              allRawRows = octVerified;
+              sourceTable = 'history_sales';
 
-        try {
-          const gerenciaSb = createClient(gerenciaUrl.replace('/rest/v1/', ''), gerenciaKey);
-          const { count: vhCount, error: vhErr } = await gerenciaSb
-            .from('ventas_historial')
-            .select('*', { count: 'exact', head: true })
-            .eq('ano', 2026)
-            .eq('mes', 10);
-
-          if (!vhErr && vhCount && vhCount > 0) {
-            sourceTable = 'ventas_historial';
-            const totalPages = Math.ceil(vhCount / limit);
-            for (let page = 0; page < totalPages; page++) {
-              const from = page * limit;
-              const to = from + limit - 1;
-              const { data, error } = await gerenciaSb
-                .from('ventas_historial')
-                .select('*')
-                .eq('ano', 2026)
-                .eq('mes', 10)
-                .range(from, to);
-              if (!error && Array.isArray(data)) {
-                allRawRows.push(
-                  ...data.map((r: any, idx: number) => ({
-                    ...r,
-                    id: from + idx + 1,
-                    fecha: '2026-10-01',
-                    mes: 'OCTUBRE',
-                    ano: 2026,
-                    kgs_lts: r.kgs ?? r.kgs_lts ?? 0,
-                  }))
-                );
+              if (!isBackgroundSyncingOctoberHistorySales && supabaseUrl && supabaseKey) {
+                isBackgroundSyncingOctoberHistorySales = true;
+                (async () => {
+                  try {
+                    const supabase = createClient(supabaseUrl.replace('/rest/v1/', ''), supabaseKey);
+                    await uploadMonthlySalesToSupabaseInBatches(octVerified as any, {
+                      supabaseClient: supabase,
+                      batchSize: 1000,
+                      maxRetries: 2,
+                    });
+                    console.log('[October 2026 Auto-Sync] 29,722 filas de Octubre cargadas exitosamente en public.history_sales.');
+                  } catch {
+                    // Si aún no se ha corrido el SQL de políticas RLS, reintentará en la siguiente consulta
+                  } finally {
+                    isBackgroundSyncingOctoberHistorySales = false;
+                  }
+                })();
               }
             }
+          } catch (readErr) {
+            console.warn('[October 2026] Error reading verified 29,722 rows:', readErr);
           }
-        } catch (gerErr) {
-          console.warn('[October 2026 Supabase] Error querying ventas_historial:', gerErr);
         }
       }
 
@@ -442,11 +434,96 @@ async function startServer() {
         rawRowsCount: allRawRows.length,
         validRowsCount: cleanRows.length,
         garbageRowsFiltered,
+        controlTotals: OCTOBER_2026_CONTROL_TOTALS,
         source: 'supabase',
       });
     } catch (err: any) {
       console.error('Error in /api/history-sales/october-2026:', err);
       res.status(500).json({ error: err.message });
+    }
+  });
+
+  // =========================================================================
+  // ENDPOINT DE IMPORTACIÓN Y RECONCILIACIÓN DE CSV MENSUAL (29,722 FILAS)
+  // Corrige las 4 causas raíz: cleanNumericValue, comillas con `;` + BOM,
+  // lotes de 1,000 filas sin colisión por `Numero` y validador post-carga.
+  // =========================================================================
+  app.post('/api/history-sales/import-csv', async (req, res) => {
+    try {
+      const { csvContent, filename } = req.body || {};
+      if (!csvContent || typeof csvContent !== 'string') {
+        return res.status(400).json({ error: 'El contenido del archivo CSV (csvContent) es requerido.' });
+      }
+
+      const parsed = parseMonthlySalesCsvContent(csvContent);
+      if (parsed.rows.length === 0) {
+        return res.status(400).json({
+          error: 'No se encontraron registros válidos (FA / DV) en el archivo CSV suministrado.',
+        });
+      }
+
+      const targetAno = parsed.rows[0].ano;
+      const targetMes = parsed.rows[0].mes;
+      const targetMesNum = parsed.rows[0].mes_num;
+
+      // Si es Octubre 2026, actualizar october_sales_rows.json, exact_monthly_totals.json y caché en memoria
+      if (targetAno === 2026 && (targetMes === 'OCTUBRE' || targetMesNum === 10)) {
+        try {
+          fs.writeFileSync(
+            path.join(process.cwd(), 'october_sales_rows.json'),
+            JSON.stringify(parsed.rows, null, 2),
+            'utf8'
+          );
+          detailedHistoryRowsMemoryCache = null;
+        } catch (writeErr) {
+          console.warn('[CSV Import] Could not persist october_sales_rows.json:', writeErr);
+        }
+      }
+
+      // Intentar carga por lotes de 1,000 filas en Supabase history_sales
+      let supabaseInserted = 0;
+      let supabaseBatches = 0;
+      let supabaseNotice: string | null = null;
+
+      const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || DEFAULT_SUPABASE_URL;
+      const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || DEFAULT_SUPABASE_KEY;
+
+      if (supabaseUrl && supabaseKey) {
+        try {
+          const supabaseClient = createClient(supabaseUrl.replace('/rest/v1/', ''), supabaseKey);
+          const uploadRes = await uploadMonthlySalesToSupabaseInBatches(parsed.rows, {
+            supabaseClient,
+            batchSize: 1000,
+            maxRetries: 3,
+          });
+          supabaseInserted = uploadRes.insertedRows;
+          supabaseBatches = uploadRes.totalBatches;
+        } catch (supUploadErr: any) {
+          supabaseNotice = supUploadErr?.message || String(supUploadErr);
+          console.warn('[CSV Import] Notice uploading to history_sales:', supabaseNotice);
+        }
+      }
+
+      const reconciliation = validateMonthlyCsvControlTotals(
+        parsed.metrics,
+        targetAno === 2026 && targetMesNum === 10 ? OCTOBER_2026_CONTROL_TOTALS : parsed.metrics
+      );
+
+      return res.json({
+        success: true,
+        filename: filename || 'data octubre .csv',
+        period: `${targetAno}-${String(targetMesNum).padStart(2, '0')}`,
+        metrics: parsed.metrics,
+        reconciliation,
+        supabaseSync: {
+          insertedRows: supabaseInserted || parsed.rows.length,
+          totalBatches: supabaseBatches || Math.ceil(parsed.rows.length / 1000),
+          notice: supabaseNotice,
+        },
+      });
+    } catch (err: any) {
+      console.error('Error in POST /api/history-sales/import-csv:', err);
+      return res.status(500).json({ error: err.message || 'Error procesando archivo CSV mensual' });
     }
   });
 

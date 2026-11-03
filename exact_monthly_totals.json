@@ -106,5 +106,31 @@
     "totalNeto": 4098138.4000000064,
     "totalCajas": 563544.4000000012,
     "totalKgs": 1474745.7499999998
+  },
+  "2026 OCTUBRE": {
+    "ano": 2026,
+    "mes": "OCTUBRE",
+    "validRows": 29722,
+    "faRows": 25336,
+    "dvRows": 4386,
+    "totalFA": 7792442.94,
+    "totalDV": -2219808.54,
+    "totalNeto": 5572634.4,
+    "costoFA": 5924402.28,
+    "costoDV": -1671130.04,
+    "totalCosto": 4253272.24,
+    "utilidadFA": 1868040.66,
+    "utilidadDV": -548678.5,
+    "totalUtilidad": 1319362.16,
+    "kgsFA": 3105976.35,
+    "kgsDV": -939540.52,
+    "totalKgs": 2166435.83,
+    "kgsBruto": 4045516.87,
+    "unidadesFA": 3030681,
+    "unidadesDV": -941728,
+    "totalUnidades": 2088953,
+    "cajasFA": 1183449.44,
+    "cajasDV": -455963.03,
+    "totalCajas": 727486.41
   }
 }

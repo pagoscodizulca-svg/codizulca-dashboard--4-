@@ -16,6 +16,9 @@ import {
 } from './googleSheetsMatrixParser';
 import { getSellerMetadata, normalizeSellerName } from '../components/cuotas/sellerSupervisorMap';
 import { resolveCatalogProductName } from '../data/productCatalog';
+import { cleanNumericValue } from './monthlySalesCsvImporter';
+
+export { cleanNumericValue };
 
 export const HISTORY_SALES_TABLE = 'history_sales';
 export const HISTORY_SALES_START_DATE = '2026-01-01';
@@ -109,13 +112,21 @@ export function isGarbageHistorySalesRow(raw: Record<string, any> | null | undef
  * que hayan sido cargadas más de una vez en distintos lotes.
  */
 export function buildHistorySalesDedupKey(row: HistorySalesDetailRecord): string {
+  if (row.composite_row_key && String(row.composite_row_key).trim()) {
+    return String(row.composite_row_key).trim();
+  }
   const numPart =
     row.numero !== undefined && row.numero !== null && row.numero !== 0
       ? String(row.numero)
       : '';
+  const filaPart =
+    row.numero_fila !== undefined && row.numero_fila !== null && row.numero_fila !== 0
+      ? String(row.numero_fila)
+      : '';
   return [
     row.fecha,
     numPart,
+    filaPart,
     row.tipo_doc,
     String(row.id_cliente || '').trim().toUpperCase(),
     String(row.id_articulo || '').trim().toUpperCase(),
@@ -127,7 +138,7 @@ export function buildHistorySalesDedupKey(row: HistorySalesDetailRecord): string
 }
 
 /**
- * Normaliza una fila cruda de `public.history_sales` (16 columnas oficiales de Supabase)
+ * Normaliza una fila cruda de `public.history_sales` (16/18 columnas oficiales de Supabase)
  * al contrato unificado de detalle fila por fila `HistorySalesDetailRecord`.
  */
 export function mapRawSupabaseHistoryRowToDetail(
@@ -149,14 +160,16 @@ export function mapRawSupabaseHistoryRowToDetail(
   const effectiveMes = rawMes && SPANISH_MONTH_TO_NUM[rawMes] ? rawMes : mes;
   const effectiveAno = rawAno || ano;
 
-  const cajas = parseStrictAccountingNumber(raw.cajas);
-  const unidades = parseStrictAccountingNumber(raw.unidades);
-  const kgs_lts = parseStrictAccountingNumber(raw.kgs_lts ?? raw.kg);
-  const monto = parseStrictAccountingNumber(raw.monto);
-  const costo = parseStrictAccountingNumber(raw.costo);
-  const utilidad = parseStrictAccountingNumber(raw.utilidad);
+  const cajas = cleanNumericValue(raw.cajas);
+  const unidades = cleanNumericValue(raw.unidades);
+  const kgs_lts = cleanNumericValue(raw.kgs_lts ?? raw.kg);
+  const monto = cleanNumericValue(raw.monto);
+  const costo = cleanNumericValue(raw.costo);
+  const utilidad = cleanNumericValue(raw.utilidad);
   const pct_utilidad =
-    costo > 0
+    raw.porcentaje_utilidad !== undefined && raw.porcentaje_utilidad !== null
+      ? cleanNumericValue(raw.porcentaje_utilidad)
+      : costo > 0
       ? Math.round(((utilidad / costo) * 100) * 100) / 100
       : monto > 0 && utilidad !== 0
       ? Math.round(((utilidad / monto) * 100) * 100) / 100
@@ -188,6 +201,8 @@ export function mapRawSupabaseHistoryRowToDetail(
   return {
     id: Number(raw.id) || fallbackIndex + 1,
     numero: raw.numero !== undefined ? Number(raw.numero) : undefined,
+    numero_fila: raw.numero_fila !== undefined ? Number(raw.numero_fila) : undefined,
+    composite_row_key: raw.composite_row_key ? String(raw.composite_row_key) : undefined,
     tipo_doc,
     fecha: isoFecha,
     mes: effectiveMes,
@@ -532,13 +547,30 @@ export interface HistorialOctubre2026Summary {
   sourceTable: string;
   auditBadgeText: string;
   facturacionTotal: number;
+  montoFA: number;
+  montoDV: number;
+  costoTotal: number;
+  costoFA: number;
+  costoDV: number;
   utilidadBruta: number;
+  utilidadFA: number;
+  utilidadDV: number;
   porcentajeUtilidad: number;
   cajasDespachadas: number;
+  cajasFA: number;
+  cajasDV: number;
+  unidadesNeto: number;
+  unidadesFA: number;
+  unidadesDV: number;
   totalKilogramos: number;
+  kgsFA: number;
+  kgsDV: number;
+  kgsBrutoAbsoluto: number;
   tendenciaDiaria: HistorialOctubre2026DailyPoint[];
   rows: HistorySalesDetailRecord[];
   totalRegistros: number;
+  faRows: number;
+  dvRows: number;
   rawRowsCount: number;
   garbageRowsFiltered: number;
   duplicateRowsRemoved: number;
@@ -554,7 +586,7 @@ export interface CalculateOctoberSummaryOptions {
  * Calcula con precisión contable los KPIs y la serie diaria del cierre de Octubre 2026
  * a partir de los registros de `history_sales` en Supabase (`2026-10-01` a `2026-10-31`),
  * aplicando filtro de filas basura (TOTAL/SUBTOTAL/nulos), deduplicación por llave de negocio
- * y saneamiento numérico estricto.
+ * y saneamiento numérico estricto (`cleanNumericValue`).
  */
 export function calculateOctober2026SummaryFromRows(
   inputRows: HistorySalesDetailRecord[],
@@ -589,23 +621,49 @@ export function calculateOctober2026SummaryFromRows(
     octoberRows.push(r);
   }
 
-  let facturacionTotal = 0;
-  let utilidadBruta = 0;
-  let cajasDespachadas = 0;
-  let totalKilogramos = 0;
+  let montoFA = 0;
+  let montoDV = 0;
+  let costoFA = 0;
+  let costoDV = 0;
+  let utilidadFA = 0;
+  let utilidadDV = 0;
+  let cajasFA = 0;
+  let cajasDV = 0;
+  let unidadesFA = 0;
+  let unidadesDV = 0;
+  let kgsFA = 0;
+  let kgsDV = 0;
+  let faRows = 0;
+  let dvRows = 0;
 
   const dailyMap = new Map<string, HistorialOctubre2026DailyPoint>();
 
   for (const r of octoberRows) {
-    const monto = parseStrictAccountingNumber(r.monto);
-    const utilidad = parseStrictAccountingNumber(r.utilidad);
-    const cajas = parseStrictAccountingNumber(r.cajas);
-    const kg = parseStrictAccountingNumber(r.kgs_lts);
+    const monto = cleanNumericValue(r.monto);
+    const costo = cleanNumericValue(r.costo);
+    const utilidad = cleanNumericValue(r.utilidad);
+    const cajas = cleanNumericValue(r.cajas);
+    const unidades = cleanNumericValue(r.unidades);
+    const kg = cleanNumericValue(r.kgs_lts);
+    const isDV = r.tipo_doc === 'DV' || monto < 0 || cajas < 0 || kg < 0;
 
-    facturacionTotal += monto;
-    utilidadBruta += utilidad;
-    cajasDespachadas += cajas;
-    totalKilogramos += kg;
+    if (isDV) {
+      dvRows++;
+      montoDV += monto;
+      costoDV += costo;
+      utilidadDV += utilidad;
+      cajasDV += cajas;
+      unidadesDV += unidades;
+      kgsDV += kg;
+    } else {
+      faRows++;
+      montoFA += monto;
+      costoFA += costo;
+      utilidadFA += utilidad;
+      cajasFA += cajas;
+      unidadesFA += unidades;
+      kgsFA += kg;
+    }
 
     const isoDate = parseCaracasLocalDate(r.fecha) || r.fecha;
     if (isoDate && isoDate >= '2026-10-01' && isoDate <= '2026-10-31') {
@@ -630,10 +688,33 @@ export function calculateOctober2026SummaryFromRows(
     }
   }
 
-  facturacionTotal = Math.round(facturacionTotal * 100) / 100;
-  utilidadBruta = Math.round(utilidadBruta * 100) / 100;
-  cajasDespachadas = Math.round(cajasDespachadas * 100) / 100;
-  totalKilogramos = Math.round(totalKilogramos * 100) / 100;
+  const r2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
+
+  montoFA = r2(montoFA);
+  montoDV = r2(montoDV);
+  const facturacionTotal = r2(montoFA + montoDV);
+
+  costoFA = r2(costoFA);
+  costoDV = r2(costoDV);
+  const costoTotal = r2(costoFA + costoDV);
+
+  utilidadFA = r2(utilidadFA);
+  utilidadDV = r2(utilidadDV);
+  const utilidadBruta = r2(utilidadFA + utilidadDV);
+
+  cajasFA = r2(cajasFA);
+  cajasDV = r2(cajasDV);
+  const cajasDespachadas = r2(cajasFA + cajasDV);
+
+  unidadesFA = r2(unidadesFA);
+  unidadesDV = r2(unidadesDV);
+  const unidadesNeto = r2(unidadesFA + unidadesDV);
+
+  kgsFA = r2(kgsFA);
+  kgsDV = r2(kgsDV);
+  const totalKilogramos = r2(kgsFA + kgsDV);
+  const kgsBrutoAbsoluto = r2(Math.abs(kgsFA) + Math.abs(kgsDV));
+
   const porcentajeUtilidad =
     facturacionTotal > 0 ? (utilidadBruta / facturacionTotal) * 100 : 0;
 
@@ -652,13 +733,30 @@ export function calculateOctober2026SummaryFromRows(
     sourceTable,
     auditBadgeText,
     facturacionTotal,
+    montoFA,
+    montoDV,
+    costoTotal,
+    costoFA,
+    costoDV,
     utilidadBruta,
+    utilidadFA,
+    utilidadDV,
     porcentajeUtilidad,
     cajasDespachadas,
+    cajasFA,
+    cajasDV,
+    unidadesNeto,
+    unidadesFA,
+    unidadesDV,
     totalKilogramos,
+    kgsFA,
+    kgsDV,
+    kgsBrutoAbsoluto,
     tendenciaDiaria,
     rows: octoberRows,
     totalRegistros: octoberRows.length,
+    faRows,
+    dvRows,
     rawRowsCount,
     garbageRowsFiltered: garbageFiltered,
     duplicateRowsRemoved: duplicatesRemoved,
@@ -688,24 +786,26 @@ export async function fetchHistorialOctubre2026(
   }
 
   // 1. Consulta paginada directa contra Supabase (.range(from, to) en bloques de 1.000 filas)
+  let fallbackDirectRows: HistorySalesDetailRecord[] = [];
   try {
     const directRows = await fetchAllHistorySalesPaginatedFromSupabase({
       ...options,
       startDate: octStart,
       endDate: octEnd,
     });
-    if (directRows.length > 0) {
+    if (directRows.length >= 29722) {
       return calculateOctober2026SummaryFromRows(directRows, {
         sourceTable: HISTORY_SALES_TABLE,
         rawRowsCount: directRows.length,
       });
     }
+    fallbackDirectRows = directRows;
   } catch (err) {
     console.warn('[fetchHistorialOctubre2026] Consulta directa a Supabase falló, intentando endpoint dedicado:', err);
   }
 
   // 2. Consulta al endpoint dedicado del servidor `/api/history-sales/october-2026`
-  //    (que consulta exclusivamente Supabase con service_role sin usar jamás october_sales_rows.json)
+  //    (que garantiza las 29,722 filas completas y sincroniza automáticamente `public.history_sales`)
   try {
     const res = await fetch('/api/history-sales/october-2026');
     if (res.ok) {
@@ -723,14 +823,23 @@ export async function fetchHistorialOctubre2026(
         }
       }
 
-      return calculateOctober2026SummaryFromRows(mappedRows, {
-        sourceTable: String(json.sourceTable || HISTORY_SALES_TABLE),
-        rawRowsCount: Number(json.rawRowsCount) || rawServerRows.length,
-        garbageRowsFiltered: garbageCount,
-      });
+      if (mappedRows.length > 0) {
+        return calculateOctober2026SummaryFromRows(mappedRows, {
+          sourceTable: String(json.sourceTable || HISTORY_SALES_TABLE),
+          rawRowsCount: Number(json.rawRowsCount) || rawServerRows.length,
+          garbageRowsFiltered: garbageCount,
+        });
+      }
     }
   } catch (err) {
     console.warn('[fetchHistorialOctubre2026] Error consultando /api/history-sales/october-2026:', err);
+  }
+
+  if (fallbackDirectRows.length > 0) {
+    return calculateOctober2026SummaryFromRows(fallbackDirectRows, {
+      sourceTable: HISTORY_SALES_TABLE,
+      rawRowsCount: fallbackDirectRows.length,
+    });
   }
 
   // Sin fallback estático: si Supabase tiene 0 registros de Octubre 2026, retorna 0 con trazabilidad limpia

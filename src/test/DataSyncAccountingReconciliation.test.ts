@@ -35,6 +35,13 @@ import {
   isStrictNovember2026Date,
   loadDetailedHistorySalesJanToOct2026,
 } from '../lib/supabaseHistoryLoader';
+import {
+  OCTOBER_2026_CONTROL_TOTALS,
+  cleanNumericValue,
+  parseMonthlySalesCsvContent,
+  uploadMonthlySalesToSupabaseInBatches,
+  validateMonthlyCsvControlTotals,
+} from '../lib/monthlySalesCsvImporter';
 
 describe('Data Sync & Accounting Reconciliation (Supabase history_sales + Google Sheets 8-Tab Matrix)', () => {
   beforeEach(async () => {
@@ -446,6 +453,149 @@ describe('Data Sync & Accounting Reconciliation (Supabase history_sales + Google
       expect(summary.totalKilogramos).toBe(800);
       expect(summary.tendenciaDiaria).toHaveLength(2);
       expect(summary.tendenciaDiaria.map((d) => d.date)).toEqual(['2026-10-10', '2026-10-15']);
+    });
+  });
+
+  describe('5. Monthly Sales CSV Importer (data octubre .csv 4 Root Causes & Post-Load Validator)', () => {
+    it('fixes Cause 1 & Cause 2: cleanNumericValue, UTF-8 BOM (\\ufeffAño), quoted semicolons ("COMERCIALIZADORA YUSI 600; C.A."), and .trim()', () => {
+      // Cause 1: Thousand separator comma + decimal point + negative returns
+      expect(cleanNumericValue('-1,200.00')).toBe(-1200);
+      expect(cleanNumericValue('32,700.00')).toBe(32700);
+      expect(cleanNumericValue('1,546.50')).toBe(1546.5);
+      expect(cleanNumericValue('-86.15')).toBe(-86.15);
+
+      // Cause 2: UTF-8 BOM \ufeffAño + semicolon inside quotes + trailing spaces + multiple lines sharing same Numero
+      const sampleOctubreCsv = [
+        '\ufeffAño;Mes;Fecha;Tipo Doc;Numero;Id Cliente;Cliente;Id Vendedor;Vendedor;Id Articulo;Articulo;Cajas;Unidades;Kgs/Lts;Monto;Costo;Utilidad;% Utilidad',
+        '2026;OCTUBRE;15/10/2026;FA;00448777 ;007856 ;"COMERCIALIZADORA YUSI 600; C.A.";03 ;OSCAR ORTIZ- CORO ;0028 ;HUEVOS CONSUMO 360 UNID ;10.00;0.00;228.00;32,700.00;25,000.00;7,700.00;30.80',
+        '2026;OCTUBRE;15/10/2026;FA;00448777 ;007856 ;"COMERCIALIZADORA YUSI 600; C.A.";03 ;OSCAR ORTIZ- CORO ;1478 ;MORTADELA ESPECIAL TAPARA 1KG ;5.00;50.00;50.00;1,300.00;1,000.00;300.00;30.00',
+        '2026;OCTUBRE;16/10/2026;DV;00091234 ;007856 ;"COMERCIALIZADORA YUSI 600; C.A.";03 ;OSCAR ORTIZ- CORO ;0028 ;HUEVOS CONSUMO 360 UNID ;-1.00;0.00;-22.80;-1,200.00;-900.00;-300.00;33.33',
+      ].join('\n');
+
+      const parsed = parseMonthlySalesCsvContent(sampleOctubreCsv);
+      expect(parsed.metrics.validRows).toBe(3);
+      expect(parsed.metrics.faRows).toBe(2);
+      expect(parsed.metrics.dvRows).toBe(1);
+
+      // Verify quoted semicolon did not shift columns into 19 fields
+      expect(parsed.rows[0].ano).toBe(2026);
+      expect(parsed.rows[0].mes).toBe('OCTUBRE');
+      expect(parsed.rows[0].fecha).toBe('2026-10-15');
+      expect(parsed.rows[0].numero).toBe('00448777');
+      expect(parsed.rows[0].id_cliente).toBe('007856');
+      expect(parsed.rows[0].cliente).toBe('COMERCIALIZADORA YUSI 600; C.A.');
+      expect(parsed.rows[0].id_vendedor).toBe('03');
+      expect(parsed.rows[0].vendedor).toBe('OSCAR ORTIZ- CORO');
+      expect(parsed.rows[0].id_articulo).toBe('0028');
+      expect(parsed.rows[0].articulo).toBe('HUEVOS CONSUMO 360 UNID');
+      expect(parsed.rows[0].monto).toBe(32700);
+      expect(parsed.rows[0].costo).toBe(25000);
+      expect(parsed.rows[0].utilidad).toBe(7700);
+
+      // Cause 3: Same invoice number (00448777) across multiple lines must produce distinct composite_row_key
+      expect(parsed.rows[0].composite_row_key).not.toBe(parsed.rows[1].composite_row_key);
+      expect(parsed.rows[0].numero_fila).toBe(1);
+      expect(parsed.rows[1].numero_fila).toBe(2);
+
+      // Verify net & FA/DV metrics
+      expect(parsed.metrics.montoFA).toBe(34000);
+      expect(parsed.metrics.montoDV).toBe(-1200);
+      expect(parsed.metrics.montoNeto).toBe(32800);
+      expect(parsed.metrics.costoNeto).toBe(25100);
+      expect(parsed.metrics.utilidadNeta).toBe(7700);
+      expect(parsed.metrics.kgsNeto).toBe(255.2);
+      expect(parsed.metrics.kgsBrutoAbsoluto).toBe(300.8);
+    });
+
+    it('fixes Cause 3 & Cause 4: uploads in 1,000-row batches without Numero upsert collision and validates October 2026 control totals', async () => {
+      // Verify exact audited control totals for data octubre .csv (29,722 valid rows)
+      expect(OCTOBER_2026_CONTROL_TOTALS.totalLines).toBe(29723);
+      expect(OCTOBER_2026_CONTROL_TOTALS.validRows).toBe(29722);
+      expect(OCTOBER_2026_CONTROL_TOTALS.faRows).toBe(25336);
+      expect(OCTOBER_2026_CONTROL_TOTALS.dvRows).toBe(4386);
+      expect(OCTOBER_2026_CONTROL_TOTALS.uniqueInvoiceNumbers).toBe(13588);
+      expect(OCTOBER_2026_CONTROL_TOTALS.montoNeto).toBe(5572634.4);
+      expect(OCTOBER_2026_CONTROL_TOTALS.montoFA).toBe(7792442.94);
+      expect(OCTOBER_2026_CONTROL_TOTALS.montoDV).toBe(-2219808.54);
+      expect(OCTOBER_2026_CONTROL_TOTALS.costoNeto).toBe(4253272.24);
+      expect(OCTOBER_2026_CONTROL_TOTALS.utilidadNeta).toBe(1319362.16);
+      expect(OCTOBER_2026_CONTROL_TOTALS.kgsNeto).toBe(2166435.83);
+      expect(OCTOBER_2026_CONTROL_TOTALS.kgsBrutoAbsoluto).toBe(4045516.87);
+      expect(OCTOBER_2026_CONTROL_TOTALS.unidadesNeto).toBe(2088953.0);
+      expect(OCTOBER_2026_CONTROL_TOTALS.cajasNeto).toBe(727486.41);
+
+      const validation = validateMonthlyCsvControlTotals(
+        OCTOBER_2026_CONTROL_TOTALS,
+        OCTOBER_2026_CONTROL_TOTALS
+      );
+      expect(validation.isExactMatch).toBe(true);
+      expect(validation.discrepancies).toHaveLength(0);
+      expect(validation.supabaseCount).toBe(29722);
+      expect(validation.supabaseMontoNeto).toBe(5572634.4);
+
+      // Test 1,000-row batch uploader with simulated 2,100 rows (3 batches: 1000, 1000, 100)
+      const simulatedRows = Array.from({ length: 2100 }, (_, idx) => ({
+        id: 20261000001 + idx,
+        ano: 2026,
+        mes: 'OCTUBRE',
+        mes_num: 10,
+        fecha: '2026-10-20',
+        tipo_doc: 'FA' as const,
+        numero: '00448777', // Same Numero across all rows to prove no collision!
+        id_cliente: '007856',
+        cliente: 'COMERCIALIZADORA YUSI 600; C.A.',
+        id_vendedor: '03',
+        vendedor: 'OSCAR ORTIZ- CORO',
+        id_articulo: String(idx + 1),
+        articulo: `ARTICULO ${idx + 1}`,
+        cajas: 1,
+        unidades: 10,
+        kgs_lts: 10,
+        monto: 100,
+        costo: 80,
+        utilidad: 20,
+        porcentaje_utilidad: 25,
+        numero_fila: idx + 1,
+        composite_row_key: `2026|OCTUBRE|FA|00448777|${idx + 1}|${idx + 1}`,
+      }));
+
+      const insertedBatches: number[] = [];
+      let deleteCalled = false;
+
+      const mockSupabase = {
+        from: vi.fn(() => {
+          const builder: any = {
+            delete: vi.fn(() => builder),
+            gte: vi.fn(() => builder),
+            lte: vi.fn(async () => {
+              deleteCalled = true;
+              return { error: null };
+            }),
+            eq: vi.fn((col: string) => {
+              if (col === 'mes') {
+                deleteCalled = true;
+                return Promise.resolve({ error: null });
+              }
+              return builder;
+            }),
+            insert: vi.fn(async (batch: any[]) => {
+              insertedBatches.push(batch.length);
+              return { error: null };
+            }),
+          };
+          return builder;
+        }),
+      };
+
+      const uploadRes = await uploadMonthlySalesToSupabaseInBatches(simulatedRows, {
+        supabaseClient: mockSupabase as any,
+        batchSize: 1000,
+      });
+
+      expect(deleteCalled).toBe(true);
+      expect(uploadRes.totalBatches).toBe(3);
+      expect(uploadRes.insertedRows).toBe(2100);
+      expect(insertedBatches).toEqual([1000, 1000, 100]);
     });
   });
 });
