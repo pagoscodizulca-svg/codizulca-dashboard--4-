@@ -58,15 +58,7 @@ function lazyWithRetry<T extends React.ComponentType<any>>(
   });
 }
 
-const DashboardOverview = lazyWithRetry(() => import('./pages/DashboardOverview').then(m => ({ default: m.DashboardOverview })));
-const Cuotas = lazyWithRetry(() => import('./pages/Cuotas').then(m => ({ default: m.Cuotas })));
-const Ventas = lazyWithRetry(() => import('./pages/Ventas').then(m => ({ default: m.Ventas })));
-const Clientes = lazyWithRetry(() => import('./pages/Clientes').then(m => ({ default: m.Clientes })));
-const Productos = lazyWithRetry(() => import('./pages/Productos').then(m => ({ default: m.Productos })));
-const Inventario = lazyWithRetry(() => import('./pages/Inventario').then(m => ({ default: m.Inventario })));
 const TradeMarketing = lazyWithRetry(() => import('./pages/TradeMarketing').then(m => ({ default: m.TradeMarketing })));
-const GeofenceReview = lazyWithRetry(() => import('./pages/GeofenceReview').then(m => ({ default: m.GeofenceReview })));
-const Trazabilidad = lazyWithRetry(() => import('./pages/Trazabilidad').then(m => ({ default: m.Trazabilidad })));
 
 const PageLoader = () => (
   <div className="flex items-center justify-center min-h-[60vh] bg-black/95 text-zinc-400 text-sm">
@@ -144,16 +136,17 @@ export default function App() {
 
               <Route element={<AuthGuard />}>
                 <Route path="/dashboard" element={<MainLayout />}>
-                  <Route index element={<DashboardOverview />} />
-                  <Route path="cuotas" element={<Cuotas />} />
-                  <Route path="ventas" element={<Ventas />} />
-                  <Route path="clientes" element={<Clientes />} />
-                  <Route path="productos" element={<Productos />} />
-                  <Route path="inventario" element={<Inventario />} />
+                  <Route index element={<Navigate to="/dashboard/trade" replace />} />
+                  <Route path="cuotas" element={<Navigate to="/dashboard/trade" replace />} />
+                  <Route path="ventas" element={<Navigate to="/dashboard/trade" replace />} />
+                  <Route path="clientes" element={<Navigate to="/dashboard/trade" replace />} />
+                  <Route path="productos" element={<Navigate to="/dashboard/trade" replace />} />
+                  <Route path="inventario" element={<Navigate to="/dashboard/trade" replace />} />
                   <Route path="trade" element={<TradeMarketing />} />
-                  <Route path="geofence-review" element={<GeofenceReview />} />
-                  <Route path="trazabilidad" element={<Trazabilidad />} />
-                  <Route path="admin" element={<Trazabilidad />} />
+                  <Route path="geofence-review" element={<Navigate to="/dashboard/trade" replace />} />
+                  <Route path="trazabilidad" element={<Navigate to="/dashboard/trade" replace />} />
+                  <Route path="admin" element={<Navigate to="/dashboard/trade" replace />} />
+                  <Route path="*" element={<Navigate to="/dashboard/trade" replace />} />
                 </Route>
               </Route>
 
@@ -170,8 +163,8 @@ export default function App() {
                 <Route path="perfil" element={<PortalPerfil />} />
               </Route>
 
-              <Route path="/" element={<Navigate to="/dashboard" replace />} />
-              <Route path="*" element={<Navigate to="/dashboard" replace />} />
+              <Route path="/" element={<Navigate to="/dashboard/trade" replace />} />
+              <Route path="*" element={<Navigate to="/dashboard/trade" replace />} />
             </Routes>
           </Suspense>
         </BrowserRouter>

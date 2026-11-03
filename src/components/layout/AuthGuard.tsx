@@ -22,9 +22,10 @@ export const AuthGuard: React.FC = () => {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  // Con sesión, cada perfil solo accede a los módulos que tiene asignados
-  if (!canAccessDashboardRoute(corporateProfile, location.pathname)) {
-    return <Navigate to={getDefaultDashboardRoute(corporateProfile)} replace />;
+  // Solo el módulo de Trade Marketing está habilitado en el Dashboard
+  const normalizedPath = location.pathname.replace(/\/+$/, '').toLowerCase() || '/dashboard';
+  if (normalizedPath !== '/dashboard/trade' && !normalizedPath.startsWith('/dashboard/trade/')) {
+    return <Navigate to="/dashboard/trade" replace />;
   }
 
   return <Outlet />;
