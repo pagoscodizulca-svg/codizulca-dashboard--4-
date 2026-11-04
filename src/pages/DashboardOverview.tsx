@@ -1642,74 +1642,10 @@ export const DashboardOverview: React.FC = () => {
               <span className="text-white">DASHBOARD</span>
               <span className="text-red-600 drop-shadow-[0_0_15px_rgba(220,38,38,0.5)]">GERENCIA</span>
             </h2>
-            {periodoActivo === '2026-11' ? (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-950/60 border border-emerald-500/40 text-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.2)]">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                Noviembre 2026 (Mes en Curso)
-              </span>
-            ) : (
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-950/60 border border-amber-500/40 text-amber-300 shadow-[0_0_12px_rgba(245,158,11,0.2)]">
-                  <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
-                  Modo Consulta Histórica: Octubre 2026 (Fuente: Supabase)
-                </span>
-                <span
-                  className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-mono bg-zinc-900/90 border border-zinc-700/80 text-zinc-300"
-                  title={
-                    historialOctubre2026?.auditBadgeText ||
-                    'Fuente: Tabla history_sales en Supabase • 0 registros válidos procesados'
-                  }
-                >
-                  {historialOctubre2026?.auditBadgeText ||
-                    'Fuente: Tabla history_sales en Supabase • 0 registros válidos procesados'}
-                </span>
-                {historialOctubre2026 && historialOctubre2026.totalRegistros > 0 && (
-                  <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-mono bg-emerald-950/60 border border-emerald-500/40 text-emerald-300">
-                    FA: ${historialOctubre2026.montoFA.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} | DV: ${historialOctubre2026.montoDV.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} | Kgs Bruto: {historialOctubre2026.kgsBrutoAbsoluto.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </span>
-                )}
-              </div>
-            )}
           </div>
-          <p className="text-sm text-zinc-500 mt-1">
-            {periodoActivo === '2026-11'
-              ? 'Período activo en curso (2026-11-01 al 2026-11-30) sincronizado con Google Sheets, aislado del cierre de Octubre.'
-              : `Visualizando el cierre consolidado completo de Octubre 2026 (2026-10-01 al 2026-10-31) almacenado en Supabase (${
-                  historialOctubre2026?.auditBadgeText ||
-                  'Fuente: Tabla history_sales en Supabase • 0 registros válidos procesados'
-                }).`}
-          </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5 self-start lg:self-auto">
-          {/* Selector / Conmutador Visual de Período en la UI */}
-          <div className="inline-flex items-center bg-zinc-950 border border-zinc-800 rounded-lg p-1 gap-1">
-            <button
-              type="button"
-              onClick={() => setPeriodoActivo('2026-11')}
-              className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all cursor-pointer ${
-                periodoActivo === '2026-11'
-                  ? 'bg-emerald-600 text-white shadow-[0_0_12px_rgba(16,185,129,0.35)]'
-                  : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900'
-              }`}
-              title="Ver métricas activas de Noviembre 2026 (Mes en Curso)"
-            >
-              Noviembre 2026 (Mes en Curso)
-            </button>
-            <button
-              type="button"
-              onClick={() => setPeriodoActivo('2026-10')}
-              className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all cursor-pointer ${
-                periodoActivo === '2026-10'
-                  ? 'bg-amber-600 text-white shadow-[0_0_12px_rgba(245,158,11,0.35)]'
-                  : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900'
-              }`}
-              title="Consultar el cierre histórico de Octubre 2026 desde Supabase"
-            >
-              Octubre 2026 (Historial Supabase)
-            </button>
-          </div>
-
           <button
             type="button"
             onClick={handleManualSyncSheets}
