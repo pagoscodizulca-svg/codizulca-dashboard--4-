@@ -1,3 +1,9 @@
+import {
+  hydrateRuntimeSellerCatalog,
+  resolveSellerFromMasterCatalog,
+  type MasterSellerRecord,
+} from '../../lib/maestraCatalogSanitizer';
+
 export interface SellerMetadata {
   vendedor: string;
   supervisor: string;
@@ -6,7 +12,7 @@ export interface SellerMetadata {
   isSupervisorRoute?: boolean;
 }
 
-// Lista oficial exacta de las 25 carteras activas de la Fuerza de Ventas (Octubre 2026)
+// Lista oficial exacta de las 25 carteras activas de la Fuerza de Ventas (Noviembre 2026)
 // Nota: Johnatan Soto, Ali Perez y Nelson Finol son exclusivamente Supervisores Comerciales sin cartera propia; los clientes de Johnatan Soto pasaron a Mikelangelo Diaz y los clientes de Ali Perez pasaron a Angel Navarro, Mariangel Gonzalez y Victor Campos.
 export const OFFICIAL_SELLERS_LIST = [
   'MARIA BRICEÑO',
@@ -53,6 +59,8 @@ export const SELLER_METADATA_MAP: Record<string, { supervisor: string; zona: str
   'ANGELICA MORENO': { supervisor: 'JOHNATAN SOTO', zona: 'Maracaibo / Norte', region: 'Supervisión Johnatan Soto' },
   'ADEL JARABA': { supervisor: 'JOHNATAN SOTO', zona: 'Mayoristas / Maracaibo', region: 'Supervisión Johnatan Soto' },
   'JUAN HERNANDEZ': { supervisor: 'JOHNATAN SOTO', zona: 'Sur del Lago / El Chivo', region: 'Supervisión Johnatan Soto' },
+  'JAIDER MEDINA - FOOD SERVICE NORTE': { supervisor: 'JOHNATAN SOTO', zona: 'Food Service Norte', region: 'Supervisión Johnatan Soto' },
+  'FOOD SERVICE SENIOR - JUAN HERNANDEZ': { supervisor: 'JOHNATAN SOTO', zona: 'Food Service Senior', region: 'Supervisión Johnatan Soto' },
   'JOHNATAN SOTO': { supervisor: 'JOHNATAN SOTO', zona: 'Maracaibo / Supervisión', region: 'Supervisión Johnatan Soto', isSupervisorRoute: true },
   'JOHNATAN SOTO VILLA DEL ROS': { supervisor: 'JOHNATAN SOTO', zona: 'La Villa del Rosario / Perijá', region: 'Supervisión Johnatan Soto', isSupervisorRoute: true },
 
@@ -83,7 +91,27 @@ export const SELLER_METADATA_MAP: Record<string, { supervisor: string; zona: str
   'EDUARDO PIÑA': { supervisor: 'NELSON FINOL', zona: 'Maracaibo', region: 'Supervisión Nelson Finol' },
   'MARYERY GARCIA': { supervisor: 'NELSON FINOL', zona: 'Ciudad Ojeda / COL', region: 'Supervisión Nelson Finol' },
   'PEDRO ABREU': { supervisor: 'NELSON FINOL', zona: 'Punto Fijo / Paraguaná', region: 'Supervisión Nelson Finol' },
+  'FOOD SERVICE SUR': { supervisor: 'NELSON FINOL', zona: 'Food Service Sur', region: 'Supervisión Nelson Finol' },
 };
+
+/**
+ * Permite hidratar en vivo el mapa de vendedores/supervisores desde Supabase (`public.vendedores_maestro`).
+ */
+export function hydrateSellerMetadataFromSupabase(rows: Array<Partial<MasterSellerRecord>>): void {
+  const hydrated = hydrateRuntimeSellerCatalog(rows);
+  for (const r of hydrated) {
+    if (!r.nombre_canonico) continue;
+    SELLER_METADATA_MAP[r.nombre_canonico] = {
+      supervisor: r.supervisor,
+      zona: r.zona,
+      region: r.region,
+      isSupervisorRoute: r.is_supervisor_route,
+    };
+    if (r.incluir_en_volumen && r.activo) {
+      VALID_VOLUME_SELLERS.add(r.nombre_canonico);
+    }
+  }
+}
 
 // Vendedores e identificadores a excluir permanentemente (gerencia, oficina, inactivos)
 export const EXCLUDED_VOLUME_SELLERS = new Set<string>([
@@ -232,6 +260,16 @@ export const getSellerMetadata = (vendedorName: string): SellerMetadata => {
     return {
       vendedor: normalized,
       ...SELLER_METADATA_MAP[withoutSpacedHyphen],
+    };
+  }
+  const fromCatalog = resolveSellerFromMasterCatalog(vendedorName);
+  if (fromCatalog.record) {
+    return {
+      vendedor: fromCatalog.canonicalSeller,
+      supervisor: fromCatalog.supervisor,
+      zona: fromCatalog.zona,
+      region: fromCatalog.region,
+      isSupervisorRoute: fromCatalog.record.is_supervisor_route,
     };
   }
   return {

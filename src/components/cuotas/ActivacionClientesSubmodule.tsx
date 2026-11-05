@@ -34,54 +34,54 @@ import { ViewLevel } from './MonthProgressBar';
 import { DEFAULT_DIAS_LABORABLES, DEFAULT_DIAS_TRANSCURRIDOS, calculateMonthWorkingProgress } from './volumeQuotasData';
 
 export type RubroClienteCodigo =
-  | 'ACEITE'
   | 'AZUCAR'
-  | 'POLLO'
-  | 'ESTANDAR_ASTURIAS'
-  | 'MORTADELA_SALPICAO';
+  | 'LECHE_VENCAMPO'
+  | 'JAMON_ASTURIAS'
+  | 'MORTADELA_ASTURIAS'
+  | 'SALPICAO';
 
 export const RUBROS_ACTIVACION_CLIENTES: RubroClienteCodigo[] = [
-  'ACEITE',
   'AZUCAR',
-  'POLLO',
-  'ESTANDAR_ASTURIAS',
-  'MORTADELA_SALPICAO',
+  'LECHE_VENCAMPO',
+  'JAMON_ASTURIAS',
+  'MORTADELA_ASTURIAS',
+  'SALPICAO',
 ];
 
 export const RUBRO_CLIENTE_LABEL: Record<RubroClienteCodigo, string> = {
-  ACEITE: 'Aceite',
   AZUCAR: 'Azúcar',
-  POLLO: 'Pollo',
-  ESTANDAR_ASTURIAS: 'Estándar y Superior Asturias',
-  MORTADELA_SALPICAO: 'Mortadela Salpicao y Asturias',
+  LECHE_VENCAMPO: 'Leche en polvo Vencampo',
+  JAMON_ASTURIAS: 'Jamón estándar y superior Asturias',
+  MORTADELA_ASTURIAS: 'Mortadela Asturias',
+  SALPICAO: 'Salpicao',
 };
 
 const getRubroIconAndTheme = (rubro: RubroClienteCodigo) => {
   switch (rubro) {
-    case 'ACEITE':
-      return {
-        icon: Droplets,
-        badgeCls: 'bg-amber-950/60 text-amber-300 border-amber-600/60',
-      };
     case 'AZUCAR':
       return {
         icon: Flame,
         badgeCls: 'bg-sky-950/60 text-sky-300 border-sky-600/60',
       };
-    case 'POLLO':
+    case 'LECHE_VENCAMPO':
       return {
         icon: Drumstick,
         badgeCls: 'bg-orange-950/60 text-orange-300 border-orange-600/60',
       };
-    case 'ESTANDAR_ASTURIAS':
+    case 'JAMON_ASTURIAS':
       return {
         icon: Award,
         badgeCls: 'bg-rose-950/60 text-rose-300 border-rose-600/60',
       };
-    case 'MORTADELA_SALPICAO':
+    case 'MORTADELA_ASTURIAS':
       return {
         icon: Layers,
         badgeCls: 'bg-emerald-950/60 text-emerald-300 border-emerald-600/60',
+      };
+    case 'SALPICAO':
+      return {
+        icon: Droplets,
+        badgeCls: 'bg-amber-950/60 text-amber-300 border-amber-600/60',
       };
   }
 };
@@ -98,16 +98,26 @@ export interface RawClientActivationItem {
   activo?: boolean;
   status: string;
   cats?: {
-    ACEITE?: boolean;
     AZUCAR?: boolean;
     AZÚCAR?: boolean;
+    LECHE_VENCAMPO?: boolean;
+    JAMON_ASTURIAS?: boolean;
+    MORTADELA_ASTURIAS?: boolean;
+    SALPICAO?: boolean;
+    // Legacy compatibility keys
+    ACEITE?: boolean;
     POLLO?: boolean;
     ESTANDAR_ASTURIAS?: boolean;
     MORTADELA_SALPICAO?: boolean;
   };
   cajas?: {
-    ACEITE?: number;
     AZUCAR?: number;
+    LECHE_VENCAMPO?: number;
+    JAMON_ASTURIAS?: number;
+    MORTADELA_ASTURIAS?: number;
+    SALPICAO?: number;
+    // Legacy compatibility keys
+    ACEITE?: number;
     POLLO?: number;
     ESTANDAR_ASTURIAS?: number;
     MORTADELA_SALPICAO?: number;
@@ -286,7 +296,7 @@ export const resolveCanonicalSellerForClient = (rawVendor: string): {
   };
 };
 
-const MANUAL_RUBROS_STORAGE_KEY = 'fdv_manual_rubros_v1';
+const MANUAL_RUBROS_STORAGE_KEY = 'fdv_manual_rubros_v2_nov2026';
 type ManualRubrosMap = Record<string, Partial<Record<RubroClienteCodigo, boolean>>>;
 
 const loadManualRubros = (): ManualRubrosMap => {
@@ -442,11 +452,27 @@ export const ActivacionClientesSubmodule: React.FC<ActivacionClientesSubmodulePr
       const cleanCod = String(r.id || '').replace(/^[#\s]+/, '').trim();
       const ov = manualOverrides[r.assignmentKey] || manualOverrides[cleanCod];
       const hasAny =
-        (ov?.ACEITE ?? Boolean(r.cats?.ACEITE || (r.cajas?.ACEITE || 0) > 0)) ||
         (ov?.AZUCAR ?? Boolean(r.cats?.AZUCAR || r.cats?.AZÚCAR || (r.cajas?.AZUCAR || 0) > 0)) ||
-        (ov?.POLLO ?? Boolean(r.cats?.POLLO || (r.cajas?.POLLO || 0) > 0)) ||
-        (ov?.ESTANDAR_ASTURIAS ?? Boolean(r.cats?.ESTANDAR_ASTURIAS || (r.cajas?.ESTANDAR_ASTURIAS || 0) > 0)) ||
-        (ov?.MORTADELA_SALPICAO ?? Boolean(r.cats?.MORTADELA_SALPICAO || (r.cajas?.MORTADELA_SALPICAO || 0) > 0));
+        (ov?.LECHE_VENCAMPO ??
+          Boolean(
+            (r.cats?.LECHE_VENCAMPO ?? r.cats?.POLLO) ||
+              ((r.cajas?.LECHE_VENCAMPO ?? r.cajas?.POLLO) || 0) > 0
+          )) ||
+        (ov?.JAMON_ASTURIAS ??
+          Boolean(
+            (r.cats?.JAMON_ASTURIAS ?? r.cats?.ESTANDAR_ASTURIAS) ||
+              ((r.cajas?.JAMON_ASTURIAS ?? r.cajas?.ESTANDAR_ASTURIAS) || 0) > 0
+          )) ||
+        (ov?.MORTADELA_ASTURIAS ??
+          Boolean(
+            (r.cats?.MORTADELA_ASTURIAS ?? r.cats?.MORTADELA_SALPICAO) ||
+              ((r.cajas?.MORTADELA_ASTURIAS ?? r.cajas?.MORTADELA_SALPICAO) || 0) > 0
+          )) ||
+        (ov?.SALPICAO ??
+          Boolean(
+            (r.cats?.SALPICAO ?? r.cats?.ACEITE) ||
+              ((r.cajas?.SALPICAO ?? r.cajas?.ACEITE) || 0) > 0
+          ));
 
       if (!sellerStats.has(key)) {
         sellerStats.set(key, {
@@ -573,11 +599,27 @@ export const ActivacionClientesSubmodule: React.FC<ActivacionClientesSubmodulePr
       const cleanCod = String(r.id || '').replace(/^[#\s]+/, '').trim();
       const ov = manualOverrides[r.assignmentKey] || manualOverrides[cleanCod];
       const hasAny =
-        (ov?.ACEITE ?? Boolean(r.cats?.ACEITE || (r.cajas?.ACEITE || 0) > 0)) ||
         (ov?.AZUCAR ?? Boolean(r.cats?.AZUCAR || r.cats?.AZÚCAR || (r.cajas?.AZUCAR || 0) > 0)) ||
-        (ov?.POLLO ?? Boolean(r.cats?.POLLO || (r.cajas?.POLLO || 0) > 0)) ||
-        (ov?.ESTANDAR_ASTURIAS ?? Boolean(r.cats?.ESTANDAR_ASTURIAS || (r.cajas?.ESTANDAR_ASTURIAS || 0) > 0)) ||
-        (ov?.MORTADELA_SALPICAO ?? Boolean(r.cats?.MORTADELA_SALPICAO || (r.cajas?.MORTADELA_SALPICAO || 0) > 0));
+        (ov?.LECHE_VENCAMPO ??
+          Boolean(
+            (r.cats?.LECHE_VENCAMPO ?? r.cats?.POLLO) ||
+              ((r.cajas?.LECHE_VENCAMPO ?? r.cajas?.POLLO) || 0) > 0
+          )) ||
+        (ov?.JAMON_ASTURIAS ??
+          Boolean(
+            (r.cats?.JAMON_ASTURIAS ?? r.cats?.ESTANDAR_ASTURIAS) ||
+              ((r.cajas?.JAMON_ASTURIAS ?? r.cajas?.ESTANDAR_ASTURIAS) || 0) > 0
+          )) ||
+        (ov?.MORTADELA_ASTURIAS ??
+          Boolean(
+            (r.cats?.MORTADELA_ASTURIAS ?? r.cats?.MORTADELA_SALPICAO) ||
+              ((r.cajas?.MORTADELA_ASTURIAS ?? r.cajas?.MORTADELA_SALPICAO) || 0) > 0
+          )) ||
+        (ov?.SALPICAO ??
+          Boolean(
+            (r.cats?.SALPICAO ?? r.cats?.ACEITE) ||
+              ((r.cajas?.SALPICAO ?? r.cajas?.ACEITE) || 0) > 0
+          ));
 
       if (!map.has(t)) {
         map.set(t, { tipo: t, total: 0, activos: 0 });
@@ -728,22 +770,24 @@ export const ActivacionClientesSubmodule: React.FC<ActivacionClientesSubmodulePr
       const existing = clientMap.get(compKey);
       const rubros = existing ? existing.rubrosComprados : new Set<string>();
 
-      const cAceite = Number(a.cajas?.ACEITE) || 0;
       const cAzucar = Number(a.cajas?.AZUCAR) || 0;
-      const cPollo = Number(a.cajas?.POLLO) || 0;
-      const cAsturias = Number(a.cajas?.ESTANDAR_ASTURIAS) || 0;
-      const cSalpicao = Number(a.cajas?.MORTADELA_SALPICAO) || 0;
+      const cLeche = Number(a.cajas?.LECHE_VENCAMPO ?? a.cajas?.POLLO) || 0;
+      const cJamon = Number(a.cajas?.JAMON_ASTURIAS ?? a.cajas?.ESTANDAR_ASTURIAS) || 0;
+      const cMortadela = Number(a.cajas?.MORTADELA_ASTURIAS ?? a.cajas?.MORTADELA_SALPICAO) || 0;
+      const cSalpicao = Number(a.cajas?.SALPICAO ?? a.cajas?.ACEITE) || 0;
 
-      if (a.cats?.ACEITE || cAceite > 0) rubros.add('ACEITE');
       if (a.cats?.AZUCAR || a.cats?.AZÚCAR || cAzucar > 0) rubros.add('AZÚCAR');
-      if (a.cats?.POLLO || cPollo > 0) rubros.add('POLLO');
-      if (a.cats?.ESTANDAR_ASTURIAS || cAsturias > 0) rubros.add('ESTANDAR Y SUPERIOR ASTURIAS');
-      if (a.cats?.MORTADELA_SALPICAO || cSalpicao > 0) rubros.add('MORTADELA SALPICAO Y ASTURIAS');
+      if ((a.cats?.LECHE_VENCAMPO ?? a.cats?.POLLO) || cLeche > 0) rubros.add('LECHE_VENCAMPO');
+      if ((a.cats?.JAMON_ASTURIAS ?? a.cats?.ESTANDAR_ASTURIAS) || cJamon > 0)
+        rubros.add('JAMON ESTANDAR Y SUPERIOR ASTURIAS');
+      if ((a.cats?.MORTADELA_ASTURIAS ?? a.cats?.MORTADELA_SALPICAO) || cMortadela > 0)
+        rubros.add('MORTADELA ASTURIAS');
+      if ((a.cats?.SALPICAO ?? a.cats?.ACEITE) || cSalpicao > 0) rubros.add('SALPICAO');
 
       const ov = manualOverrides[compKey] || manualOverrides[cleanId];
       if (ov) {
-        if (ov.ACEITE === true) rubros.add('ACEITE');
-        else if (ov.ACEITE === false) rubros.delete('ACEITE');
+        if (ov.SALPICAO === true) rubros.add('SALPICAO');
+        else if (ov.SALPICAO === false) rubros.delete('SALPICAO');
 
         if (ov.AZUCAR === true) rubros.add('AZÚCAR');
         else if (ov.AZUCAR === false) {
@@ -751,14 +795,14 @@ export const ActivacionClientesSubmodule: React.FC<ActivacionClientesSubmodulePr
           rubros.delete('AZUCAR');
         }
 
-        if (ov.POLLO === true) rubros.add('POLLO');
-        else if (ov.POLLO === false) rubros.delete('POLLO');
+        if (ov.LECHE_VENCAMPO === true) rubros.add('LECHE_VENCAMPO');
+        else if (ov.LECHE_VENCAMPO === false) rubros.delete('LECHE_VENCAMPO');
 
-        if (ov.ESTANDAR_ASTURIAS === true) rubros.add('ESTANDAR Y SUPERIOR ASTURIAS');
-        else if (ov.ESTANDAR_ASTURIAS === false) rubros.delete('ESTANDAR Y SUPERIOR ASTURIAS');
+        if (ov.JAMON_ASTURIAS === true) rubros.add('JAMON ESTANDAR Y SUPERIOR ASTURIAS');
+        else if (ov.JAMON_ASTURIAS === false) rubros.delete('JAMON ESTANDAR Y SUPERIOR ASTURIAS');
 
-        if (ov.MORTADELA_SALPICAO === true) rubros.add('MORTADELA SALPICAO Y ASTURIAS');
-        else if (ov.MORTADELA_SALPICAO === false) rubros.delete('MORTADELA SALPICAO Y ASTURIAS');
+        if (ov.MORTADELA_ASTURIAS === true) rubros.add('MORTADELA ASTURIAS');
+        else if (ov.MORTADELA_ASTURIAS === false) rubros.delete('MORTADELA ASTURIAS');
       }
 
       clientMap.set(compKey, {
@@ -812,18 +856,18 @@ export const ActivacionClientesSubmodule: React.FC<ActivacionClientesSubmodulePr
     const _saludCartera = baseTotal > 0 ? totalRubrosComprados / baseTotal : 0;
 
     const list = Array.from(clientMap.entries()).map(([, data], idx) => {
-      const hasAceite = data.rubrosComprados.has('ACEITE');
+      const hasSalpicao = data.rubrosComprados.has('SALPICAO');
       const hasAzucar = data.rubrosComprados.has('AZÚCAR') || data.rubrosComprados.has('AZUCAR');
-      const hasPollo = data.rubrosComprados.has('POLLO');
-      const hasEstandarAsturias = data.rubrosComprados.has('ESTANDAR Y SUPERIOR ASTURIAS');
-      const hasMortadelaSalpicao = data.rubrosComprados.has('MORTADELA SALPICAO Y ASTURIAS');
+      const hasLecheVencampo = data.rubrosComprados.has('LECHE_VENCAMPO');
+      const hasJamonAsturias = data.rubrosComprados.has('JAMON ESTANDAR Y SUPERIOR ASTURIAS');
+      const hasMortadelaAsturias = data.rubrosComprados.has('MORTADELA ASTURIAS');
 
       const count = [
-        hasAceite,
+        hasSalpicao,
         hasAzucar,
-        hasPollo,
-        hasEstandarAsturias,
-        hasMortadelaSalpicao,
+        hasLecheVencampo,
+        hasJamonAsturias,
+        hasMortadelaAsturias,
       ].filter(Boolean).length;
 
       return {
@@ -836,11 +880,11 @@ export const ActivacionClientesSubmodule: React.FC<ActivacionClientesSubmodulePr
         rawVendedorNombre: data.rawVendedorNombre,
         routeLabel: data.routeLabel,
         supervisor: data.supervisor,
-        hasAceite,
+        hasSalpicao,
         hasAzucar,
-        hasPollo,
-        hasEstandarAsturias,
-        hasMortadelaSalpicao,
+        hasLecheVencampo,
+        hasJamonAsturias,
+        hasMortadelaAsturias,
         cobertura: count,
       };
     });
@@ -878,25 +922,25 @@ export const ActivacionClientesSubmodule: React.FC<ActivacionClientesSubmodulePr
 
   const clienteActivoEnRubro = (
     c: {
-      hasAceite: boolean;
+      hasSalpicao: boolean;
       hasAzucar: boolean;
-      hasPollo: boolean;
-      hasEstandarAsturias: boolean;
-      hasMortadelaSalpicao: boolean;
+      hasLecheVencampo: boolean;
+      hasJamonAsturias: boolean;
+      hasMortadelaAsturias: boolean;
     },
     rubro: RubroClienteCodigo
   ): boolean => {
     switch (rubro) {
-      case 'ACEITE':
-        return c.hasAceite;
+      case 'SALPICAO':
+        return c.hasSalpicao;
       case 'AZUCAR':
         return c.hasAzucar;
-      case 'POLLO':
-        return c.hasPollo;
-      case 'ESTANDAR_ASTURIAS':
-        return c.hasEstandarAsturias;
-      case 'MORTADELA_SALPICAO':
-        return c.hasMortadelaSalpicao;
+      case 'LECHE_VENCAMPO':
+        return c.hasLecheVencampo;
+      case 'JAMON_ASTURIAS':
+        return c.hasJamonAsturias;
+      case 'MORTADELA_ASTURIAS':
+        return c.hasMortadelaAsturias;
       default:
         return false;
     }
@@ -1071,11 +1115,11 @@ export const ActivacionClientesSubmodule: React.FC<ActivacionClientesSubmodulePr
       tableStartY = 68;
     }
 
-    const countAceite = displayedClients.filter((c) => c.hasAceite).length;
     const countAzucar = displayedClients.filter((c) => c.hasAzucar).length;
-    const countPollo = displayedClients.filter((c) => c.hasPollo).length;
-    const countAsturias = displayedClients.filter((c) => c.hasEstandarAsturias).length;
-    const countSalpicao = displayedClients.filter((c) => c.hasMortadelaSalpicao).length;
+    const countLeche = displayedClients.filter((c) => c.hasLecheVencampo).length;
+    const countJamon = displayedClients.filter((c) => c.hasJamonAsturias).length;
+    const countMortadela = displayedClients.filter((c) => c.hasMortadelaAsturias).length;
+    const countSalpicao = displayedClients.filter((c) => c.hasSalpicao).length;
     const countActivosMostrados = displayedClients.filter((c) => c.cobertura > 0).length;
     const countFaltantesMostrados = Math.max(0, displayedClients.length - countActivosMostrados);
 
@@ -1083,11 +1127,11 @@ export const ActivacionClientesSubmodule: React.FC<ActivacionClientesSubmodulePr
       client.codigo,
       client.razonSocial,
       client.cobertura > 0 ? 'ACTIVO' : 'FALTA VENDER',
-      client.hasAceite ? 'SI' : '-',
       client.hasAzucar ? 'SI' : '-',
-      client.hasPollo ? 'SI' : '-',
-      client.hasEstandarAsturias ? 'SI' : '-',
-      client.hasMortadelaSalpicao ? 'SI' : '-',
+      client.hasLecheVencampo ? 'SI' : '-',
+      client.hasJamonAsturias ? 'SI' : '-',
+      client.hasMortadelaAsturias ? 'SI' : '-',
+      client.hasSalpicao ? 'SI' : '-',
       `${client.cobertura}/5 (${client.cobertura * 20}%)`,
     ]);
 
@@ -1096,10 +1140,10 @@ export const ActivacionClientesSubmodule: React.FC<ActivacionClientesSubmodulePr
         'TOTAL',
         `CARTERA LISTADA: ${displayedClients.length} CLI`,
         `Act: ${countActivosMostrados} | Falta: ${countFaltantesMostrados}`,
-        `${countAceite}`,
         `${countAzucar}`,
-        `${countPollo}`,
-        `${countAsturias}`,
+        `${countLeche}`,
+        `${countJamon}`,
+        `${countMortadela}`,
         `${countSalpicao}`,
         `${
           displayedClients.length > 0
@@ -1116,11 +1160,11 @@ export const ActivacionClientesSubmodule: React.FC<ActivacionClientesSubmodulePr
           'Cód.',
           'Razón Social / Cliente',
           'Activ. General',
-          'Aceite',
           'Azúcar',
-          'Pollo',
-          'Est. Asturias',
-          'Mort. Salpicao',
+          'Leche en polvo Vencampo',
+          'Jamón estándar y superior Asturias',
+          'Mortadela Asturias',
+          'Salpicao',
           'Cobertura',
         ],
       ],
@@ -1142,8 +1186,8 @@ export const ActivacionClientesSubmodule: React.FC<ActivacionClientesSubmodulePr
             ],
       theme: 'grid',
       styles: {
-        fontSize: 7,
-        cellPadding: 1.8,
+        fontSize: 6.5,
+        cellPadding: 1.5,
         valign: 'middle',
       },
       headStyles: {
@@ -1151,18 +1195,18 @@ export const ActivacionClientesSubmodule: React.FC<ActivacionClientesSubmodulePr
         textColor: [255, 255, 255],
         fontStyle: 'bold',
         halign: 'center',
-        fontSize: 7,
+        fontSize: 6.5,
       },
       columnStyles: {
         0: { cellWidth: 13, halign: 'center' },
         1: { cellWidth: 'auto' },
-        2: { cellWidth: 22, halign: 'center', fontStyle: 'bold' },
+        2: { cellWidth: 20, halign: 'center', fontStyle: 'bold' },
         3: { cellWidth: 13, halign: 'center' },
-        4: { cellWidth: 13, halign: 'center' },
-        5: { cellWidth: 13, halign: 'center' },
-        6: { cellWidth: 20, halign: 'center' },
-        7: { cellWidth: 20, halign: 'center' },
-        8: { cellWidth: 20, halign: 'center', fontStyle: 'bold' },
+        4: { cellWidth: 18, halign: 'center' },
+        5: { cellWidth: 22, halign: 'center' },
+        6: { cellWidth: 18, halign: 'center' },
+        7: { cellWidth: 14, halign: 'center' },
+        8: { cellWidth: 18, halign: 'center', fontStyle: 'bold' },
       },
       didParseCell: (data) => {
         if (data.section === 'body') {
@@ -2059,87 +2103,87 @@ export const ActivacionClientesSubmodule: React.FC<ActivacionClientesSubmodulePr
                     </div>
                   </th>
                   <th
-                    onClick={() => toggleRubroFilter('ACEITE')}
-                    title="Filtrar clientes por Aceite"
-                    className={`p-3 font-bold text-center border-r border-[#a00000] w-24 cursor-pointer transition-colors ${
-                      selectedRubros.includes('ACEITE') ? 'bg-emerald-800 text-white' : 'hover:bg-red-800'
-                    }`}
-                  >
-                    <span className="inline-flex items-center gap-1">
-                      {selectedRubros.includes('ACEITE') ? (
-                        <CheckSquare className="w-3 h-3" />
-                      ) : (
-                        <Activity className="w-3 h-3 opacity-75" />
-                      )}{' '}
-                      Aceite
-                    </span>
-                  </th>
-                  <th
                     onClick={() => toggleRubroFilter('AZUCAR')}
                     title="Filtrar clientes por Azúcar"
-                    className={`p-3 font-bold text-center border-r border-[#a00000] w-24 cursor-pointer transition-colors ${
+                    className={`p-3 font-bold text-center border-r border-[#a00000] min-w-[96px] leading-tight whitespace-normal cursor-pointer transition-colors ${
                       selectedRubros.includes('AZUCAR') ? 'bg-emerald-800 text-white' : 'hover:bg-red-800'
                     }`}
                   >
-                    <span className="inline-flex items-center gap-1">
+                    <span className="inline-flex items-center justify-center gap-1">
                       {selectedRubros.includes('AZUCAR') ? (
-                        <CheckSquare className="w-3 h-3" />
+                        <CheckSquare className="w-3 h-3 shrink-0" />
                       ) : (
-                        <Activity className="w-3 h-3 opacity-75" />
+                        <Activity className="w-3 h-3 opacity-75 shrink-0" />
                       )}{' '}
-                      Azúcar
+                      <span>Azúcar</span>
                     </span>
                   </th>
                   <th
-                    onClick={() => toggleRubroFilter('POLLO')}
-                    title="Filtrar clientes por Pollo"
-                    className={`p-3 font-bold text-center border-r border-[#a00000] w-24 cursor-pointer transition-colors ${
-                      selectedRubros.includes('POLLO') ? 'bg-emerald-800 text-white' : 'hover:bg-red-800'
+                    onClick={() => toggleRubroFilter('LECHE_VENCAMPO')}
+                    title="Filtrar clientes por Leche en polvo Vencampo"
+                    className={`p-3 font-bold text-center border-r border-[#a00000] min-w-[130px] leading-tight whitespace-normal cursor-pointer transition-colors ${
+                      selectedRubros.includes('LECHE_VENCAMPO') ? 'bg-emerald-800 text-white' : 'hover:bg-red-800'
                     }`}
                   >
-                    <span className="inline-flex items-center gap-1">
-                      {selectedRubros.includes('POLLO') ? (
-                        <CheckSquare className="w-3 h-3" />
+                    <span className="inline-flex items-center justify-center gap-1">
+                      {selectedRubros.includes('LECHE_VENCAMPO') ? (
+                        <CheckSquare className="w-3 h-3 shrink-0" />
                       ) : (
-                        <Activity className="w-3 h-3 opacity-75" />
+                        <Activity className="w-3 h-3 opacity-75 shrink-0" />
                       )}{' '}
-                      Pollo
+                      <span>Leche en polvo Vencampo</span>
                     </span>
                   </th>
                   <th
-                    onClick={() => toggleRubroFilter('ESTANDAR_ASTURIAS')}
-                    title="Filtrar clientes por Est. y Sup. Asturias"
-                    className={`p-3 font-bold text-center border-r border-[#a00000] min-w-[120px] cursor-pointer transition-colors ${
-                      selectedRubros.includes('ESTANDAR_ASTURIAS')
+                    onClick={() => toggleRubroFilter('JAMON_ASTURIAS')}
+                    title="Filtrar clientes por Jamón estándar y superior Asturias"
+                    className={`p-3 font-bold text-center border-r border-[#a00000] min-w-[150px] leading-tight whitespace-normal cursor-pointer transition-colors ${
+                      selectedRubros.includes('JAMON_ASTURIAS')
                         ? 'bg-emerald-800 text-white'
                         : 'hover:bg-red-800'
                     }`}
                   >
-                    <span className="inline-flex items-center gap-1">
-                      {selectedRubros.includes('ESTANDAR_ASTURIAS') ? (
-                        <CheckSquare className="w-3 h-3" />
+                    <span className="inline-flex items-center justify-center gap-1">
+                      {selectedRubros.includes('JAMON_ASTURIAS') ? (
+                        <CheckSquare className="w-3 h-3 shrink-0" />
                       ) : (
-                        <Activity className="w-3 h-3 opacity-75" />
+                        <Activity className="w-3 h-3 opacity-75 shrink-0" />
                       )}{' '}
-                      Est. y Sup. Asturias
+                      <span>Jamón estándar y superior Asturias</span>
                     </span>
                   </th>
                   <th
-                    onClick={() => toggleRubroFilter('MORTADELA_SALPICAO')}
-                    title="Filtrar clientes por Mort. Salpicao y Asturias"
-                    className={`p-3 font-bold text-center border-r border-[#a00000] min-w-[130px] cursor-pointer transition-colors ${
-                      selectedRubros.includes('MORTADELA_SALPICAO')
+                    onClick={() => toggleRubroFilter('MORTADELA_ASTURIAS')}
+                    title="Filtrar clientes por Mortadela Asturias"
+                    className={`p-3 font-bold text-center border-r border-[#a00000] min-w-[125px] leading-tight whitespace-normal cursor-pointer transition-colors ${
+                      selectedRubros.includes('MORTADELA_ASTURIAS')
                         ? 'bg-emerald-800 text-white'
                         : 'hover:bg-red-800'
                     }`}
                   >
-                    <span className="inline-flex items-center gap-1">
-                      {selectedRubros.includes('MORTADELA_SALPICAO') ? (
-                        <CheckSquare className="w-3 h-3" />
+                    <span className="inline-flex items-center justify-center gap-1">
+                      {selectedRubros.includes('MORTADELA_ASTURIAS') ? (
+                        <CheckSquare className="w-3 h-3 shrink-0" />
                       ) : (
-                        <Activity className="w-3 h-3 opacity-75" />
+                        <Activity className="w-3 h-3 opacity-75 shrink-0" />
                       )}{' '}
-                      Mort. Salpicao y Asturias
+                      <span>Mortadela Asturias</span>
+                    </span>
+                  </th>
+                  <th
+                    onClick={() => toggleRubroFilter('SALPICAO')}
+                    title="Filtrar clientes por Salpicao"
+                    className={`p-3 font-bold text-center border-r border-[#a00000] min-w-[96px] leading-tight whitespace-normal cursor-pointer transition-colors ${
+                      selectedRubros.includes('SALPICAO') ? 'bg-emerald-800 text-white' : 'hover:bg-red-800'
+                    }`}
+                  >
+                    <span className="inline-flex items-center justify-center gap-1">
+                      {selectedRubros.includes('SALPICAO') ? (
+                        <CheckSquare className="w-3 h-3 shrink-0" />
+                      ) : (
+                        <Activity className="w-3 h-3 opacity-75 shrink-0" />
+                      )}{' '}
+                      <span>Salpicao</span>
                     </span>
                   </th>
                   <th className="p-3 font-bold text-center w-32">Cobertura</th>
@@ -2264,11 +2308,11 @@ export const ActivacionClientesSubmodule: React.FC<ActivacionClientesSubmodulePr
                             </span>
                           )}
                         </td>
-                        {getCell(client.hasAceite, 'ACEITE')}
                         {getCell(client.hasAzucar, 'AZUCAR')}
-                        {getCell(client.hasPollo, 'POLLO')}
-                        {getCell(client.hasEstandarAsturias, 'ESTANDAR_ASTURIAS')}
-                        {getCell(client.hasMortadelaSalpicao, 'MORTADELA_SALPICAO')}
+                        {getCell(client.hasLecheVencampo, 'LECHE_VENCAMPO')}
+                        {getCell(client.hasJamonAsturias, 'JAMON_ASTURIAS')}
+                        {getCell(client.hasMortadelaAsturias, 'MORTADELA_ASTURIAS')}
+                        {getCell(client.hasSalpicao, 'SALPICAO')}
                         <td className="p-3 text-center">
                           <span
                             key={`${client.codigo}-badge-${client.cobertura}`}
@@ -2307,19 +2351,19 @@ export const ActivacionClientesSubmodule: React.FC<ActivacionClientesSubmodulePr
                       </div>
                     </td>
                     <td className="p-3 text-center text-emerald-400 border-r border-neutral-800">
-                      {displayedClients.filter((c) => c.hasAceite).length}
-                    </td>
-                    <td className="p-3 text-center text-emerald-400 border-r border-neutral-800">
                       {displayedClients.filter((c) => c.hasAzucar).length}
                     </td>
                     <td className="p-3 text-center text-emerald-400 border-r border-neutral-800">
-                      {displayedClients.filter((c) => c.hasPollo).length}
+                      {displayedClients.filter((c) => c.hasLecheVencampo).length}
                     </td>
                     <td className="p-3 text-center text-emerald-400 border-r border-neutral-800">
-                      {displayedClients.filter((c) => c.hasEstandarAsturias).length}
+                      {displayedClients.filter((c) => c.hasJamonAsturias).length}
                     </td>
                     <td className="p-3 text-center text-emerald-400 border-r border-neutral-800">
-                      {displayedClients.filter((c) => c.hasMortadelaSalpicao).length}
+                      {displayedClients.filter((c) => c.hasMortadelaAsturias).length}
+                    </td>
+                    <td className="p-3 text-center text-emerald-400 border-r border-neutral-800">
+                      {displayedClients.filter((c) => c.hasSalpicao).length}
                     </td>
                     <td className="p-3 text-center text-amber-400">
                       {(
@@ -2472,11 +2516,11 @@ export const ActivacionClientesSubmodule: React.FC<ActivacionClientesSubmodulePr
                   )}
 
                   <div className="flex flex-wrap gap-1.5 border-t border-neutral-800 pt-3 mt-2">
-                    {getPill('ACEITE', client.hasAceite, 'ACEITE')}
-                    {getPill('AZÚCAR', client.hasAzucar, 'AZUCAR')}
-                    {getPill('POLLO', client.hasPollo, 'POLLO')}
-                    {getPill('EST. ASTURIAS', client.hasEstandarAsturias, 'ESTANDAR_ASTURIAS')}
-                    {getPill('MORT. SALPICAO', client.hasMortadelaSalpicao, 'MORTADELA_SALPICAO')}
+                    {getPill('Azúcar', client.hasAzucar, 'AZUCAR')}
+                    {getPill('Leche en polvo Vencampo', client.hasLecheVencampo, 'LECHE_VENCAMPO')}
+                    {getPill('Jamón estándar y superior Asturias', client.hasJamonAsturias, 'JAMON_ASTURIAS')}
+                    {getPill('Mortadela Asturias', client.hasMortadelaAsturias, 'MORTADELA_ASTURIAS')}
+                    {getPill('Salpicao', client.hasSalpicao, 'SALPICAO')}
                   </div>
                 </div>
               );

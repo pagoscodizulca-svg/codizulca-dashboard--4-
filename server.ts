@@ -46,11 +46,17 @@ import {
   parseMaestraActivaBuffer,
 } from './src/lib/maestraActivaEngine';
 import {
+  buildExternalLookupMapsFromLocalData,
   executeMaestraActivaBatchSync,
   fetchAllSupabaseActivacionRows,
+  loadLocalCarteraRows,
   loadMaestraAuditSnapshot,
   mapSupabaseRowsToClientActivationList,
 } from './src/server/maestraActivaSyncService';
+import {
+  getRuntimeSellerCatalog,
+  hydrateRuntimeSellerCatalog,
+} from './src/lib/maestraCatalogSanitizer';
 import {
   OCTOBER_2026_CONTROL_TOTALS,
   parseMonthlySalesCsvContent,
@@ -1491,7 +1497,7 @@ async function startServer() {
             GERENCIA_FDV_SUPABASE_KEY,
             { auth: { persistSession: false } }
           );
-          const supaRows = await fetchAllSupabaseActivacionRows(fdvSupabase, '2026-10');
+          const supaRows = await fetchAllSupabaseActivacionRows(fdvSupabase, '2026-11');
 
           if (supaRows.length > 0) {
             const mapped = mapSupabaseRowsToClientActivationList(
@@ -1554,10 +1560,15 @@ async function startServer() {
       const workbookBuffer = Buffer.from(cleanBase64, 'base64');
       const safeFilename = String(filename || 'MAESTRA ACTIVA.xlsx').trim();
 
-      const parsed = parseMaestraActivaBuffer(new Uint8Array(workbookBuffer), safeFilename);
+      const externalLookups = buildExternalLookupMapsFromLocalData(process.cwd());
+      const parsed = parseMaestraActivaBuffer(
+        new Uint8Array(workbookBuffer),
+        safeFilename,
+        externalLookups
+      );
       if (parsed.validActiveCount === 0) {
         return res.status(400).json({
-          error: 'El archivo Excel no contiene registros válidos en la hoja DATA.',
+          error: 'El archivo no contiene registros válidos en la hoja de datos.',
         });
       }
 
@@ -1565,7 +1576,7 @@ async function startServer() {
         supabaseUrl: GERENCIA_FDV_SUPABASE_URL,
         supabaseKey: GERENCIA_FDV_SUPABASE_KEY,
         rootDir: process.cwd(),
-        periodo: String(periodo || '2026-10').trim(),
+        periodo: String(periodo || '2026-11').trim(),
         batchSize: 250,
       });
 
@@ -1584,6 +1595,40 @@ async function startServer() {
     }
   });
 
+  app.get('/api/clientes/maestra', async (_req, res) => {
+    try {
+      let vendedores = getRuntimeSellerCatalog();
+      if (GERENCIA_FDV_SUPABASE_URL && GERENCIA_FDV_SUPABASE_KEY) {
+        try {
+          const fdvSupabase = createClient(
+            GERENCIA_FDV_SUPABASE_URL.replace('/rest/v1/', ''),
+            GERENCIA_FDV_SUPABASE_KEY,
+            { auth: { persistSession: false } }
+          );
+          const { data: supaVendedores } = await fdvSupabase
+            .from('vendedores_maestro')
+            .select('*');
+          if (Array.isArray(supaVendedores) && supaVendedores.length > 0) {
+            vendedores = hydrateRuntimeSellerCatalog(supaVendedores);
+          }
+        } catch {
+          // Fallback al catálogo en memoria
+        }
+      }
+      const carteraRows = loadLocalCarteraRows(process.cwd()).filter((c) => c.activo !== false);
+      const snap = loadMaestraAuditSnapshot(process.cwd());
+      return res.json({
+        clientes: carteraRows,
+        vendedores,
+        syncedAt: snap?.syncedAt || snap?.generatedAt || null,
+        periodo: snap?.periodo || '2026-11',
+      });
+    } catch (err: any) {
+      console.error('Error serving /api/clientes/maestra:', err);
+      return res.status(500).json({ error: 'No se pudo consultar la maestra de clientes' });
+    }
+  });
+
   app.post('/api/cuotas/activacion-clientes/toggle-rubro', async (req, res) => {
     try {
       const { clienteCodigo, vendedorNombre, rubro, active } = req.body || {};
@@ -1591,11 +1636,11 @@ async function startServer() {
       const cleanVendor = String(vendedorNombre || '').trim().toUpperCase();
       const rawRubro = String(rubro || '').toUpperCase().trim();
       let normRubro = '';
-      if (rawRubro.includes('ACEITE')) normRubro = 'ACEITE';
+      if (rawRubro.includes('MORTADELA')) normRubro = 'MORTADELA_ASTURIAS';
+      else if (rawRubro.includes('SALPICAO')) normRubro = 'SALPICAO';
       else if (rawRubro.includes('AZUCAR') || rawRubro.includes('AZÚCAR')) normRubro = 'AZUCAR';
-      else if (rawRubro.includes('POLLO')) normRubro = 'POLLO';
-      else if (rawRubro.includes('ESTANDAR') || (rawRubro.includes('ASTURIAS') && !rawRubro.includes('MORTADELA'))) normRubro = 'ESTANDAR_ASTURIAS';
-      else if (rawRubro.includes('MORTADELA') || rawRubro.includes('SALPICAO')) normRubro = 'MORTADELA_SALPICAO';
+      else if (rawRubro.includes('LECHE') || rawRubro.includes('VENCAMPO')) normRubro = 'LECHE_VENCAMPO';
+      else if (rawRubro.includes('JAMON') || rawRubro.includes('JAMÓN') || rawRubro.includes('ESTANDAR') || rawRubro.includes('ASTURIAS')) normRubro = 'JAMON_ASTURIAS';
 
       if (!cleanCod || !normRubro) {
         return res.status(400).json({ error: 'clienteCodigo y rubro son requeridos' });
@@ -1624,11 +1669,15 @@ async function startServer() {
                 continue;
               }
               const nextState = {
-                has_aceite: normRubro === 'ACEITE' ? boolActive : Boolean(r.has_aceite),
                 has_azucar: normRubro === 'AZUCAR' ? boolActive : Boolean(r.has_azucar),
-                has_pollo: normRubro === 'POLLO' ? boolActive : Boolean(r.has_pollo),
-                has_estandar_asturias: normRubro === 'ESTANDAR_ASTURIAS' ? boolActive : Boolean(r.has_estandar_asturias),
-                has_mortadela_salpicao: normRubro === 'MORTADELA_SALPICAO' ? boolActive : Boolean(r.has_mortadela_salpicao),
+                has_pollo: normRubro === 'LECHE_VENCAMPO' ? boolActive : Boolean(r.has_leche_vencampo ?? r.has_pollo),
+                has_estandar_asturias:
+                  normRubro === 'JAMON_ASTURIAS' ? boolActive : Boolean(r.has_jamon_asturias ?? r.has_estandar_asturias),
+                has_mortadela_salpicao:
+                  normRubro === 'MORTADELA_ASTURIAS'
+                    ? boolActive
+                    : Boolean(r.has_mortadela_asturias ?? r.has_mortadela_salpicao),
+                has_aceite: normRubro === 'SALPICAO' ? boolActive : Boolean(r.has_salpicao ?? r.has_aceite),
               };
               const isActivo = Object.values(nextState).some(Boolean);
               await fdvSupabase
@@ -1653,7 +1702,7 @@ async function startServer() {
             if (!c.cats) c.cats = {};
             c.cats[normRubro] = boolActive;
             const anyActive = Boolean(
-              c.cats.ACEITE || c.cats.AZUCAR || c.cats.POLLO || c.cats.ESTANDAR_ASTURIAS || c.cats.MORTADELA_SALPICAO
+              c.cats.SALPICAO || c.cats.AZUCAR || c.cats.LECHE_VENCAMPO || c.cats.JAMON_ASTURIAS || c.cats.MORTADELA_ASTURIAS
             );
             c.status = anyActive ? 'ACTIVO' : 'INACTIVO';
           }

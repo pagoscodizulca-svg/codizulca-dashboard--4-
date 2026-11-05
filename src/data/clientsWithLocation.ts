@@ -208,12 +208,25 @@ SURVEY_DATA.forEach((item) => {
 });
 
 // Create consolidated client list from CARTERA_CLIENTES + all GPS-verified points from attached survey CSV
-export const ENRICHED_CLIENTS: EnrichedClient[] = (() => {
+export function buildEnrichedClientsFromCartera(
+  carteraSource: ClienteItem[] = CARTERA_CLIENTES
+): {
+  clients: EnrichedClient[];
+  stats: {
+    totalClients: number;
+    totalWithGps: number;
+    completasCount: number;
+    modificadasCount: number;
+    pendientesCount: number;
+    municipios: string[];
+    estados: string[];
+  };
+} {
   const result: EnrichedClient[] = [];
   const usedSurveyIds = new Set<string>();
   const usedClientIds = new Set<string>();
 
-  CARTERA_CLIENTES.forEach((c) => {
+  carteraSource.forEach((c) => {
     if (c.activo === false) return;
     const norm = normalizeForMatch(c.nombre);
     const baseNorm = normalizeForMatch(c.nombre.replace(/\([^)]*\)/g, ''));
@@ -232,8 +245,8 @@ export const ENRICHED_CLIENTS: EnrichedClient[] = (() => {
     }
     usedClientIds.add(cleanId);
 
-    // Strictly respect the assigned seller from MAESTRA CLIENTES ACTIVOS OCTUBRE 2026
-    const effectiveVendedor = normalizeSellerName(c.vendedor || 'SIN ASIGNAR') || 'SIN ASIGNAR';
+    // Strictly respect the assigned seller from MAESTRA CLIENTES ACTIVOS
+    const effectiveVendedor = normalizeSellerName(c.vendedor || c.rutaVendedor || 'SIN ASIGNAR') || 'SIN ASIGNAR';
     const meta = getSellerMetadata(effectiveVendedor);
 
     const surveyMatch: ClientSurveyData | undefined = rawSurveyMatch
@@ -273,7 +286,7 @@ export const ENRICHED_CLIENTS: EnrichedClient[] = (() => {
       nombre: c.nombre,
       rif: c.rif || surveyMatch?.rifCedula || '',
       vendedor: effectiveVendedor,
-      supervisor: meta.supervisor || 'NELSON FINOL',
+      supervisor: (c as unknown as { supervisor?: string }).supervisor || meta.supervisor || 'NELSON FINOL',
       zona:
         hasGps && surveyMatch?.municipio
           ? `${surveyMatch.municipio}, ${surveyMatch.estado || 'Zulia'}`
@@ -341,18 +354,23 @@ export const ENRICHED_CLIENTS: EnrichedClient[] = (() => {
     });
   });
 
-  return result;
-})();
+  const clientsWithCoords = result.filter((c) => c.hasLocation && c.survey?.latitud && c.survey?.longitud);
 
-// Calculate survey stats strictly based on valid GPS coordinates (whether COMPLETA, PENDIENTE, or MODIFICADA)
-const clientsWithCoords = ENRICHED_CLIENTS.filter((c) => c.hasLocation && c.survey?.latitud && c.survey?.longitud);
+  return {
+    clients: result,
+    stats: {
+      totalClients: result.length,
+      totalWithGps: clientsWithCoords.length,
+      completasCount: clientsWithCoords.filter((c) => c.survey?.estadoEncuesta?.toUpperCase() === 'COMPLETA').length,
+      modificadasCount: clientsWithCoords.filter((c) => c.survey?.estadoEncuesta?.toUpperCase() === 'MODIFICADA').length,
+      pendientesCount: clientsWithCoords.filter((c) => c.survey?.estadoEncuesta?.toUpperCase() === 'PENDIENTE').length,
+      municipios: Array.from(new Set(clientsWithCoords.map((c) => c.survey?.municipio).filter(Boolean))).sort() as string[],
+      estados: Array.from(new Set(clientsWithCoords.map((c) => c.survey?.estado).filter(Boolean))).sort() as string[],
+    },
+  };
+}
 
-export const SURVEY_STATS = {
-  totalClients: ENRICHED_CLIENTS.length,
-  totalWithGps: clientsWithCoords.length,
-  completasCount: clientsWithCoords.filter((c) => c.survey?.estadoEncuesta?.toUpperCase() === 'COMPLETA').length,
-  modificadasCount: clientsWithCoords.filter((c) => c.survey?.estadoEncuesta?.toUpperCase() === 'MODIFICADA').length,
-  pendientesCount: clientsWithCoords.filter((c) => c.survey?.estadoEncuesta?.toUpperCase() === 'PENDIENTE').length,
-  municipios: Array.from(new Set(clientsWithCoords.map((c) => c.survey?.municipio).filter(Boolean))).sort() as string[],
-  estados: Array.from(new Set(clientsWithCoords.map((c) => c.survey?.estado).filter(Boolean))).sort() as string[],
-};
+const initialEnrichedBundle = buildEnrichedClientsFromCartera(CARTERA_CLIENTES);
+
+export const ENRICHED_CLIENTS: EnrichedClient[] = initialEnrichedBundle.clients;
+export const SURVEY_STATS = initialEnrichedBundle.stats;

@@ -628,8 +628,13 @@ export interface CuotasActivacionMatrixRow {
   vendedor: string;
   cartera: number;
   categorias: {
-    aceite: { meta: number; activados: number };
     azucar: { meta: number; activados: number };
+    lecheVencampo: { meta: number; activados: number };
+    jamonAsturias: { meta: number; activados: number };
+    mortadelaAsturias: { meta: number; activados: number };
+    salpicao: { meta: number; activados: number };
+    // Backward-compatible aliases
+    aceite: { meta: number; activados: number };
     pollo: { meta: number; activados: number };
     estandarAsturias: { meta: number; activados: number };
     mortadelaSalpicaoAsturias: { meta: number; activados: number };
@@ -645,7 +650,8 @@ export interface CuotasActivacionMatrixParseResult {
 /**
  * Parsea la pestaña `Cuotas de Activacion` (A1:L28):
  * - Fila 1 tiene las 5 categorías combinadas cada 2 columnas desde C hasta L:
- *   `ACEITE`, `AZUCAR`, `POLLO`, `ESTANDAR Y SUPERIOR ASTURIAS`, `MORTADELA SALPICAO Y ASTURIAS`
+ *   `Azúcar`, `Leche en polvo Vencampo`, `Jamón estándar y superior Asturias`, `Mortadela Asturias`, `Salpicao`
+ *   (o formato previo `ACEITE`, `AZUCAR`, `POLLO`, `ESTANDAR Y SUPERIOR ASTURIAS`, `MORTADELA SALPICAO Y ASTURIAS`)
  * - Fila 2 tiene `Vendedor` (A), `CARTERA` (B) y pares `Meta ...` / `Activados` (C a L).
  */
 export function parseCuotasActivacionSheetMatrix(
@@ -691,6 +697,10 @@ export function parseCuotasActivacionSheetMatrix(
     }
   }
 
+  // Detectar si el encabezado en columna C (índice 2) comienza con AZUCAR (nuevo orden 1..5) o ACEITE (orden legado)
+  const firstCatHeader = `${categoriesRow1[2] || ''} ${subheadersRow2[2] || ''}`.toUpperCase();
+  const isNewOrderLayout = firstCatHeader.includes('AZUCAR');
+
   const dataStartIdx = isDoubleHeader ? 2 : 1;
   const rows: CuotasActivacionMatrixRow[] = [];
 
@@ -707,32 +717,48 @@ export function parseCuotasActivacionSheetMatrix(
     }
 
     const vendedor = normalizeSellerName(vendedorRaw) || vendedorRaw;
+    const pair0 = {
+      meta: parseStrictAccountingNumber(line[2]),
+      activados: parseStrictAccountingNumber(line[3]),
+    };
+    const pair1 = {
+      meta: parseStrictAccountingNumber(line[4]),
+      activados: parseStrictAccountingNumber(line[5]),
+    };
+    const pair2 = {
+      meta: parseStrictAccountingNumber(line[6]),
+      activados: parseStrictAccountingNumber(line[7]),
+    };
+    const pair3 = {
+      meta: parseStrictAccountingNumber(line[8]),
+      activados: parseStrictAccountingNumber(line[9]),
+    };
+    const pair4 = {
+      meta: parseStrictAccountingNumber(line[10]),
+      activados: parseStrictAccountingNumber(line[11]),
+    };
+
+    const azucar = isNewOrderLayout ? pair0 : pair1;
+    const lecheVencampo = isNewOrderLayout ? pair1 : pair2;
+    const jamonAsturias = isNewOrderLayout ? pair2 : pair3;
+    const mortadelaAsturias = isNewOrderLayout ? pair3 : pair4;
+    const salpicao = isNewOrderLayout ? pair4 : pair0;
+
     rows.push({
       rowIndex: r + 1,
       vendedorRaw,
       vendedor,
       cartera: parseStrictAccountingNumber(line[1]),
       categorias: {
-        aceite: {
-          meta: parseStrictAccountingNumber(line[2]),
-          activados: parseStrictAccountingNumber(line[3]),
-        },
-        azucar: {
-          meta: parseStrictAccountingNumber(line[4]),
-          activados: parseStrictAccountingNumber(line[5]),
-        },
-        pollo: {
-          meta: parseStrictAccountingNumber(line[6]),
-          activados: parseStrictAccountingNumber(line[7]),
-        },
-        estandarAsturias: {
-          meta: parseStrictAccountingNumber(line[8]),
-          activados: parseStrictAccountingNumber(line[9]),
-        },
-        mortadelaSalpicaoAsturias: {
-          meta: parseStrictAccountingNumber(line[10]),
-          activados: parseStrictAccountingNumber(line[11]),
-        },
+        azucar,
+        lecheVencampo,
+        jamonAsturias,
+        mortadelaAsturias,
+        salpicao,
+        aceite: salpicao,
+        pollo: lecheVencampo,
+        estandarAsturias: jamonAsturias,
+        mortadelaSalpicaoAsturias: mortadelaAsturias,
       },
     });
   }

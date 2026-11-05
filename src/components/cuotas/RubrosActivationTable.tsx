@@ -35,14 +35,20 @@ interface RubrosActivationTableProps {
 export const RubrosActivationTable: React.FC<RubrosActivationTableProps> = ({
   sellers,
   viewLevel,
-  maestraTotalActive = 2676,
-  maestraRoutesCount = 30,
+  maestraTotalActive = 2717,
+  maestraRoutesCount = 29,
   onOpenMaestraAudit,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [supervisorFilter, setSupervisorFilter] = useState('ALL');
+  const [selectedProductKey, setSelectedProductKey] = useState<RubroKey | 'ALL'>('ALL');
   const [selectedSellers, setSelectedSellers] = useState<string[]>([]);
   const [expandedSupervisors, setExpandedSupervisors] = useState<Set<string>>(new Set());
+
+  const displayedRubros = useMemo(() => {
+    if (selectedProductKey === 'ALL') return [...RUBROS_CONFIG];
+    return RUBROS_CONFIG.filter((r) => r.key === selectedProductKey);
+  }, [selectedProductKey]);
 
   // Vendedores disponibles dinámicamente según el supervisor seleccionado
   const availableSellers = useMemo<SellerOption[]>(() => {
@@ -146,11 +152,11 @@ export const RubrosActivationTable: React.FC<RubrosActivationTableProps> = ({
           carteraTotal: 0,
           sellers: [],
           rubros: {
-            aceite: { meta: 0, activados: 0 },
+            salpicao: { meta: 0, activados: 0 },
             azucar: { meta: 0, activados: 0 },
-            pollo: { meta: 0, activados: 0 },
-            estandarAsturias: { meta: 0, activados: 0 },
-            mortadelaSalpicaoAsturias: { meta: 0, activados: 0 },
+            lecheVencampo: { meta: 0, activados: 0 },
+            jamonAsturias: { meta: 0, activados: 0 },
+            mortadelaAsturias: { meta: 0, activados: 0 },
           },
         };
       }
@@ -195,11 +201,11 @@ export const RubrosActivationTable: React.FC<RubrosActivationTableProps> = ({
           sellersCount: 0,
           carteraTotal: 0,
           rubros: {
-            aceite: { meta: 0, activados: 0 },
+            salpicao: { meta: 0, activados: 0 },
             azucar: { meta: 0, activados: 0 },
-            pollo: { meta: 0, activados: 0 },
-            estandarAsturias: { meta: 0, activados: 0 },
-            mortadelaSalpicaoAsturias: { meta: 0, activados: 0 },
+            lecheVencampo: { meta: 0, activados: 0 },
+            jamonAsturias: { meta: 0, activados: 0 },
+            mortadelaAsturias: { meta: 0, activados: 0 },
           },
         };
         seenSupervisorsByRegion[s.region] = new Set();
@@ -230,11 +236,11 @@ export const RubrosActivationTable: React.FC<RubrosActivationTableProps> = ({
   // Grand Totals Calculation
   const grandTotals = useMemo(() => {
     const totals: Record<RubroKey, { meta: number; activados: number }> = {
-      aceite: { meta: 0, activados: 0 },
+      salpicao: { meta: 0, activados: 0 },
       azucar: { meta: 0, activados: 0 },
-      pollo: { meta: 0, activados: 0 },
-      estandarAsturias: { meta: 0, activados: 0 },
-      mortadelaSalpicaoAsturias: { meta: 0, activados: 0 },
+      lecheVencampo: { meta: 0, activados: 0 },
+      jamonAsturias: { meta: 0, activados: 0 },
+      mortadelaAsturias: { meta: 0, activados: 0 },
     };
 
     filteredSellers.forEach((s) => {
@@ -271,6 +277,10 @@ export const RubrosActivationTable: React.FC<RubrosActivationTableProps> = ({
 
     const activeFilters: string[] = [];
     if (supervisorFilter !== 'ALL') activeFilters.push(`Supervisor: ${supervisorFilter}`);
+    if (selectedProductKey !== 'ALL') {
+      const prodObj = RUBROS_CONFIG.find((r) => r.key === selectedProductKey);
+      if (prodObj) activeFilters.push(`Producto: ${prodObj.label}`);
+    }
     if (selectedSellers.length > 0 && selectedSellers[0] !== '__NONE__') {
       activeFilters.push(
         `Vendedores (${selectedSellers.length}): ${selectedSellers.slice(0, 4).join(', ')}${
@@ -313,7 +323,7 @@ export const RubrosActivationTable: React.FC<RubrosActivationTableProps> = ({
     ];
     const headRow2: any[] = [];
 
-    RUBROS_CONFIG.forEach((rubro) => {
+    displayedRubros.forEach((rubro) => {
       headRow1.push({
         content: rubro.label,
         colSpan: 3,
@@ -331,7 +341,7 @@ export const RubrosActivationTable: React.FC<RubrosActivationTableProps> = ({
     if (viewLevel === 'vendedor') {
       filteredSellers.forEach((row) => {
         const line: any[] = [row.vendedor, row.supervisor];
-        RUBROS_CONFIG.forEach((rubro) => {
+        displayedRubros.forEach((rubro) => {
           const d = row.rubros[rubro.key];
           const pct = d.meta > 0 ? (d.activados / d.meta) * 100 : 0;
           line.push(d.meta, d.activados, `${pct.toFixed(1)}%`);
@@ -341,7 +351,7 @@ export const RubrosActivationTable: React.FC<RubrosActivationTableProps> = ({
     } else if (viewLevel === 'supervisores') {
       consolidatedBySupervisor.forEach((row) => {
         const supLine: any[] = [`${row.supervisor} (${row.region})`, `${row.sellersCount}`];
-        RUBROS_CONFIG.forEach((rubro) => {
+        displayedRubros.forEach((rubro) => {
           const d = row.rubros[rubro.key];
           const pct = d.meta > 0 ? (d.activados / d.meta) * 100 : 0;
           supLine.push(d.meta, d.activados, `${pct.toFixed(1)}%`);
@@ -358,7 +368,7 @@ export const RubrosActivationTable: React.FC<RubrosActivationTableProps> = ({
         if (includeSellers) {
           row.sellers.forEach((seller, idx) => {
             const sLine: any[] = [`   -> ${seller.vendedor}`, `#${idx + 1}`];
-            RUBROS_CONFIG.forEach((rubro) => {
+            displayedRubros.forEach((rubro) => {
               const sData = seller.rubros[rubro.key];
               const sPct = sData.meta > 0 ? (sData.activados / sData.meta) * 100 : 0;
               sLine.push(sData.meta, sData.activados, `${sPct.toFixed(1)}%`);
@@ -370,7 +380,7 @@ export const RubrosActivationTable: React.FC<RubrosActivationTableProps> = ({
     } else {
       consolidatedByRegion.forEach((row) => {
         const line: any[] = [row.region, `${row.supervisorsCount}`];
-        RUBROS_CONFIG.forEach((rubro) => {
+        displayedRubros.forEach((rubro) => {
           const d = row.rubros[rubro.key];
           const pct = d.meta > 0 ? (d.activados / d.meta) * 100 : 0;
           line.push(d.meta, d.activados, `${pct.toFixed(1)}%`);
@@ -380,7 +390,7 @@ export const RubrosActivationTable: React.FC<RubrosActivationTableProps> = ({
     }
 
     const footRow: any[] = ['TOTAL GENERAL / PROMEDIO', ''];
-    RUBROS_CONFIG.forEach((rubro) => {
+    displayedRubros.forEach((rubro) => {
       const d = grandTotals[rubro.key];
       const pct = d.meta > 0 ? (d.activados / d.meta) * 100 : 0;
       footRow.push(d.meta, d.activados, `${pct.toFixed(1)}%`);
@@ -506,6 +516,21 @@ export const RubrosActivationTable: React.FC<RubrosActivationTableProps> = ({
             onChange={setSelectedSellers}
             supervisorLabel={supervisorFilter !== 'ALL' ? supervisorFilter : undefined}
           />
+
+          {/* Filtro por Producto Foco */}
+          <select
+            value={selectedProductKey}
+            onChange={(e) => setSelectedProductKey(e.target.value as RubroKey | 'ALL')}
+            aria-label="Filtrar por Producto de Activación"
+            className="bg-black/60 border border-white/10 rounded-lg px-3 py-2 text-xs sm:text-sm text-zinc-300 focus:outline-none focus:border-red-500 cursor-pointer max-w-[260px]"
+          >
+            <option value="ALL">Todos los Productos (5)</option>
+            {RUBROS_CONFIG.map((r) => (
+              <option key={r.key} value={r.key}>
+                {r.label}
+              </option>
+            ))}
+          </select>
         </div>
 
         <div className="flex items-center gap-2 text-xs text-zinc-400">
@@ -543,11 +568,69 @@ export const RubrosActivationTable: React.FC<RubrosActivationTableProps> = ({
         </div>
       </div>
 
+      {/* Tarjetas de KPIs Gerenciales y Gráficas Comparativas (Cuota vs. Logro por Producto) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+        {RUBROS_CONFIG.map((rubro) => {
+          const data = grandTotals[rubro.key];
+          const pct = data.meta > 0 ? (data.activados / data.meta) * 100 : 0;
+          const isSelected = selectedProductKey === rubro.key;
+          const barColor =
+            pct >= 80
+              ? 'bg-emerald-500'
+              : pct >= 60
+              ? 'bg-amber-500'
+              : 'bg-red-500';
+          return (
+            <button
+              key={`kpi-${rubro.key}`}
+              type="button"
+              onClick={() =>
+                setSelectedProductKey((prev) => (prev === rubro.key ? 'ALL' : rubro.key))
+              }
+              title={`Filtrar por ${rubro.label}`}
+              className={`text-left rounded-xl p-3.5 border transition-all cursor-pointer flex flex-col justify-between gap-2.5 ${
+                isSelected
+                  ? 'bg-red-950/35 border-red-500 ring-1 ring-red-500/40 shadow-lg'
+                  : 'bg-zinc-950/90 border-white/10 hover:border-white/25 hover:bg-zinc-900/70'
+              }`}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <span className="text-xs font-bold text-white leading-snug min-h-[2.25rem] break-words">
+                  {rubro.label}
+                </span>
+                <div className="shrink-0">{getProgressPill(pct)}</div>
+              </div>
+
+              <div className="space-y-1.5">
+                <div className="flex items-baseline justify-between gap-2 font-mono tabular-nums text-xs">
+                  <div>
+                    <span className="text-[10px] uppercase text-zinc-400 font-sans mr-1">Logro:</span>
+                    <strong className="text-white font-black text-sm">{data.activados}</strong>
+                  </div>
+                  <div>
+                    <span className="text-[10px] uppercase text-zinc-400 font-sans mr-1">Cuota:</span>
+                    <strong className="text-zinc-300 font-semibold">{data.meta}</strong>
+                  </div>
+                </div>
+
+                {/* Gráfica comparativa Cuota vs. Logro */}
+                <div className="w-full h-2 rounded-full bg-zinc-900 border border-white/10 overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all duration-300 ${barColor}`}
+                    style={{ width: `${Math.min(100, Math.max(0, pct))}%` }}
+                  />
+                </div>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+
       {/* Cinta de Estado de Cartera Sincronizada con Maestra Activa (Negro / Rojo / Blanco) */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 rounded-xl border border-red-600/35 bg-zinc-950 px-4 py-2.5 text-xs">
         <div className="flex flex-wrap items-center gap-2 text-zinc-300">
           <span className="inline-flex items-center gap-1 rounded bg-red-600 px-2 py-0.5 text-[10px] font-black uppercase text-white">
-            Maestra Oct 2026
+            Maestra Nov 2026
           </span>
           <span>
             Cartera Activa Total Sincronizada:{' '}
@@ -558,7 +641,7 @@ export const RubrosActivationTable: React.FC<RubrosActivationTableProps> = ({
             <strong className="font-mono text-white">
               {grandCarteraTotal.toLocaleString('es-VE')}
             </strong>{' '}
-            en carteras con cuota de 5 rubros + Food Service especializado).
+            en carteras con cuota de 5 productos foco + Food Service especializado).
           </span>
         </div>
         {onOpenMaestraAudit && (
@@ -576,7 +659,7 @@ export const RubrosActivationTable: React.FC<RubrosActivationTableProps> = ({
       <div className="bg-zinc-950 border border-white/10 rounded-xl shadow-2xl overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse min-w-[1160px]">
-            {/* Table Header exactly like mockup */}
+            {/* Table Header */}
             <thead>
               {/* Row 1: Main Headers */}
               <tr className="bg-zinc-900/90 text-white border-b border-white/10 select-none text-xs">
@@ -650,12 +733,12 @@ export const RubrosActivationTable: React.FC<RubrosActivationTableProps> = ({
                 )}
 
                 {/* Rubros Headers with 3 columns each */}
-                {RUBROS_CONFIG.map((rubro, idx) => (
+                {displayedRubros.map((rubro, idx) => (
                   <th
                     key={rubro.key}
                     colSpan={3}
-                    className={`p-3 text-center font-bold uppercase tracking-wider bg-zinc-900/70 ${
-                      idx < RUBROS_CONFIG.length - 1 ? 'border-r border-white/10' : ''
+                    className={`px-3 py-2.5 text-center font-bold tracking-wide leading-tight whitespace-normal min-w-[170px] bg-zinc-900/70 ${
+                      idx < displayedRubros.length - 1 ? 'border-r border-white/10' : ''
                     }`}
                   >
                     {rubro.label}
@@ -665,7 +748,7 @@ export const RubrosActivationTable: React.FC<RubrosActivationTableProps> = ({
 
               {/* Row 2: Subcolumns (META, ACTIVADOS, %) */}
               <tr className="bg-zinc-950/80 text-zinc-400 border-b border-white/10 text-[11px]">
-                {RUBROS_CONFIG.map((rubro, idx) => (
+                {displayedRubros.map((rubro, idx) => (
                   <React.Fragment key={`sub-${rubro.key}`}>
                     <th className="py-2 px-2.5 text-center font-semibold uppercase tracking-wider border-r border-white/5 bg-zinc-950/60">
                       META
@@ -675,7 +758,7 @@ export const RubrosActivationTable: React.FC<RubrosActivationTableProps> = ({
                     </th>
                     <th
                       className={`py-2 px-2.5 text-center font-semibold uppercase tracking-wider bg-zinc-950/60 ${
-                        idx < RUBROS_CONFIG.length - 1 ? 'border-r border-white/10' : ''
+                        idx < displayedRubros.length - 1 ? 'border-r border-white/10' : ''
                       }`}
                     >
                       %
@@ -705,22 +788,22 @@ export const RubrosActivationTable: React.FC<RubrosActivationTableProps> = ({
                     </td>
 
                     {/* Rubros cells */}
-                    {RUBROS_CONFIG.map((rubro, idx) => {
+                    {displayedRubros.map((rubro, idx) => {
                       const data = row.rubros[rubro.key];
                       const pct = data.meta > 0 ? (data.activados / data.meta) * 100 : 0;
                       return (
                         <React.Fragment key={`${row.id}-${rubro.key}`}>
-                          <td className="p-2.5 text-center font-mono text-zinc-400 border-r border-white/5">
+                          <td className="p-2.5 text-center font-mono tabular-nums text-zinc-400 border-r border-white/5">
                             {data.meta}
                           </td>
-                          <td className="p-2.5 text-center font-mono font-bold text-white border-r border-white/5">
+                          <td className="p-2.5 text-center font-mono tabular-nums font-bold text-white border-r border-white/5">
                             {data.activados}
                           </td>
                           <td
-                            className={`p-2.5 text-center font-mono ${getPercentColor(
+                            className={`p-2.5 text-center font-mono tabular-nums ${getPercentColor(
                               pct
                             )} ${
-                              idx < RUBROS_CONFIG.length - 1
+                              idx < displayedRubros.length - 1
                                 ? 'border-r border-white/10'
                                 : ''
                             }`}
@@ -795,26 +878,26 @@ export const RubrosActivationTable: React.FC<RubrosActivationTableProps> = ({
                             {row.sellersCount}
                           </span>
                         </td>
-                        <td className="p-3 border-r border-white/10 text-center font-mono font-black text-white">
+                        <td className="p-3 border-r border-white/10 text-center font-mono tabular-nums font-black text-white">
                           {row.carteraTotal.toLocaleString('es-VE')}
                         </td>
 
-                        {RUBROS_CONFIG.map((rubro, idx) => {
+                        {displayedRubros.map((rubro, idx) => {
                           const data = row.rubros[rubro.key];
                           const pct = data.meta > 0 ? (data.activados / data.meta) * 100 : 0;
                           return (
                             <React.Fragment key={`${row.supervisor}-${rubro.key}`}>
-                              <td className="p-2.5 text-center font-mono text-zinc-300 font-semibold border-r border-white/5">
+                              <td className="p-2.5 text-center font-mono tabular-nums text-zinc-300 font-semibold border-r border-white/5">
                                 {data.meta}
                               </td>
-                              <td className="p-2.5 text-center font-mono font-black text-white border-r border-white/5">
+                              <td className="p-2.5 text-center font-mono tabular-nums font-black text-white border-r border-white/5">
                                 {data.activados}
                               </td>
                               <td
-                                className={`p-2.5 text-center font-mono font-bold ${getPercentColor(
+                                className={`p-2.5 text-center font-mono tabular-nums font-bold ${getPercentColor(
                                   pct
                                 )} ${
-                                  idx < RUBROS_CONFIG.length - 1
+                                  idx < displayedRubros.length - 1
                                     ? 'border-r border-white/10'
                                     : ''
                                 }`}
@@ -848,11 +931,11 @@ export const RubrosActivationTable: React.FC<RubrosActivationTableProps> = ({
                                 #{sIdx + 1}
                               </span>
                             </td>
-                            <td className="py-2.5 px-2 border-r border-white/10 text-center font-mono font-bold text-white text-xs">
+                            <td className="py-2.5 px-2 border-r border-white/10 text-center font-mono tabular-nums font-bold text-white text-xs">
                               {seller.cartera ?? 0}
                             </td>
 
-                            {RUBROS_CONFIG.map((rubro, idx) => {
+                            {displayedRubros.map((rubro, idx) => {
                               const sData = seller.rubros[rubro.key];
                               const sPct =
                                 sData.meta > 0
@@ -860,17 +943,17 @@ export const RubrosActivationTable: React.FC<RubrosActivationTableProps> = ({
                                   : 0;
                               return (
                                 <React.Fragment key={`${seller.vendedor}-${rubro.key}`}>
-                                  <td className="p-2 text-center font-mono text-zinc-400 border-r border-white/5">
+                                  <td className="p-2 text-center font-mono tabular-nums text-zinc-400 border-r border-white/5">
                                     {sData.meta}
                                   </td>
-                                  <td className="p-2 text-center font-mono font-bold text-zinc-100 border-r border-white/5">
+                                  <td className="p-2 text-center font-mono tabular-nums font-bold text-zinc-100 border-r border-white/5">
                                     {sData.activados}
                                   </td>
                                   <td
-                                    className={`p-2 text-center font-mono ${getPercentColor(
+                                    className={`p-2 text-center font-mono tabular-nums ${getPercentColor(
                                       sPct
                                     )} ${
-                                      idx < RUBROS_CONFIG.length - 1
+                                      idx < displayedRubros.length - 1
                                         ? 'border-r border-white/10'
                                         : ''
                                     }`}
@@ -899,26 +982,26 @@ export const RubrosActivationTable: React.FC<RubrosActivationTableProps> = ({
                     <td className="p-3 border-r border-white/10 text-center font-mono text-zinc-300">
                       {row.supervisorsCount}
                     </td>
-                    <td className="p-3 border-r border-white/10 text-center font-mono font-black text-white">
+                    <td className="p-3 border-r border-white/10 text-center font-mono tabular-nums font-black text-white">
                       {row.carteraTotal.toLocaleString('es-VE')}
                     </td>
 
-                    {RUBROS_CONFIG.map((rubro, idx) => {
+                    {displayedRubros.map((rubro, idx) => {
                       const data = row.rubros[rubro.key];
                       const pct = data.meta > 0 ? (data.activados / data.meta) * 100 : 0;
                       return (
                         <React.Fragment key={`${row.region}-${rubro.key}`}>
-                          <td className="p-2.5 text-center font-mono text-zinc-400 border-r border-white/5">
+                          <td className="p-2.5 text-center font-mono tabular-nums text-zinc-400 border-r border-white/5">
                             {data.meta}
                           </td>
-                          <td className="p-2.5 text-center font-mono font-bold text-white border-r border-white/5">
+                          <td className="p-2.5 text-center font-mono tabular-nums font-bold text-white border-r border-white/5">
                             {data.activados}
                           </td>
                           <td
-                            className={`p-2.5 text-center font-mono ${getPercentColor(
+                            className={`p-2.5 text-center font-mono tabular-nums ${getPercentColor(
                               pct
                             )} ${
-                              idx < RUBROS_CONFIG.length - 1
+                              idx < displayedRubros.length - 1
                                 ? 'border-r border-white/10'
                                 : ''
                             }`}
@@ -941,26 +1024,26 @@ export const RubrosActivationTable: React.FC<RubrosActivationTableProps> = ({
                 >
                   TOTAL GENERAL / PROMEDIO
                 </td>
-                <td className="p-3 text-center font-mono font-black text-white border-r border-white/10 bg-zinc-900/90">
+                <td className="p-3 text-center font-mono tabular-nums font-black text-white border-r border-white/10 bg-zinc-900/90">
                   {grandCarteraTotal.toLocaleString('es-VE')}
                 </td>
 
-                {RUBROS_CONFIG.map((rubro, idx) => {
+                {displayedRubros.map((rubro, idx) => {
                   const data = grandTotals[rubro.key];
                   const pct = data.meta > 0 ? (data.activados / data.meta) * 100 : 0;
                   return (
                     <React.Fragment key={`total-${rubro.key}`}>
-                      <td className="p-2.5 text-center font-mono text-zinc-300 border-r border-white/5 bg-zinc-900/70">
+                      <td className="p-2.5 text-center font-mono tabular-nums text-zinc-300 border-r border-white/5 bg-zinc-900/70">
                         {data.meta}
                       </td>
-                      <td className="p-2.5 text-center font-mono font-bold text-white border-r border-white/5 bg-zinc-900/70">
+                      <td className="p-2.5 text-center font-mono tabular-nums font-bold text-white border-r border-white/5 bg-zinc-900/70">
                         {data.activados}
                       </td>
                       <td
-                        className={`p-2.5 text-center font-mono ${getPercentColor(
+                        className={`p-2.5 text-center font-mono tabular-nums ${getPercentColor(
                           pct
                         )} bg-zinc-900/70 ${
-                          idx < RUBROS_CONFIG.length - 1 ? 'border-r border-white/10' : ''
+                          idx < displayedRubros.length - 1 ? 'border-r border-white/10' : ''
                         }`}
                       >
                         {pct.toFixed(1)}%

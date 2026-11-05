@@ -116,7 +116,7 @@ export function resolveMaestraSellerHierarchy(rawVendedor: string): {
     return {
       vendedor: clean || 'JAIDER MEDINA - FOOD SERVICE NORTE',
       canonicalSeller: 'JAIDER MEDINA - FOOD SERVICE NORTE',
-      supervisor: 'NELSON FINOL',
+      supervisor: 'JOHNATAN SOTO',
       zona: 'Food Service Norte',
     };
   }
@@ -223,25 +223,39 @@ export function resolveMaestraSellerHierarchy(rawVendedor: string): {
 
 /**
  * Construye llave compuesta determinística por ruta + cliente para manejar IDs compartidos (ej. Id = 8377).
+ * Normaliza el espaciado alrededor de guiones (ej. "OSCAR ORTIZ- LA COSTA" === "OSCAR ORTIZ - LA COSTA").
  */
 export function buildRouteClientKey(vendedorRoute: string, idCliente: string): string {
-  const cleanRoute = sanitizeMaestraText(vendedorRoute).toUpperCase();
+  const cleanRoute = sanitizeMaestraText(vendedorRoute)
+    .toUpperCase()
+    .replace(/\s*-\s*/g, ' - ')
+    .trim();
   const cleanClient = normalizeClientId(idCliente);
   return `${cleanRoute}::${cleanClient}`;
 }
 
+export interface MaestraExternalLookupMaps {
+  tipoById?: Map<string, string>;
+  tipoByName?: Map<string, string>;
+  rifById?: Map<string, string>;
+  rifByName?: Map<string, string>;
+}
+
 /**
- * Parsea y valida un libro Excel con estructura MAESTRA ACTIVA (hojas DATA, TIPO, RIF).
+ * Parsea y valida un libro Excel o CSV con estructura MAESTRA ACTIVA
+ * (compatible tanto con "ID VENDEDOR | Vendedor | Id | Razón Social | RIF | Tipo"
+ * como con "SUPERVISOR | ID VENDEDOR | Vendedor | Id | Razón Social | RIF").
  */
 export function parseMaestraActivaWorkbook(
   workbook: XLSX.WorkBook,
-  sourceFilename = 'MAESTRA ACTIVA (7).xlsx'
+  sourceFilename = 'MAESTRA ACTIVA (7).xlsx',
+  externalLookups?: MaestraExternalLookupMaps
 ): MaestraParseResult {
   const dataSheetName =
     workbook.SheetNames.find((n) => sanitizeMaestraText(n).toUpperCase() === 'DATA') ||
     workbook.SheetNames[0];
   if (!dataSheetName || !workbook.Sheets[dataSheetName]) {
-    throw new Error('El archivo Excel no contiene la hoja requerida "DATA".');
+    throw new Error('El archivo no contiene una hoja de datos válida.');
   }
 
   const tipoSheetName = workbook.SheetNames.find(
@@ -251,9 +265,9 @@ export function parseMaestraActivaWorkbook(
     (n) => sanitizeMaestraText(n).toUpperCase() === 'RIF'
   );
 
-  // 1. Índices O(1) de respaldo desde las hojas TIPO y RIF (por Id y por Razón Social normalizada)
-  const tipoById = new Map<string, string>();
-  const tipoByName = new Map<string, string>();
+  // 1. Índices O(1) de respaldo desde las hojas TIPO y RIF + catálogos externos (por Id y por Razón Social normalizada)
+  const tipoById = new Map<string, string>(externalLookups?.tipoById ? Array.from(externalLookups.tipoById.entries()) : []);
+  const tipoByName = new Map<string, string>(externalLookups?.tipoByName ? Array.from(externalLookups.tipoByName.entries()) : []);
   if (tipoSheetName && workbook.Sheets[tipoSheetName]) {
     const tipoRows = XLSX.utils.sheet_to_json<unknown[]>(workbook.Sheets[tipoSheetName], {
       header: 1,
@@ -272,8 +286,8 @@ export function parseMaestraActivaWorkbook(
     }
   }
 
-  const rifById = new Map<string, string>();
-  const rifByName = new Map<string, string>();
+  const rifById = new Map<string, string>(externalLookups?.rifById ? Array.from(externalLookups.rifById.entries()) : []);
+  const rifByName = new Map<string, string>(externalLookups?.rifByName ? Array.from(externalLookups.rifByName.entries()) : []);
   if (rifSheetName && workbook.Sheets[rifSheetName]) {
     const rifRows = XLSX.utils.sheet_to_json<unknown[]>(workbook.Sheets[rifSheetName], {
       header: 1,
@@ -299,8 +313,8 @@ export function parseMaestraActivaWorkbook(
     raw: false,
   });
 
-  if (dataRows.length < 3) {
-    throw new Error('La hoja "DATA" no contiene registros debajo de la fila de encabezados.');
+  if (dataRows.length < 2) {
+    throw new Error('La hoja de datos no contiene registros debajo de la fila de encabezados.');
   }
 
   const titleRow = dataRows[0] || [];
@@ -312,9 +326,16 @@ export function parseMaestraActivaWorkbook(
   let headerRowIdx = 1;
   const row0Upper = (dataRows[0] || []).map((c) => sanitizeMaestraText(c).toUpperCase());
   const row1Upper = (dataRows[1] || []).map((c) => sanitizeMaestraText(c).toUpperCase());
-  if (row0Upper.includes('ID VENDEDOR') && !row1Upper.includes('ID VENDEDOR')) {
+  if (
+    (row0Upper.includes('ID VENDEDOR') || row0Upper.includes('SUPERVISOR')) &&
+    !row1Upper.includes('ID VENDEDOR')
+  ) {
     headerRowIdx = 0;
   }
+
+  const headerUpper = (dataRows[headerRowIdx] || []).map((c) => sanitizeMaestraText(c).toUpperCase());
+  const hasLeadingSupervisorCol =
+    headerUpper[0] === 'SUPERVISOR' || headerUpper.indexOf('ID VENDEDOR') === 1;
 
   const rowsBelowHeader = dataRows.slice(headerRowIdx + 1);
   let emptyRowsIgnored = 0;
@@ -328,16 +349,23 @@ export function parseMaestraActivaWorkbook(
       continue;
     }
 
-    const idVendedor = sanitizeMaestraText(row[0]);
-    const rawVendedor = sanitizeMaestraText(row[1]);
-    const idCliente = normalizeClientId(row[2]);
-    const razonSocial = sanitizeMaestraText(row[3]);
-    const rawRif = sanitizeMaestraText(row[4]);
-    const rawTipoCliente = sanitizeMaestraText(row[5]);
+    const rawSupervisor = hasLeadingSupervisorCol ? sanitizeMaestraText(row[0]).toUpperCase() : '';
+    const idVendedor = sanitizeMaestraText(hasLeadingSupervisorCol ? row[1] : row[0]);
+    const rawVendedor = sanitizeMaestraText(hasLeadingSupervisorCol ? row[2] : row[1]);
+    const idCliente = normalizeClientId(hasLeadingSupervisorCol ? row[3] : row[2]);
+    const razonSocial = sanitizeMaestraText(hasLeadingSupervisorCol ? row[4] : row[3])
+      .replace(/^["']+|["']+$/g, '')
+      .trim();
+    const rawRif = sanitizeMaestraText(hasLeadingSupervisorCol ? row[5] : row[4])
+      .replace(/^["']+|["']+$/g, '')
+      .trim();
+    const rawTipoCliente = sanitizeMaestraText(hasLeadingSupervisorCol ? row[6] : row[5]);
 
-    // Ignorar eventuales filas de repetición de encabezado
+    // Ignorar eventuales filas de repetición de encabezado o filas de cierre vacías (; #N/D)
     if (
       idVendedor.toUpperCase() === 'ID VENDEDOR' ||
+      isMissingExcelLookupValue(idCliente) ||
+      isMissingExcelLookupValue(rawVendedor) ||
       (!idCliente && !razonSocial)
     ) {
       emptyRowsIgnored++;
@@ -345,6 +373,10 @@ export function parseMaestraActivaWorkbook(
     }
 
     const hierarchy = resolveMaestraSellerHierarchy(rawVendedor);
+    const effectiveSupervisor =
+      !isMissingExcelLookupValue(rawSupervisor) && rawSupervisor
+        ? rawSupervisor
+        : hierarchy.supervisor;
     const normBizName = normalizeBusinessNameForLookup(razonSocial);
 
     // Resolución obligatoria de RIF: DATA -> hoja RIF por Id -> hoja RIF por Razón Social -> "PENDIENTE"
@@ -391,7 +423,7 @@ export function parseMaestraActivaWorkbook(
       idVendedor,
       vendedor: effectiveVendorLabel,
       canonicalSeller: hierarchy.canonicalSeller,
-      supervisor: hierarchy.supervisor,
+      supervisor: effectiveSupervisor,
       zona: hierarchy.zona,
       idCliente,
       razonSocial,
@@ -509,14 +541,49 @@ export function parseMaestraActivaWorkbook(
 }
 
 /**
- * Parsea directamente un ArrayBuffer / Uint8Array / Buffer de Excel.
+ * Parsea directamente contenido CSV (delimitado por ';' o ',') convirtiéndolo en un WorkBook compatible.
+ */
+export function parseMaestraCsvContent(
+  csvText: string,
+  sourceFilename = 'MAESTRA_ACTIVA_ultima_version.csv',
+  externalLookups?: MaestraExternalLookupMaps
+): MaestraParseResult {
+  const cleanText = String(csvText || '').replace(/^\uFEFF/, '');
+  const lines = cleanText.split(/\r?\n/);
+  const sampleLine = lines.slice(0, 5).find((l) => l.includes(';') || l.includes(',')) || '';
+  const delimiter = sampleLine.split(';').length >= sampleLine.split(',').length ? ';' : ',';
+
+  const matrix: string[][] = lines.map((line) =>
+    line.split(delimiter).map((cell) =>
+      String(cell ?? '')
+        .trim()
+        .replace(/^["']+|["']+$/g, '')
+        .trim()
+    )
+  );
+
+  const ws = XLSX.utils.aoa_to_sheet(matrix);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'DATA');
+  return parseMaestraActivaWorkbook(wb, sourceFilename, externalLookups);
+}
+
+/**
+ * Parsea directamente un ArrayBuffer / Uint8Array / Buffer de Excel o CSV.
  */
 export function parseMaestraActivaBuffer(
   data: ArrayBuffer | Uint8Array,
-  sourceFilename = 'MAESTRA ACTIVA (7).xlsx'
+  sourceFilename = 'MAESTRA ACTIVA (7).xlsx',
+  externalLookups?: MaestraExternalLookupMaps
 ): MaestraParseResult {
+  const lowerName = String(sourceFilename || '').toLowerCase();
+  if (lowerName.endsWith('.csv')) {
+    const uint8 = data instanceof Uint8Array ? data : new Uint8Array(data);
+    const csvText = new TextDecoder('utf-8').decode(uint8);
+    return parseMaestraCsvContent(csvText, sourceFilename, externalLookups);
+  }
   const wb = XLSX.read(data, { type: 'array', raw: false });
-  return parseMaestraActivaWorkbook(wb, sourceFilename);
+  return parseMaestraActivaWorkbook(wb, sourceFilename, externalLookups);
 }
 
 export const LOGICAL_INACTIVE_VENDOR_PREFIX = 'INACTIVO_MAESTRA::';
@@ -579,16 +646,16 @@ export function compareMaestraAgainstDatabase(
     supaCountByVendorRoute.set(vRoute, (supaCountByVendorRoute.get(vRoute) || 0) + 1);
 
     const hasPurchase =
-      Boolean(r.has_aceite) ||
       Boolean(r.has_azucar) ||
-      Boolean(r.has_pollo) ||
-      Boolean(r.has_estandar_asturias) ||
-      Boolean(r.has_mortadela_salpicao) ||
-      (Number(r.cajas_aceite) || 0) > 0 ||
+      Boolean(r.has_leche_vencampo ?? r.has_pollo) ||
+      Boolean(r.has_jamon_asturias ?? r.has_estandar_asturias) ||
+      Boolean(r.has_mortadela_asturias ?? r.has_mortadela_salpicao) ||
+      Boolean(r.has_salpicao ?? r.has_aceite) ||
       (Number(r.cajas_azucar) || 0) > 0 ||
-      (Number(r.cajas_pollo) || 0) > 0 ||
-      (Number(r.cajas_estandar_asturias) || 0) > 0 ||
-      (Number(r.cajas_mortadela_salpicao) || 0) > 0 ||
+      (Number(r.cajas_leche_vencampo ?? r.cajas_pollo) || 0) > 0 ||
+      (Number(r.cajas_jamon_asturias ?? r.cajas_estandar_asturias) || 0) > 0 ||
+      (Number(r.cajas_mortadela_asturias ?? r.cajas_mortadela_salpicao) || 0) > 0 ||
+      (Number(r.cajas_salpicao ?? r.cajas_aceite) || 0) > 0 ||
       sanitizeMaestraText(r.status).toUpperCase() === 'ACTIVO';
 
     if (hasPurchase) {
@@ -748,16 +815,16 @@ export function compareMaestraAgainstDatabase(
     if (!excelRouteClientSet.has(rcKey) && !matchedSupaKeys.has(rcKey)) {
       const hierarchy = resolveMaestraSellerHierarchy(vRoute);
       const hadPurchases =
-        Boolean(r.has_aceite) ||
         Boolean(r.has_azucar) ||
-        Boolean(r.has_pollo) ||
-        Boolean(r.has_estandar_asturias) ||
-        Boolean(r.has_mortadela_salpicao) ||
-        (Number(r.cajas_aceite) || 0) > 0 ||
+        Boolean(r.has_leche_vencampo ?? r.has_pollo) ||
+        Boolean(r.has_jamon_asturias ?? r.has_estandar_asturias) ||
+        Boolean(r.has_mortadela_asturias ?? r.has_mortadela_salpicao) ||
+        Boolean(r.has_salpicao ?? r.has_aceite) ||
         (Number(r.cajas_azucar) || 0) > 0 ||
-        (Number(r.cajas_pollo) || 0) > 0 ||
-        (Number(r.cajas_estandar_asturias) || 0) > 0 ||
-        (Number(r.cajas_mortadela_salpicao) || 0) > 0;
+        (Number(r.cajas_leche_vencampo ?? r.cajas_pollo) || 0) > 0 ||
+        (Number(r.cajas_jamon_asturias ?? r.cajas_estandar_asturias) || 0) > 0 ||
+        (Number(r.cajas_mortadela_asturias ?? r.cajas_mortadela_salpicao) || 0) > 0 ||
+        (Number(r.cajas_salpicao ?? r.cajas_aceite) || 0) > 0;
 
       bajasLogicasList.push({
         dbRowId: r.id,

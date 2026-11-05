@@ -13,20 +13,24 @@ export interface SellerActivationRow {
   zona: string;
   region: string;
   rubros: {
-    aceite: RubroActivationData;
     azucar: RubroActivationData;
-    pollo: RubroActivationData;
-    estandarAsturias: RubroActivationData;
-    mortadelaSalpicaoAsturias: RubroActivationData;
+    lecheVencampo: RubroActivationData;
+    jamonAsturias: RubroActivationData;
+    mortadelaAsturias: RubroActivationData;
+    salpicao: RubroActivationData;
   };
 }
 
 export const RUBROS_CONFIG = [
-  { key: 'aceite', label: 'ACEITE', shortLabel: 'Aceite' },
-  { key: 'azucar', label: 'AZUCAR', shortLabel: 'Azúcar' },
-  { key: 'pollo', label: 'POLLO', shortLabel: 'Pollo' },
-  { key: 'estandarAsturias', label: 'ESTANDAR Y SUPERIOR ASTURIAS', shortLabel: 'Est. & Sup. Asturias' },
-  { key: 'mortadelaSalpicaoAsturias', label: 'MORTADELA SALPICAO Y ASTURIAS', shortLabel: 'Mortadela Salpicao y Asturias' },
+  { key: 'azucar', label: 'Azúcar', shortLabel: 'Azúcar' },
+  { key: 'lecheVencampo', label: 'Leche en polvo Vencampo', shortLabel: 'Leche en polvo Vencampo' },
+  {
+    key: 'jamonAsturias',
+    label: 'Jamón estándar y superior Asturias',
+    shortLabel: 'Jamón estándar y superior Asturias',
+  },
+  { key: 'mortadelaAsturias', label: 'Mortadela Asturias', shortLabel: 'Mortadela Asturias' },
+  { key: 'salpicao', label: 'Salpicao', shortLabel: 'Salpicao' },
 ] as const;
 
 export type RubroKey = typeof RUBROS_CONFIG[number]['key'];
@@ -75,11 +79,11 @@ export const INITIAL_SELLERS_ACTIVATION: SellerActivationRow[] = SHEET_ACTIVATIO
     zona: meta.zona,
     region: meta.region,
     rubros: {
-      aceite: { meta: s.metas[0], activados: s.act[0] },
       azucar: { meta: s.metas[1], activados: s.act[1] },
-      pollo: { meta: s.metas[2], activados: s.act[2] },
-      estandarAsturias: { meta: s.metas[3], activados: s.act[3] },
-      mortadelaSalpicaoAsturias: { meta: s.metas[4], activados: s.act[4] },
+      lecheVencampo: { meta: s.metas[2], activados: s.act[2] },
+      jamonAsturias: { meta: s.metas[3], activados: s.act[3] },
+      mortadelaAsturias: { meta: s.metas[4], activados: s.act[4] },
+      salpicao: { meta: s.metas[0], activados: s.act[0] },
     },
   };
 });

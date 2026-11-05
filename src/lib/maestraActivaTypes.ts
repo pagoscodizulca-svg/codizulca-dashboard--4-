@@ -95,13 +95,22 @@ export interface ExistingActivationRecordLike {
   rif?: string;
   tipoCliente?: string;
   idVendedorErp?: string;
-  cajas_aceite?: number;
   cajas_azucar?: number;
+  cajas_leche_vencampo?: number;
+  cajas_jamon_asturias?: number;
+  cajas_mortadela_asturias?: number;
+  cajas_salpicao?: number;
+  has_azucar?: boolean;
+  has_leche_vencampo?: boolean;
+  has_jamon_asturias?: boolean;
+  has_mortadela_asturias?: boolean;
+  has_salpicao?: boolean;
+  // Physical DB legacy column aliases in public.activacion_clientes
+  cajas_aceite?: number;
   cajas_pollo?: number;
   cajas_estandar_asturias?: number;
   cajas_mortadela_salpicao?: number;
   has_aceite?: boolean;
-  has_azucar?: boolean;
   has_pollo?: boolean;
   has_estandar_asturias?: boolean;
   has_mortadela_salpicao?: boolean;
@@ -113,6 +122,7 @@ export interface ExistingCarteraRecordLike {
   vendedor: string;
   rutaVendedor?: string;
   idVendedor?: string;
+  supervisor?: string;
   canal: string;
   rif?: string;
   zona?: string;

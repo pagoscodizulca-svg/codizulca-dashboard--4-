@@ -29,8 +29,8 @@ import {
   X
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import { ENRICHED_CLIENTS, EnrichedClient, SURVEY_STATS } from '../data/clientsWithLocation';
-import { getSellerMetadata, isValidVolumeSeller, OFFICIAL_SUPERVISORS } from '../components/cuotas/sellerSupervisorMap';
+import { ENRICHED_CLIENTS, EnrichedClient, SURVEY_STATS, buildEnrichedClientsFromCartera } from '../data/clientsWithLocation';
+import { getSellerMetadata, hydrateSellerMetadataFromSupabase, isValidVolumeSeller, OFFICIAL_SUPERVISORS } from '../components/cuotas/sellerSupervisorMap';
 import { ClientCard } from '../components/clientes/ClientCard';
 import { ClientMapModal } from '../components/clientes/ClientMapModal';
 import { AllClientsMap, getSellerColor } from '../components/clientes/AllClientsMap';
@@ -53,6 +53,39 @@ export const Clientes: React.FC = () => {
   const [isMapModalOpen, setIsMapModalOpen] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
+  // Live synchronized portfolio (hydrated dynamically from /api/clientes/maestra & Supabase)
+  const [liveClients, setLiveClients] = useState<EnrichedClient[]>(ENRICHED_CLIENTS);
+  const [liveStats, setLiveStats] = useState(SURVEY_STATS);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/clientes/maestra')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((payload) => {
+        if (cancelled || !payload || !Array.isArray(payload.clientes)) return;
+        if (Array.isArray(payload.vendedores) && payload.vendedores.length > 0) {
+          hydrateSellerMetadataFromSupabase(payload.vendedores);
+        }
+        const enriched = buildEnrichedClientsFromCartera(payload.clientes);
+        if (enriched.clients.length > 0) {
+          setLiveClients(enriched.clients);
+          setLiveStats(enriched.stats);
+        }
+        if (payload.syncedAt) {
+          const prevSync = localStorage.getItem('codizulca_maestra_sync_version');
+          if (prevSync !== payload.syncedAt) {
+            localStorage.setItem('codizulca_maestra_sync_version', String(payload.syncedAt));
+          }
+        }
+      })
+      .catch(() => {
+        // Fallback silencioso a ENRICHED_CLIENTS empaquetado localmente
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   // Extract unique official supervisors (Johnatan Soto, Ali Perez, Nelson Finol)
   const supervisorsList = useMemo(() => {
     return [...OFFICIAL_SUPERVISORS];
@@ -61,7 +94,7 @@ export const Clientes: React.FC = () => {
   // Extract unique sellers with both total clients and geocercas count (strictly official 25 sellers)
   const sellersList = useMemo(() => {
     const map = new Map<string, { total: number; withGps: number }>();
-    ENRICHED_CLIENTS.forEach(c => {
+    liveClients.forEach(c => {
       if (selectedSupervisor === 'ALL' || c.supervisor === selectedSupervisor) {
         if (c.vendedor && isValidVolumeSeller(c.vendedor)) {
           const current = map.get(c.vendedor) || { total: 0, withGps: 0 };
@@ -72,7 +105,7 @@ export const Clientes: React.FC = () => {
       }
     });
     return Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0]));
-  }, [selectedSupervisor]);
+  }, [selectedSupervisor, liveClients]);
 
   // Options for VendedorMultiSelect
   const sellersOptions: SellerOption[] = useMemo(() => {
@@ -87,16 +120,16 @@ export const Clientes: React.FC = () => {
   // Extract unique canales
   const canalesList = useMemo(() => {
     const set = new Set<string>();
-    ENRICHED_CLIENTS.forEach(c => {
+    liveClients.forEach(c => {
       if (c.canal) set.add(c.canal);
     });
     return Array.from(set).sort();
-  }, []);
+  }, [liveClients]);
 
   // Filtered clients
   const filteredData = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
-    return ENRICHED_CLIENTS.filter(client => {
+    return liveClients.filter(client => {
       // 1. Search term
       let matchSearch = true;
       if (term) {
@@ -132,7 +165,7 @@ export const Clientes: React.FC = () => {
 
       return matchSearch && matchSupervisor && matchSeller && matchCanal && matchGps;
     });
-  }, [searchTerm, selectedSupervisor, selectedSellers, selectedCanal, selectedGpsFilter]);
+  }, [searchTerm, selectedSupervisor, selectedSellers, selectedCanal, selectedGpsFilter, liveClients]);
 
   // Reset page when filters change
   useEffect(() => {
@@ -217,7 +250,7 @@ export const Clientes: React.FC = () => {
             </h2>
             <span className="px-3 py-1 text-xs font-bold bg-zinc-900 text-white border border-white/10 rounded-full flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-red-600 animate-pulse" />
-              {SURVEY_STATS.totalWithGps.toLocaleString()} Geocercas Sincronizadas • Radio 50m
+              {liveStats.totalWithGps.toLocaleString()} Geocercas Sincronizadas • Radio 50m
             </span>
           </div>
           <p className="text-sm text-zinc-400 mt-1.5 max-w-4xl">
@@ -252,7 +285,7 @@ export const Clientes: React.FC = () => {
           </div>
           <div>
             <p className="text-xs font-bold tracking-widest text-zinc-500 uppercase">Clientes Cartera</p>
-            <p className="text-2xl font-black text-white">{ENRICHED_CLIENTS.length.toLocaleString()}</p>
+            <p className="text-2xl font-black text-white">{liveClients.length.toLocaleString()}</p>
             <p className="text-[11px] text-zinc-400">Base total consolidada</p>
           </div>
         </div>
@@ -278,7 +311,7 @@ export const Clientes: React.FC = () => {
                 <span className="w-2 h-2 rounded-full bg-red-600 animate-pulse" />
               </div>
               <div className="flex items-baseline gap-2">
-                <p className="text-2xl font-black text-white">{SURVEY_STATS.totalWithGps.toLocaleString()}</p>
+                <p className="text-2xl font-black text-white">{liveStats.totalWithGps.toLocaleString()}</p>
                 <span className="text-[10px] font-bold text-red-400 uppercase">Todos los Estatus</span>
               </div>
             </div>
@@ -294,7 +327,7 @@ export const Clientes: React.FC = () => {
               }`}
             >
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-              {SURVEY_STATS.completasCount.toLocaleString()} Completas
+              {liveStats.completasCount.toLocaleString()} Completas
             </button>
             <button
               type="button"
@@ -304,7 +337,7 @@ export const Clientes: React.FC = () => {
               }`}
             >
               <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-              {SURVEY_STATS.pendientesCount.toLocaleString()} Pendientes
+              {liveStats.pendientesCount.toLocaleString()} Pendientes
             </button>
             <button
               type="button"
@@ -314,7 +347,7 @@ export const Clientes: React.FC = () => {
               }`}
             >
               <span className="w-1.5 h-1.5 rounded-full bg-blue-400" />
-              {SURVEY_STATS.modificadasCount.toLocaleString()} Modificadas
+              {liveStats.modificadasCount.toLocaleString()} Modificadas
             </button>
           </div>
         </div>
@@ -338,7 +371,7 @@ export const Clientes: React.FC = () => {
           </div>
           <div>
             <p className="text-xs font-bold tracking-widest text-zinc-500 uppercase">Municipios Cobertura</p>
-            <p className="text-2xl font-black text-white">{SURVEY_STATS.municipios.length}</p>
+            <p className="text-2xl font-black text-white">{liveStats.municipios.length}</p>
             <p className="text-[11px] text-zinc-400">Zulia, Falcón y Trujillo</p>
           </div>
         </div>
@@ -451,7 +484,7 @@ export const Clientes: React.FC = () => {
                 selectedGpsFilter === 'ALL' ? 'bg-zinc-800 text-white shadow' : 'text-zinc-400 hover:text-white'
               }`}
             >
-              Todos ({ENRICHED_CLIENTS.length.toLocaleString()})
+              Todos ({liveClients.length.toLocaleString()})
             </button>
             <button
               onClick={() => setSelectedGpsFilter('GEOFENCE_ALL')}
@@ -460,7 +493,7 @@ export const Clientes: React.FC = () => {
               }`}
             >
               <Target className="w-3.5 h-3.5 text-white" />
-              Total Geocercas ({SURVEY_STATS.totalWithGps.toLocaleString()})
+              Total Geocercas ({liveStats.totalWithGps.toLocaleString()})
             </button>
             <button
               onClick={() => setSelectedGpsFilter('COMPLETA')}
@@ -468,7 +501,7 @@ export const Clientes: React.FC = () => {
                 selectedGpsFilter === 'COMPLETA' ? 'bg-emerald-600 text-white font-bold' : 'text-emerald-400/80 hover:text-emerald-300'
               }`}
             >
-              ✓ Completas ({SURVEY_STATS.completasCount.toLocaleString()})
+              ✓ Completas ({liveStats.completasCount.toLocaleString()})
             </button>
             <button
               onClick={() => setSelectedGpsFilter('PENDIENTE')}
@@ -476,7 +509,7 @@ export const Clientes: React.FC = () => {
                 selectedGpsFilter === 'PENDIENTE' ? 'bg-amber-600 text-white font-bold' : 'text-amber-400/80 hover:text-amber-300'
               }`}
             >
-              ⏳ Pendientes ({SURVEY_STATS.pendientesCount.toLocaleString()})
+              ⏳ Pendientes ({liveStats.pendientesCount.toLocaleString()})
             </button>
             <button
               onClick={() => setSelectedGpsFilter('MODIFICADA')}
@@ -484,7 +517,7 @@ export const Clientes: React.FC = () => {
                 selectedGpsFilter === 'MODIFICADA' ? 'bg-blue-600 text-white font-bold' : 'text-blue-400/80 hover:text-blue-300'
               }`}
             >
-              ✎ Modificadas ({SURVEY_STATS.modificadasCount.toLocaleString()})
+              ✎ Modificadas ({liveStats.modificadasCount.toLocaleString()})
             </button>
           </div>
 

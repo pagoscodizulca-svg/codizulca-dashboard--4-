@@ -4,6 +4,7 @@ export interface ClienteItem {
   vendedor: string;
   rutaVendedor?: string;
   idVendedor?: string;
+  supervisor?: string;
   region: string;
   canal: string;
   activo?: boolean;
