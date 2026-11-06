@@ -39,18 +39,24 @@ export interface EnrichedClientActivationPayload {
   activo: boolean;
   status: string;
   cajas: {
-    SALPICAO: number;
     AZUCAR: number;
     LECHE_VENCAMPO: number;
-    JAMON_ASTURIAS: number;
-    MORTADELA_ASTURIAS: number;
+    POLLO: number;
+    ESTANDAR_SUPERIOR_ASTURIAS: number;
+    MORTADELA_SALPICAO_ASTURIAS: number;
+    JAMON_ASTURIAS?: number;
+    MORTADELA_ASTURIAS?: number;
+    SALPICAO?: number;
   };
   cats: {
-    SALPICAO: boolean;
     AZUCAR: boolean;
     LECHE_VENCAMPO: boolean;
-    JAMON_ASTURIAS: boolean;
-    MORTADELA_ASTURIAS: boolean;
+    POLLO: boolean;
+    ESTANDAR_SUPERIOR_ASTURIAS: boolean;
+    MORTADELA_SALPICAO_ASTURIAS: boolean;
+    JAMON_ASTURIAS?: boolean;
+    MORTADELA_ASTURIAS?: boolean;
+    SALPICAO?: boolean;
   };
 }
 
@@ -228,21 +234,44 @@ export function mapSupabaseRowsToClientActivationList(
     const mapKey = isBajaMaestra ? `INACTIVO::${baseCompKey}` : baseCompKey;
 
     const cajasAzucar = Number(r.cajas_azucar) || 0;
-    const cajasLeche = Number(r.cajas_leche_vencampo ?? r.cajas_pollo) || 0;
-    const cajasJamon = Number(r.cajas_jamon_asturias ?? r.cajas_estandar_asturias) || 0;
-    const cajasMortadela = Number(r.cajas_mortadela_asturias ?? r.cajas_mortadela_salpicao) || 0;
-    const cajasSalpicao = Number(r.cajas_salpicao ?? r.cajas_aceite) || 0;
+    const cajasLeche = Number(r.cajas_leche_vencampo ?? r.cajas_aceite) || 0;
+    const cajasPollo = Number(r.cajas_pollo) || 0;
+    const cajasEstandarSuperior =
+      Number(
+        r.cajas_estandar_superior_asturias ?? r.cajas_estandar_asturias ?? r.cajas_jamon_asturias
+      ) || 0;
+    const cajasMortadelaSalpicao =
+      Number(
+        r.cajas_mortadela_salpicao_asturias ??
+          r.cajas_mortadela_salpicao ??
+          r.cajas_mortadela_asturias ??
+          r.cajas_salpicao
+      ) || 0;
 
     const hasAzucar = Boolean(r.has_azucar) || cajasAzucar > 0;
-    const hasLecheVencampo = Boolean(r.has_leche_vencampo ?? r.has_pollo) || cajasLeche > 0;
-    const hasJamon = Boolean(r.has_jamon_asturias ?? r.has_estandar_asturias) || cajasJamon > 0;
-    const hasMortadela = Boolean(r.has_mortadela_asturias ?? r.has_mortadela_salpicao) || cajasMortadela > 0;
-    const hasSalpicao = Boolean(r.has_salpicao ?? r.has_aceite) || cajasSalpicao > 0;
+    const hasLecheVencampo = Boolean(r.has_leche_vencampo ?? r.has_aceite) || cajasLeche > 0;
+    const hasPollo = Boolean(r.has_pollo) || cajasPollo > 0;
+    const hasEstandarSuperior =
+      Boolean(
+        r.has_estandar_superior_asturias ?? r.has_estandar_asturias ?? r.has_jamon_asturias
+      ) || cajasEstandarSuperior > 0;
+    const hasMortadelaSalpicao =
+      Boolean(
+        r.has_mortadela_salpicao_asturias ??
+          r.has_mortadela_salpicao ??
+          r.has_mortadela_asturias ??
+          r.has_salpicao
+      ) || cajasMortadelaSalpicao > 0;
 
     const meta = metaMap.get(baseCompKey) || metaMap.get(`ID_ONLY::${cid}`);
     const effectiveStatus = isBajaMaestra
       ? 'BAJA_MAESTRA'
-      : hasSalpicao || hasAzucar || hasLecheVencampo || hasJamon || hasMortadela || rawStatus === 'ACTIVO'
+      : hasAzucar ||
+        hasLecheVencampo ||
+        hasPollo ||
+        hasEstandarSuperior ||
+        hasMortadelaSalpicao ||
+        rawStatus === 'ACTIVO'
       ? 'ACTIVO'
       : 'INACTIVO';
 
@@ -261,37 +290,58 @@ export function mapSupabaseRowsToClientActivationList(
         cajas: {
           AZUCAR: cajasAzucar,
           LECHE_VENCAMPO: cajasLeche,
-          JAMON_ASTURIAS: cajasJamon,
-          MORTADELA_ASTURIAS: cajasMortadela,
-          SALPICAO: cajasSalpicao,
+          POLLO: cajasPollo,
+          ESTANDAR_SUPERIOR_ASTURIAS: cajasEstandarSuperior,
+          MORTADELA_SALPICAO_ASTURIAS: cajasMortadelaSalpicao,
+          JAMON_ASTURIAS: cajasEstandarSuperior,
+          MORTADELA_ASTURIAS: cajasMortadelaSalpicao,
+          SALPICAO: cajasMortadelaSalpicao,
         },
         cats: {
           AZUCAR: hasAzucar,
           LECHE_VENCAMPO: hasLecheVencampo,
-          JAMON_ASTURIAS: hasJamon,
-          MORTADELA_ASTURIAS: hasMortadela,
-          SALPICAO: hasSalpicao,
+          POLLO: hasPollo,
+          ESTANDAR_SUPERIOR_ASTURIAS: hasEstandarSuperior,
+          MORTADELA_SALPICAO_ASTURIAS: hasMortadelaSalpicao,
+          JAMON_ASTURIAS: hasEstandarSuperior,
+          MORTADELA_ASTURIAS: hasMortadelaSalpicao,
+          SALPICAO: hasMortadelaSalpicao,
         },
       });
     } else {
       const prev = byCompositeMap.get(mapKey)!;
       prev.cats.AZUCAR = prev.cats.AZUCAR || hasAzucar;
       prev.cats.LECHE_VENCAMPO = prev.cats.LECHE_VENCAMPO || hasLecheVencampo;
-      prev.cats.JAMON_ASTURIAS = prev.cats.JAMON_ASTURIAS || hasJamon;
-      prev.cats.MORTADELA_ASTURIAS = prev.cats.MORTADELA_ASTURIAS || hasMortadela;
-      prev.cats.SALPICAO = prev.cats.SALPICAO || hasSalpicao;
+      prev.cats.POLLO = prev.cats.POLLO || hasPollo;
+      prev.cats.ESTANDAR_SUPERIOR_ASTURIAS =
+        prev.cats.ESTANDAR_SUPERIOR_ASTURIAS || hasEstandarSuperior;
+      prev.cats.MORTADELA_SALPICAO_ASTURIAS =
+        prev.cats.MORTADELA_SALPICAO_ASTURIAS || hasMortadelaSalpicao;
+      prev.cats.JAMON_ASTURIAS = prev.cats.ESTANDAR_SUPERIOR_ASTURIAS;
+      prev.cats.MORTADELA_ASTURIAS = prev.cats.MORTADELA_SALPICAO_ASTURIAS;
+      prev.cats.SALPICAO = prev.cats.MORTADELA_SALPICAO_ASTURIAS;
+
       prev.cajas.AZUCAR = Math.max(prev.cajas.AZUCAR, cajasAzucar);
       prev.cajas.LECHE_VENCAMPO = Math.max(prev.cajas.LECHE_VENCAMPO, cajasLeche);
-      prev.cajas.JAMON_ASTURIAS = Math.max(prev.cajas.JAMON_ASTURIAS, cajasJamon);
-      prev.cajas.MORTADELA_ASTURIAS = Math.max(prev.cajas.MORTADELA_ASTURIAS, cajasMortadela);
-      prev.cajas.SALPICAO = Math.max(prev.cajas.SALPICAO, cajasSalpicao);
+      prev.cajas.POLLO = Math.max(prev.cajas.POLLO, cajasPollo);
+      prev.cajas.ESTANDAR_SUPERIOR_ASTURIAS = Math.max(
+        prev.cajas.ESTANDAR_SUPERIOR_ASTURIAS,
+        cajasEstandarSuperior
+      );
+      prev.cajas.MORTADELA_SALPICAO_ASTURIAS = Math.max(
+        prev.cajas.MORTADELA_SALPICAO_ASTURIAS,
+        cajasMortadelaSalpicao
+      );
+      prev.cajas.JAMON_ASTURIAS = prev.cajas.ESTANDAR_SUPERIOR_ASTURIAS;
+      prev.cajas.MORTADELA_ASTURIAS = prev.cajas.MORTADELA_SALPICAO_ASTURIAS;
+      prev.cajas.SALPICAO = prev.cajas.MORTADELA_SALPICAO_ASTURIAS;
       if (
         !isBajaMaestra &&
-        (prev.cats.SALPICAO ||
-          prev.cats.AZUCAR ||
+        (prev.cats.AZUCAR ||
           prev.cats.LECHE_VENCAMPO ||
-          prev.cats.JAMON_ASTURIAS ||
-          prev.cats.MORTADELA_ASTURIAS)
+          prev.cats.POLLO ||
+          prev.cats.ESTANDAR_SUPERIOR_ASTURIAS ||
+          prev.cats.MORTADELA_SALPICAO_ASTURIAS)
       ) {
         prev.status = 'ACTIVO';
       }
@@ -412,16 +462,34 @@ export async function executeMaestraActivaBatchSync(
           vendedor_id: rec.vendedor,
           vendedor_nombre: rec.vendedor,
           status: restoredStatus,
-          cajas_aceite: Number(matchedRow.cajas_salpicao ?? matchedRow.cajas_aceite) || 0,
+          cajas_aceite: Number(matchedRow.cajas_leche_vencampo ?? matchedRow.cajas_aceite) || 0,
           cajas_azucar: Number(matchedRow.cajas_azucar) || 0,
-          cajas_pollo: Number(matchedRow.cajas_leche_vencampo ?? matchedRow.cajas_pollo) || 0,
-          cajas_estandar_asturias: Number(matchedRow.cajas_jamon_asturias ?? matchedRow.cajas_estandar_asturias) || 0,
-          cajas_mortadela_salpicao: Number(matchedRow.cajas_mortadela_asturias ?? matchedRow.cajas_mortadela_salpicao) || 0,
-          has_aceite: Boolean(matchedRow.has_salpicao ?? matchedRow.has_aceite),
+          cajas_pollo: Number(matchedRow.cajas_pollo) || 0,
+          cajas_estandar_asturias:
+            Number(
+              matchedRow.cajas_estandar_superior_asturias ??
+                matchedRow.cajas_estandar_asturias ??
+                matchedRow.cajas_jamon_asturias
+            ) || 0,
+          cajas_mortadela_salpicao:
+            Number(
+              matchedRow.cajas_mortadela_salpicao_asturias ??
+                matchedRow.cajas_mortadela_salpicao ??
+                matchedRow.cajas_mortadela_asturias
+            ) || 0,
+          has_aceite: Boolean(matchedRow.has_leche_vencampo ?? matchedRow.has_aceite),
           has_azucar: Boolean(matchedRow.has_azucar),
-          has_pollo: Boolean(matchedRow.has_leche_vencampo ?? matchedRow.has_pollo),
-          has_estandar_asturias: Boolean(matchedRow.has_jamon_asturias ?? matchedRow.has_estandar_asturias),
-          has_mortadela_salpicao: Boolean(matchedRow.has_mortadela_asturias ?? matchedRow.has_mortadela_salpicao),
+          has_pollo: Boolean(matchedRow.has_pollo),
+          has_estandar_asturias: Boolean(
+            matchedRow.has_estandar_superior_asturias ??
+              matchedRow.has_estandar_asturias ??
+              matchedRow.has_jamon_asturias
+          ),
+          has_mortadela_salpicao: Boolean(
+            matchedRow.has_mortadela_salpicao_asturias ??
+              matchedRow.has_mortadela_salpicao ??
+              matchedRow.has_mortadela_asturias
+          ),
         });
       }
     } else {
@@ -468,16 +536,34 @@ export async function executeMaestraActivaBatchSync(
         vendedor_id: `${LOGICAL_INACTIVE_VENDOR_PREFIX}${cleanVendor}`,
         vendedor_nombre: cleanVendor,
         status: 'INACTIVO',
-        cajas_aceite: Number(row.cajas_salpicao ?? row.cajas_aceite) || 0,
+        cajas_aceite: Number(row.cajas_leche_vencampo ?? row.cajas_aceite) || 0,
         cajas_azucar: Number(row.cajas_azucar) || 0,
-        cajas_pollo: Number(row.cajas_leche_vencampo ?? row.cajas_pollo) || 0,
-        cajas_estandar_asturias: Number(row.cajas_jamon_asturias ?? row.cajas_estandar_asturias) || 0,
-        cajas_mortadela_salpicao: Number(row.cajas_mortadela_asturias ?? row.cajas_mortadela_salpicao) || 0,
-        has_aceite: Boolean(row.has_salpicao ?? row.has_aceite),
+        cajas_pollo: Number(row.cajas_pollo) || 0,
+        cajas_estandar_asturias:
+          Number(
+            row.cajas_estandar_superior_asturias ??
+              row.cajas_estandar_asturias ??
+              row.cajas_jamon_asturias
+          ) || 0,
+        cajas_mortadela_salpicao:
+          Number(
+            row.cajas_mortadela_salpicao_asturias ??
+              row.cajas_mortadela_salpicao ??
+              row.cajas_mortadela_asturias
+          ) || 0,
+        has_aceite: Boolean(row.has_leche_vencampo ?? row.has_aceite),
         has_azucar: Boolean(row.has_azucar),
-        has_pollo: Boolean(row.has_leche_vencampo ?? row.has_pollo),
-        has_estandar_asturias: Boolean(row.has_jamon_asturias ?? row.has_estandar_asturias),
-        has_mortadela_salpicao: Boolean(row.has_mortadela_asturias ?? row.has_mortadela_salpicao),
+        has_pollo: Boolean(row.has_pollo),
+        has_estandar_asturias: Boolean(
+          row.has_estandar_superior_asturias ??
+            row.has_estandar_asturias ??
+            row.has_jamon_asturias
+        ),
+        has_mortadela_salpicao: Boolean(
+          row.has_mortadela_salpicao_asturias ??
+            row.has_mortadela_salpicao ??
+            row.has_mortadela_asturias
+        ),
       });
     }
   }

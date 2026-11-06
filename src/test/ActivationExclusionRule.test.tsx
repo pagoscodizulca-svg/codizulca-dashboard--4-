@@ -9,6 +9,7 @@ import {
   normalizeSellerComparisonKey,
 } from '../components/cuotas/sellerSupervisorMap';
 import {
+  ACTIVATION_PRODUCT_HEADERS,
   INITIAL_SELLERS_ACTIVATION,
   RUBROS_CONFIG,
   SellerActivationRow,
@@ -115,29 +116,44 @@ describe('Regla de Negocio: Exclusión de Cuentas Claves 1 y 2 en Activación e 
       expect(screen.queryByText(/cuentas claves 1/i)).toBeNull();
       expect(screen.queryByText(/cuentas claves 2/i)).toBeNull();
 
-      // 2. Verificación matemática de totales esperados sin Cuentas Claves 1 (cartera 37) ni Cuentas Claves 2 (cartera 36)
-      const totalOriginalCartera = INITIAL_SELLERS_ACTIVATION.reduce(
-        (acc, r) => acc + (r.cartera || 0),
-        0
-      );
-      expect(totalOriginalCartera).toBe(2304);
-
+      // 2. Verificación matemática de totales sincronizados sin Cuentas Claves 1 ni Cuentas Claves 2
       const expectedRows = INITIAL_SELLERS_ACTIVATION.filter(
         (r) => r.vendedor !== 'CUENTAS CLAVES 1 - MC' && r.vendedor !== 'CUENTAS CLAVES 2 - SV'
       );
       const expectedCartera = expectedRows.reduce((acc, r) => acc + (r.cartera || 0), 0);
-      expect(expectedCartera).toBe(2231); // 2304 - 37 - 36
+      expect(expectedCartera).toBe(2231);
 
       const tfoot = container.querySelector('tfoot');
       expect(tfoot).not.toBeNull();
       expect(within(tfoot!).getByText(expectedCartera.toLocaleString('es-VE'))).toBeTruthy();
 
-      // Verificar cada uno de los 5 rubros en el pie de tabla y en los KPIs
+      // 3. Verificar los 5 encabezados centralizados de productos de activación del mes y sus totales sincronizados del Google Sheet
+      expect(Object.values(ACTIVATION_PRODUCT_HEADERS)).toEqual([
+        'AZUCAR',
+        'LECHE VENCAMPO',
+        'POLLO',
+        'ESTANDAR Y SUPERIOR ASTURIAS',
+        'MORTADELA SALPICAO Y ASTURIAS',
+      ]);
+      expect(RUBROS_CONFIG.map((r) => r.label)).toEqual(Object.values(ACTIVATION_PRODUCT_HEADERS));
+
+      const expectedSyncedTotals: Record<string, { act: number; meta: number }> = {
+        azucar: { act: 382, meta: 1301 },
+        lecheVencampo: { act: 279, meta: 600 },
+        pollo: { act: 247, meta: 840 },
+        estandarSuperiorAsturias: { act: 189, meta: 855 },
+        mortadelaSalpicaoAsturias: { act: 166, meta: 917 },
+      };
+
       for (const rubro of RUBROS_CONFIG) {
         const expectedMeta = expectedRows.reduce((acc, r) => acc + r.rubros[rubro.key].meta, 0);
         const expectedAct = expectedRows.reduce((acc, r) => acc + r.rubros[rubro.key].activados, 0);
 
+        expect(expectedAct).toBe(expectedSyncedTotals[rubro.key].act);
+        expect(expectedMeta).toBe(expectedSyncedTotals[rubro.key].meta);
+
         const kpiButton = screen.getByTitle(`Filtrar por ${rubro.label}`);
+        expect(within(kpiButton).getByText(rubro.label)).toBeTruthy();
         expect(within(kpiButton).getByText(String(expectedAct))).toBeTruthy();
         expect(within(kpiButton).getByText(String(expectedMeta))).toBeTruthy();
       }

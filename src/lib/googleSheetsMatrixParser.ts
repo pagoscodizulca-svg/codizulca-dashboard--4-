@@ -636,14 +636,15 @@ export interface CuotasActivacionMatrixRow {
   categorias: {
     azucar: { meta: number; activados: number };
     lecheVencampo: { meta: number; activados: number };
+    pollo: { meta: number; activados: number };
+    estandarSuperiorAsturias: { meta: number; activados: number };
+    mortadelaSalpicaoAsturias: { meta: number; activados: number };
+    // Backward-compatible aliases
+    aceite: { meta: number; activados: number };
+    estandarAsturias: { meta: number; activados: number };
     jamonAsturias: { meta: number; activados: number };
     mortadelaAsturias: { meta: number; activados: number };
     salpicao: { meta: number; activados: number };
-    // Backward-compatible aliases
-    aceite: { meta: number; activados: number };
-    pollo: { meta: number; activados: number };
-    estandarAsturias: { meta: number; activados: number };
-    mortadelaSalpicaoAsturias: { meta: number; activados: number };
   };
 }
 
@@ -656,7 +657,7 @@ export interface CuotasActivacionMatrixParseResult {
 /**
  * Parsea la pestaña `Cuotas de Activacion` (A1:L28):
  * - Fila 1 tiene las 5 categorías combinadas cada 2 columnas desde C hasta L:
- *   `Azúcar`, `Leche en polvo Vencampo`, `Jamón estándar y superior Asturias`, `Mortadela Asturias`, `Salpicao`
+ *   `AZUCAR`, `LECHE VENCAMPO`, `POLLO`, `ESTANDAR Y SUPERIOR ASTURIAS`, `MORTADELA SALPICAO Y ASTURIAS`
  *   (o formato previo `ACEITE`, `AZUCAR`, `POLLO`, `ESTANDAR Y SUPERIOR ASTURIAS`, `MORTADELA SALPICAO Y ASTURIAS`)
  * - Fila 2 tiene `Vendedor` (A), `CARTERA` (B) y pares `Meta ...` / `Activados` (C a L).
  */
@@ -703,9 +704,9 @@ export function parseCuotasActivacionSheetMatrix(
     }
   }
 
-  // Detectar si el encabezado en columna C (índice 2) comienza con AZUCAR (nuevo orden 1..5) o ACEITE (orden legado)
-  const firstCatHeader = `${categoriesRow1[2] || ''} ${subheadersRow2[2] || ''}`.toUpperCase();
-  const isNewOrderLayout = firstCatHeader.includes('AZUCAR');
+  // Priorizar el encabezado superior (Fila 1, columna C / índice 2) para evitar falsos positivos con subheaders antiguos en Fila 2
+  const primaryColHeader = (categoriesRow1[2] || subheadersRow2[2] || '').toUpperCase();
+  const isNewOrderLayout = primaryColHeader.includes('AZUCAR');
 
   const dataStartIdx = isDoubleHeader ? 2 : 1;
   const rows: CuotasActivacionMatrixRow[] = [];
@@ -745,10 +746,11 @@ export function parseCuotasActivacionSheetMatrix(
     };
 
     const azucar = isNewOrderLayout ? pair0 : pair1;
-    const lecheVencampo = isNewOrderLayout ? pair1 : pair2;
-    const jamonAsturias = isNewOrderLayout ? pair2 : pair3;
-    const mortadelaAsturias = isNewOrderLayout ? pair3 : pair4;
-    const salpicao = isNewOrderLayout ? pair4 : pair0;
+    const lecheVencampo = isNewOrderLayout ? pair1 : pair0;
+    const pollo = pair2;
+    const estandarSuperiorAsturias = pair3;
+    const mortadelaSalpicaoAsturias = pair4;
+    const aceite = isNewOrderLayout ? pair4 : pair0;
 
     rows.push({
       rowIndex: r + 1,
@@ -758,13 +760,14 @@ export function parseCuotasActivacionSheetMatrix(
       categorias: {
         azucar,
         lecheVencampo,
-        jamonAsturias,
-        mortadelaAsturias,
-        salpicao,
-        aceite: salpicao,
-        pollo: lecheVencampo,
-        estandarAsturias: jamonAsturias,
-        mortadelaSalpicaoAsturias: mortadelaAsturias,
+        pollo,
+        estandarSuperiorAsturias,
+        mortadelaSalpicaoAsturias,
+        aceite,
+        estandarAsturias: estandarSuperiorAsturias,
+        jamonAsturias: estandarSuperiorAsturias,
+        mortadelaAsturias: mortadelaSalpicaoAsturias,
+        salpicao: mortadelaSalpicaoAsturias,
       },
     });
   }

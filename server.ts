@@ -1655,11 +1655,24 @@ async function startServer() {
       const cleanVendor = String(vendedorNombre || '').trim().toUpperCase();
       const rawRubro = String(rubro || '').toUpperCase().trim();
       let normRubro = '';
-      if (rawRubro.includes('MORTADELA')) normRubro = 'MORTADELA_ASTURIAS';
-      else if (rawRubro.includes('SALPICAO')) normRubro = 'SALPICAO';
-      else if (rawRubro.includes('AZUCAR') || rawRubro.includes('AZÚCAR')) normRubro = 'AZUCAR';
-      else if (rawRubro.includes('LECHE') || rawRubro.includes('VENCAMPO')) normRubro = 'LECHE_VENCAMPO';
-      else if (rawRubro.includes('JAMON') || rawRubro.includes('JAMÓN') || rawRubro.includes('ESTANDAR') || rawRubro.includes('ASTURIAS')) normRubro = 'JAMON_ASTURIAS';
+      if (rawRubro.includes('MORTADELA') || rawRubro.includes('SALPICAO')) {
+        normRubro = 'MORTADELA_SALPICAO_ASTURIAS';
+      } else if (rawRubro.includes('AZUCAR') || rawRubro.includes('AZÚCAR')) {
+        normRubro = 'AZUCAR';
+      } else if (rawRubro.includes('LECHE') || rawRubro.includes('VENCAMPO')) {
+        normRubro = 'LECHE_VENCAMPO';
+      } else if (rawRubro.includes('POLLO')) {
+        normRubro = 'POLLO';
+      } else if (
+        rawRubro.includes('ESTANDAR') ||
+        rawRubro.includes('ESTÁNDAR') ||
+        rawRubro.includes('SUPERIOR') ||
+        rawRubro.includes('JAMON') ||
+        rawRubro.includes('JAMÓN') ||
+        rawRubro.includes('ASTURIAS')
+      ) {
+        normRubro = 'ESTANDAR_SUPERIOR_ASTURIAS';
+      }
 
       if (!cleanCod || !normRubro) {
         return res.status(400).json({ error: 'clienteCodigo y rubro son requeridos' });
@@ -1689,14 +1702,27 @@ async function startServer() {
               }
               const nextState = {
                 has_azucar: normRubro === 'AZUCAR' ? boolActive : Boolean(r.has_azucar),
-                has_pollo: normRubro === 'LECHE_VENCAMPO' ? boolActive : Boolean(r.has_leche_vencampo ?? r.has_pollo),
-                has_estandar_asturias:
-                  normRubro === 'JAMON_ASTURIAS' ? boolActive : Boolean(r.has_jamon_asturias ?? r.has_estandar_asturias),
-                has_mortadela_salpicao:
-                  normRubro === 'MORTADELA_ASTURIAS'
+                has_aceite:
+                  normRubro === 'LECHE_VENCAMPO'
                     ? boolActive
-                    : Boolean(r.has_mortadela_asturias ?? r.has_mortadela_salpicao),
-                has_aceite: normRubro === 'SALPICAO' ? boolActive : Boolean(r.has_salpicao ?? r.has_aceite),
+                    : Boolean(r.has_leche_vencampo ?? r.has_aceite),
+                has_pollo: normRubro === 'POLLO' ? boolActive : Boolean(r.has_pollo),
+                has_estandar_asturias:
+                  normRubro === 'ESTANDAR_SUPERIOR_ASTURIAS'
+                    ? boolActive
+                    : Boolean(
+                        r.has_estandar_superior_asturias ??
+                          r.has_estandar_asturias ??
+                          r.has_jamon_asturias
+                      ),
+                has_mortadela_salpicao:
+                  normRubro === 'MORTADELA_SALPICAO_ASTURIAS'
+                    ? boolActive
+                    : Boolean(
+                        r.has_mortadela_salpicao_asturias ??
+                          r.has_mortadela_salpicao ??
+                          r.has_mortadela_asturias
+                      ),
               };
               const isActivo = Object.values(nextState).some(Boolean);
               await fdvSupabase
@@ -1721,7 +1747,11 @@ async function startServer() {
             if (!c.cats) c.cats = {};
             c.cats[normRubro] = boolActive;
             const anyActive = Boolean(
-              c.cats.SALPICAO || c.cats.AZUCAR || c.cats.LECHE_VENCAMPO || c.cats.JAMON_ASTURIAS || c.cats.MORTADELA_ASTURIAS
+              c.cats.AZUCAR ||
+                c.cats.LECHE_VENCAMPO ||
+                c.cats.POLLO ||
+                c.cats.ESTANDAR_SUPERIOR_ASTURIAS ||
+                c.cats.MORTADELA_SALPICAO_ASTURIAS
             );
             c.status = anyActive ? 'ACTIVO' : 'INACTIVO';
           }

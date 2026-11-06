@@ -159,11 +159,11 @@ export const RubrosActivationTable: React.FC<RubrosActivationTableProps> = ({
           carteraTotal: 0,
           sellers: [],
           rubros: {
-            salpicao: { meta: 0, activados: 0 },
             azucar: { meta: 0, activados: 0 },
             lecheVencampo: { meta: 0, activados: 0 },
-            jamonAsturias: { meta: 0, activados: 0 },
-            mortadelaAsturias: { meta: 0, activados: 0 },
+            pollo: { meta: 0, activados: 0 },
+            estandarSuperiorAsturias: { meta: 0, activados: 0 },
+            mortadelaSalpicaoAsturias: { meta: 0, activados: 0 },
           },
         };
       }
@@ -208,11 +208,11 @@ export const RubrosActivationTable: React.FC<RubrosActivationTableProps> = ({
           sellersCount: 0,
           carteraTotal: 0,
           rubros: {
-            salpicao: { meta: 0, activados: 0 },
             azucar: { meta: 0, activados: 0 },
             lecheVencampo: { meta: 0, activados: 0 },
-            jamonAsturias: { meta: 0, activados: 0 },
-            mortadelaAsturias: { meta: 0, activados: 0 },
+            pollo: { meta: 0, activados: 0 },
+            estandarSuperiorAsturias: { meta: 0, activados: 0 },
+            mortadelaSalpicaoAsturias: { meta: 0, activados: 0 },
           },
         };
         seenSupervisorsByRegion[s.region] = new Set();
@@ -243,11 +243,11 @@ export const RubrosActivationTable: React.FC<RubrosActivationTableProps> = ({
   // Grand Totals Calculation
   const grandTotals = useMemo(() => {
     const totals: Record<RubroKey, { meta: number; activados: number }> = {
-      salpicao: { meta: 0, activados: 0 },
       azucar: { meta: 0, activados: 0 },
       lecheVencampo: { meta: 0, activados: 0 },
-      jamonAsturias: { meta: 0, activados: 0 },
-      mortadelaAsturias: { meta: 0, activados: 0 },
+      pollo: { meta: 0, activados: 0 },
+      estandarSuperiorAsturias: { meta: 0, activados: 0 },
+      mortadelaSalpicaoAsturias: { meta: 0, activados: 0 },
     };
 
     filteredSellers.forEach((s) => {
@@ -602,7 +602,7 @@ export const RubrosActivationTable: React.FC<RubrosActivationTableProps> = ({
               }`}
             >
               <div className="flex items-start justify-between gap-2">
-                <span className="text-xs font-bold text-white leading-snug min-h-[2.25rem] break-words">
+                <span className="text-[11px] sm:text-xs font-bold text-white uppercase tracking-wide leading-tight min-h-[2.25rem] break-words">
                   {rubro.label}
                 </span>
                 <div className="shrink-0">{getProgressPill(pct)}</div>
@@ -744,7 +744,7 @@ export const RubrosActivationTable: React.FC<RubrosActivationTableProps> = ({
                   <th
                     key={rubro.key}
                     colSpan={3}
-                    className={`px-3 py-2.5 text-center font-bold tracking-wide leading-tight whitespace-normal min-w-[170px] bg-zinc-900/70 ${
+                    className={`px-3 py-2.5 text-center font-bold uppercase tracking-wide leading-tight whitespace-normal break-words min-w-[175px] bg-zinc-900/70 ${
                       idx < displayedRubros.length - 1 ? 'border-r border-white/10' : ''
                     }`}
                   >

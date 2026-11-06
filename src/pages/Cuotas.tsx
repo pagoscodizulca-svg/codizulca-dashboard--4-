@@ -140,11 +140,11 @@ export const Cuotas: React.FC = () => {
               string,
               {
                 cartera: number;
-                salpicao: { meta: number; activados: number };
                 azucar: { meta: number; activados: number };
                 lecheVencampo: { meta: number; activados: number };
-                jamonAsturias: { meta: number; activados: number };
-                mortadelaAsturias: { meta: number; activados: number };
+                pollo: { meta: number; activados: number };
+                estandarSuperiorAsturias: { meta: number; activados: number };
+                mortadelaSalpicaoAsturias: { meta: number; activados: number };
               }
             >();
 
@@ -153,24 +153,24 @@ export const Cuotas: React.FC = () => {
               const existing = sheetMap.get(cleanName);
               if (existing) {
                 existing.cartera += row.cartera;
-                existing.salpicao.meta += row.categorias.salpicao.meta;
-                existing.salpicao.activados += row.categorias.salpicao.activados;
                 existing.azucar.meta += row.categorias.azucar.meta;
                 existing.azucar.activados += row.categorias.azucar.activados;
                 existing.lecheVencampo.meta += row.categorias.lecheVencampo.meta;
                 existing.lecheVencampo.activados += row.categorias.lecheVencampo.activados;
-                existing.jamonAsturias.meta += row.categorias.jamonAsturias.meta;
-                existing.jamonAsturias.activados += row.categorias.jamonAsturias.activados;
-                existing.mortadelaAsturias.meta += row.categorias.mortadelaAsturias.meta;
-                existing.mortadelaAsturias.activados += row.categorias.mortadelaAsturias.activados;
+                existing.pollo.meta += row.categorias.pollo.meta;
+                existing.pollo.activados += row.categorias.pollo.activados;
+                existing.estandarSuperiorAsturias.meta += row.categorias.estandarSuperiorAsturias.meta;
+                existing.estandarSuperiorAsturias.activados += row.categorias.estandarSuperiorAsturias.activados;
+                existing.mortadelaSalpicaoAsturias.meta += row.categorias.mortadelaSalpicaoAsturias.meta;
+                existing.mortadelaSalpicaoAsturias.activados += row.categorias.mortadelaSalpicaoAsturias.activados;
               } else {
                 sheetMap.set(cleanName, {
                   cartera: row.cartera,
-                  salpicao: { ...row.categorias.salpicao },
                   azucar: { ...row.categorias.azucar },
                   lecheVencampo: { ...row.categorias.lecheVencampo },
-                  jamonAsturias: { ...row.categorias.jamonAsturias },
-                  mortadelaAsturias: { ...row.categorias.mortadelaAsturias },
+                  pollo: { ...row.categorias.pollo },
+                  estandarSuperiorAsturias: { ...row.categorias.estandarSuperiorAsturias },
+                  mortadelaSalpicaoAsturias: { ...row.categorias.mortadelaSalpicaoAsturias },
                 });
               }
             }
@@ -183,11 +183,11 @@ export const Cuotas: React.FC = () => {
                   ...baseRow,
                   cartera: live.cartera > 0 ? live.cartera : baseRow.cartera,
                   rubros: {
-                    salpicao: live.salpicao,
                     azucar: live.azucar,
                     lecheVencampo: live.lecheVencampo,
-                    jamonAsturias: live.jamonAsturias,
-                    mortadelaAsturias: live.mortadelaAsturias,
+                    pollo: live.pollo,
+                    estandarSuperiorAsturias: live.estandarSuperiorAsturias,
+                    mortadelaSalpicaoAsturias: live.mortadelaSalpicaoAsturias,
                   },
                 };
               });
