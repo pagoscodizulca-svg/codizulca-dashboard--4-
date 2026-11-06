@@ -1,4 +1,10 @@
-import { getSellerMetadata } from './sellerSupervisorMap';
+import {
+  getSellerMetadata,
+  isExcludedActivationSeller,
+  normalizeSellerComparisonKey,
+} from './sellerSupervisorMap';
+
+export { isExcludedActivationSeller, normalizeSellerComparisonKey };
 
 export interface RubroActivationData {
   meta: number;
@@ -88,3 +94,14 @@ export const INITIAL_SELLERS_ACTIVATION: SellerActivationRow[] = SHEET_ACTIVATIO
     },
   };
 });
+
+/**
+ * Filtra únicamente las filas de la pestaña de "Activación" excluyendo
+ * "cuentas claves 1 - MC" y "cuentas claves 2- SV" sin mutar el arreglo original.
+ */
+export const filterActivationSellers = (
+  rows: SellerActivationRow[]
+): SellerActivationRow[] => {
+  if (!Array.isArray(rows)) return [];
+  return rows.filter((row) => !isExcludedActivationSeller(row.vendedor));
+};

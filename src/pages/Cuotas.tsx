@@ -1,7 +1,11 @@
-import React, { useState, useEffect, useCallback, Suspense, lazy } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, Suspense, lazy } from 'react';
 import { MonthProgressBar, MainTab, ViewLevel } from '../components/cuotas/MonthProgressBar';
 import { RubrosActivationTable } from '../components/cuotas/RubrosActivationTable';
-import { INITIAL_SELLERS_ACTIVATION, SellerActivationRow } from '../components/cuotas/cuotasData';
+import {
+  INITIAL_SELLERS_ACTIVATION,
+  SellerActivationRow,
+  filterActivationSellers,
+} from '../components/cuotas/cuotasData';
 import { calculateMonthWorkingProgress } from '../components/cuotas/volumeQuotasData';
 import maestraSnapshotSeed from '../data/maestraActivaAuditSnapshot.json';
 import type { MaestraAuditReport } from '../lib/maestraActivaTypes';
@@ -59,6 +63,12 @@ export const Cuotas: React.FC = () => {
   const [activeView, setActiveView] = useState<ViewLevel>('vendedor');
   const [isShareOpen, setIsShareOpen] = useState(false);
   const [sellers, setSellers] = useState<SellerActivationRow[]>(INITIAL_SELLERS_ACTIVATION);
+
+  // Estado derivado exclusivo para la pestaña de "Activación" (excluye "cuentas claves 1 - MC" y "cuentas claves 2- SV")
+  const activationSellers = useMemo(
+    () => filterActivationSellers(sellers),
+    [sellers]
+  );
   const [portfolioSyncVersion, setPortfolioSyncVersion] = useState<number>(0);
   const [maestraStats, setMaestraStats] = useState<{ totalActive: number; routesCount: number }>(() => {
     const snap = maestraSnapshotSeed as unknown as MaestraAuditReport;
@@ -251,7 +261,7 @@ export const Cuotas: React.FC = () => {
             {/* BLOQUE 2: Cuadro Detallado con los Rubros a Activar */}
             {activeTab === 'activacion' && (
               <RubrosActivationTable
-                sellers={sellers}
+                sellers={activationSellers}
                 viewLevel={activeView}
                 maestraTotalActive={maestraStats.totalActive}
                 maestraRoutesCount={maestraStats.routesCount}
@@ -293,7 +303,7 @@ export const Cuotas: React.FC = () => {
             onClose={() => setIsShareOpen(false)}
             activeTab={activeTab}
             activeView={activeView}
-            sellers={sellers}
+            sellers={activeTab === 'activacion' ? activationSellers : sellers}
             diasLaborables={diasLaborables}
             diasTranscurridos={diasTranscurridos}
           />

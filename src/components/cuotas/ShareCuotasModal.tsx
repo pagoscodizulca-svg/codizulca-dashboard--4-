@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { X, Copy, Check, Share2, Download, FileSpreadsheet } from 'lucide-react';
-import { SellerActivationRow, RUBROS_CONFIG } from './cuotasData';
+import { SellerActivationRow, RUBROS_CONFIG, filterActivationSellers } from './cuotasData';
 import { MainTab, ViewLevel } from './MonthProgressBar';
 
 interface ShareCuotasModalProps {
@@ -24,6 +24,11 @@ export const ShareCuotasModal: React.FC<ShareCuotasModalProps> = ({
 }) => {
   const [copied, setCopied] = useState(false);
 
+  const effectiveSellers = useMemo(
+    () => (activeTab === 'activacion' ? filterActivationSellers(sellers) : sellers),
+    [activeTab, sellers]
+  );
+
   if (!isOpen) return null;
 
   const pctMes = ((diasTranscurridos / diasLaborables) * 100).toFixed(1);
@@ -36,14 +41,14 @@ export const ShareCuotasModal: React.FC<ShareCuotasModalProps> = ({
     report += `🎯 *RESUMEN DE ACTIVACIONES POR RUBRO:*\n`;
 
     RUBROS_CONFIG.forEach((r) => {
-      const totalMeta = sellers.reduce((acc, s) => acc + s.rubros[r.key].meta, 0);
-      const totalAct = sellers.reduce((acc, s) => acc + s.rubros[r.key].activados, 0);
+      const totalMeta = effectiveSellers.reduce((acc, s) => acc + s.rubros[r.key].meta, 0);
+      const totalAct = effectiveSellers.reduce((acc, s) => acc + s.rubros[r.key].activados, 0);
       const pct = totalMeta > 0 ? ((totalAct / totalMeta) * 100).toFixed(1) : '0.0';
       report += `• ${r.label}: ${totalAct}/${totalMeta} (${pct}%)\n`;
     });
 
     report += `\n👥 *TOP VENDEDORES:*\n`;
-    sellers.slice(0, 4).forEach((s) => {
+    effectiveSellers.slice(0, 4).forEach((s) => {
       const actTotal = RUBROS_CONFIG.reduce((acc, r) => acc + s.rubros[r.key].activados, 0);
       const metaTotal = RUBROS_CONFIG.reduce((acc, r) => acc + s.rubros[r.key].meta, 0);
       const pct = metaTotal > 0 ? ((actTotal / metaTotal) * 100).toFixed(1) : '0.0';

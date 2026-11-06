@@ -19,7 +19,8 @@ import autoTable from 'jspdf-autotable';
 import { 
   SellerActivationRow, 
   RUBROS_CONFIG, 
-  RubroKey 
+  RubroKey,
+  filterActivationSellers,
 } from './cuotasData';
 import { ViewLevel } from './MonthProgressBar';
 import { SellerMultiSelect, SellerOption } from './SellerMultiSelect';
@@ -50,9 +51,15 @@ export const RubrosActivationTable: React.FC<RubrosActivationTableProps> = ({
     return RUBROS_CONFIG.filter((r) => r.key === selectedProductKey);
   }, [selectedProductKey]);
 
+  // Regla de negocio: excluir "cuentas claves 1 - MC" y "cuentas claves 2- SV" únicamente en la pestaña de Activación
+  const activationEligibleSellers = useMemo(
+    () => filterActivationSellers(sellers),
+    [sellers]
+  );
+
   // Vendedores disponibles dinámicamente según el supervisor seleccionado
   const availableSellers = useMemo<SellerOption[]>(() => {
-    let list = sellers;
+    let list = activationEligibleSellers;
     if (supervisorFilter !== 'ALL') {
       list = list.filter((s) => s.supervisor === supervisorFilter);
     }
@@ -67,7 +74,7 @@ export const RubrosActivationTable: React.FC<RubrosActivationTableProps> = ({
       }
     });
     return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
-  }, [sellers, supervisorFilter]);
+  }, [activationEligibleSellers, supervisorFilter]);
 
   // Sincronización automática: al cambiar el supervisor, limpiar los vendedores que no correspondan
   useEffect(() => {
@@ -104,13 +111,13 @@ export const RubrosActivationTable: React.FC<RubrosActivationTableProps> = ({
 
   // List of unique supervisors for filtering
   const supervisorList = useMemo(() => {
-    const list = Array.from(new Set(sellers.map((s) => s.supervisor)));
+    const list = Array.from(new Set(activationEligibleSellers.map((s) => s.supervisor)));
     return list.sort();
-  }, [sellers]);
+  }, [activationEligibleSellers]);
 
   // Filtered sellers list
   const filteredSellers = useMemo(() => {
-    return sellers.filter((s) => {
+    return activationEligibleSellers.filter((s) => {
       const matchSearch =
         s.vendedor.toLowerCase().includes(searchTerm.toLowerCase()) ||
         s.supervisor.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -127,7 +134,7 @@ export const RubrosActivationTable: React.FC<RubrosActivationTableProps> = ({
 
       return matchSearch && matchSupervisor && matchSellers;
     });
-  }, [sellers, searchTerm, supervisorFilter, selectedSellers]);
+  }, [activationEligibleSellers, searchTerm, supervisorFilter, selectedSellers]);
 
   // Consolidated by supervisor with sellers list
   const consolidatedBySupervisor = useMemo(() => {

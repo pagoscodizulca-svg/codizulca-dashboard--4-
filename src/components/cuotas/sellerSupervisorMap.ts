@@ -248,6 +248,45 @@ export const isExcludedVolumeSeller = (vendedorName: string): boolean => {
   return !isValidVolumeSeller(vendedorName);
 };
 
+/**
+ * Función auxiliar de normalización de nombres de vendedoras para comparación:
+ * - Convierte a minúsculas
+ * - Elimina acentos/diacríticos
+ * - Quita todos los espacios en blanco alrededor de guiones y entre palabras
+ *   (ej. "cuentas claves 2- SV", "cuentas claves 2 - SV" -> "cuentasclaves2-sv")
+ */
+export const normalizeSellerComparisonKey = (value: string): string => {
+  if (!value) return '';
+  return String(value)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/\s*-\s*/g, '-')
+    .replace(/\s+/g, '')
+    .trim();
+};
+
+export const EXCLUDED_ACTIVATION_SELLER_KEYS: ReadonlySet<string> = new Set([
+  normalizeSellerComparisonKey('cuentas claves 1 - MC'),
+  normalizeSellerComparisonKey('cuentas claves 2- SV'),
+  normalizeSellerComparisonKey('cuentas clave 1 - MC'),
+  normalizeSellerComparisonKey('cuentas clave 2- SV'),
+]);
+
+/**
+ * Determina si una vendedora debe excluirse ÚNICAMENTE de la pestaña de "Activación"
+ * ("cuentas claves 1 - MC" y "cuentas claves 2- SV"), manteniendo su inclusión en "Volumen".
+ */
+export const isExcludedActivationSeller = (vendedorName: string): boolean => {
+  if (!vendedorName) return false;
+  const directKey = normalizeSellerComparisonKey(vendedorName);
+  if (EXCLUDED_ACTIVATION_SELLER_KEYS.has(directKey)) {
+    return true;
+  }
+  const canonicalKey = normalizeSellerComparisonKey(normalizeSellerName(vendedorName));
+  return EXCLUDED_ACTIVATION_SELLER_KEYS.has(canonicalKey);
+};
+
 export const getSellerMetadata = (vendedorName: string): SellerMetadata => {
   if (!vendedorName) {
     return {
