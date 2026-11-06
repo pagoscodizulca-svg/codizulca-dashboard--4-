@@ -103,7 +103,7 @@ export const SELLER_VOLUME_QUOTAS: Record<string, SellerVolumeQuota> = {
       mortadelaSalpicaoAsturias: { q: 6248.50, r: 4986.00 },
     },
   },
-  'MARIANA CHACIN': {
+  'CUENTAS CLAVES 1 - MC': {
     kgs: 91100.20,
     realKgsOct: 55588.80,
     cajas: 13452,
@@ -116,7 +116,7 @@ export const SELLER_VOLUME_QUOTAS: Record<string, SellerVolumeQuota> = {
       mortadelaSalpicaoAsturias: { q: 4863.40, r: 2677.80 },
     },
   },
-  'SAIRU VALLES': {
+  'CUENTAS CLAVES 2 - SV': {
     kgs: 312852.50,
     realKgsOct: 127331.60,
     cajas: 49506,
@@ -559,11 +559,31 @@ export const syncVolumeQuotasFromGoogleSheet = async (force = false): Promise<bo
       }
     >();
 
-    // Las últimas 3 ternas de columnas corresponden a los consolidados de los 3 supervisores; iteramos solo las columnas de vendedores (primeras 30 ternas)
-    const maxCol = Math.min(header.length - 9, 2 + 30 * 3);
+    const row0 = rows[0] || [];
+    const row1 = rows[1] || [];
+    const isDoubleHeader =
+      (row1[0] || '').trim().toUpperCase() === 'COD' ||
+      (row1[1] || '').trim().toUpperCase().startsWith('ARTICULO');
+    const dataStartRow = isDoubleHeader ? 2 : 1;
+
+    // Las últimas 3 ternas de columnas corresponden a los consolidados de los 3 supervisores; iteramos solo las columnas de vendedores
+    const maxCol = Math.min(row0.length - 9, 2 + 30 * 3);
     for (let c = 2; c < maxCol; c += 3) {
-      const rawHeader = (header[c] || '').replace(/\s*CUOTA(\s*KG)?$/i, '').trim();
-      if (!rawHeader) continue;
+      const rawHeader = (row0[c] || '')
+        .toUpperCase()
+        .replace(/\s*CUOTA(\s*KG)?$/i, '')
+        .replace(/\s*VENTA(\s*KG)?$/i, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+      if (
+        !rawHeader ||
+        rawHeader === 'ALI PEREZ' ||
+        rawHeader === 'ALÍ PÉREZ' ||
+        rawHeader === 'JOHNATAN SOTO' ||
+        rawHeader === 'NELSON FINOL'
+      ) {
+        continue;
+      }
       const normSeller = normalizeSellerName(rawHeader);
       if (!SELLER_VOLUME_QUOTAS[normSeller]) continue;
 
@@ -582,7 +602,7 @@ export const syncVolumeQuotasFromGoogleSheet = async (force = false): Promise<bo
       }
       const acc = tempAccum.get(normSeller)!;
 
-      for (let r = 1; r < rows.length; r++) {
+      for (let r = dataStartRow; r < rows.length; r++) {
         const row = rows[r];
         const cod = (row[0] || '').trim();
         const art = (row[1] || '').trim().toUpperCase();
@@ -602,17 +622,19 @@ export const syncVolumeQuotasFromGoogleSheet = async (force = false): Promise<bo
           acc.byCat.azucar.r += real;
         }
         if (
-          art.includes('POLLO TODAS LAS MARCAS') ||
-          art.includes('FILET TODAS') ||
-          art.includes('MUSLO CUADRIL') ||
-          art.includes('ALAS DESPRESADAS') ||
+          art.includes('POLLO') ||
+          art.includes('FILET') ||
+          art.includes('MUSLO') ||
+          art.includes('ALAS') ||
           art.includes('MOLLEJA') ||
           art.includes('HIGADO')
         ) {
-          acc.byCat.pollo.q += q;
-          acc.byCat.pollo.r += real;
+          if (!art.includes('MORT') && !art.includes('JAMON') && !art.includes('SALCHICHA')) {
+            acc.byCat.pollo.q += q;
+            acc.byCat.pollo.r += real;
+          }
         }
-        if (cod === '1461' || cod === '1463') {
+        if (cod === '1461' || cod === '1463' || (art.includes('JAMON') && art.includes('ASTURIAS'))) {
           acc.byCat.estandarAsturias.q += q;
           acc.byCat.estandarAsturias.r += real;
         }
@@ -635,29 +657,29 @@ export const syncVolumeQuotasFromGoogleSheet = async (force = false): Promise<bo
         SELLER_VOLUME_QUOTAS[seller] = {
           ...prev,
           kgs: Number(val.kgs.toFixed(2)),
-          realKgsOct: Number(val.realKgsOct.toFixed(2)),
+          realKgsOct: prev.realKgsOct,
           cajas: Math.round(prev.cajas * ratio),
           monto: Math.round(prev.monto * ratio),
           byCat: {
             aceite: {
               q: Number(val.byCat.aceite.q.toFixed(2)),
-              r: Number(val.byCat.aceite.r.toFixed(2)),
+              r: prev.byCat?.aceite.r ?? Number(val.byCat.aceite.r.toFixed(2)),
             },
             azucar: {
               q: Number(val.byCat.azucar.q.toFixed(2)),
-              r: Number(val.byCat.azucar.r.toFixed(2)),
+              r: prev.byCat?.azucar.r ?? Number(val.byCat.azucar.r.toFixed(2)),
             },
             pollo: {
               q: Number(val.byCat.pollo.q.toFixed(2)),
-              r: Number(val.byCat.pollo.r.toFixed(2)),
+              r: prev.byCat?.pollo.r ?? Number(val.byCat.pollo.r.toFixed(2)),
             },
             estandarAsturias: {
               q: Number(val.byCat.estandarAsturias.q.toFixed(2)),
-              r: Number(val.byCat.estandarAsturias.r.toFixed(2)),
+              r: prev.byCat?.estandarAsturias.r ?? Number(val.byCat.estandarAsturias.r.toFixed(2)),
             },
             mortadelaSalpicaoAsturias: {
               q: Number(val.byCat.mortadelaSalpicaoAsturias.q.toFixed(2)),
-              r: Number(val.byCat.mortadelaSalpicaoAsturias.r.toFixed(2)),
+              r: prev.byCat?.mortadelaSalpicaoAsturias.r ?? Number(val.byCat.mortadelaSalpicaoAsturias.r.toFixed(2)),
             },
           },
         };

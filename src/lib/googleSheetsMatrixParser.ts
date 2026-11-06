@@ -541,7 +541,13 @@ export function parseCuotasVolumenSheetMatrix(
   for (let c = 2; c < maxCols; c += 3) {
     const sellerHeader = forwardFilledRow1[c];
     if (!sellerHeader) continue;
-    const canonicalSeller = normalizeSellerName(sellerHeader) || sellerHeader;
+    const isSupervisorSummaryCol =
+      sellerHeader === 'ALI PEREZ' ||
+      sellerHeader === 'JOHNATAN SOTO' ||
+      sellerHeader === 'NELSON FINOL';
+    const canonicalSeller = isSupervisorSummaryCol
+      ? sellerHeader
+      : normalizeSellerName(sellerHeader) || sellerHeader;
     if (!sellersOrder.includes(sellerHeader)) {
       sellersOrder.push(sellerHeader);
     }

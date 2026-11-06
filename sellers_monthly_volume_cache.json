@@ -1,6 +1,6 @@
 {
   "ano": 2026,
-  "lastSync": "2026-10-20T20:12:37.530Z",
+  "lastSync": "2026-11-06T12:17:34.053Z",
   "totalSourceRows": 304374,
   "monthlyTotals": [
     {
@@ -112,6 +112,17 @@
       "montoDV": -171596.12,
       "vendedoresCount": 25,
       "facturasCount": 15055
+    },
+    {
+      "mes": "NOVIEMBRE",
+      "ano": 2026,
+      "cajas": 120655.76,
+      "kgs": 443443.42,
+      "montoNeto": 1152675.46,
+      "montoFA": 1240008.67,
+      "montoDV": -87333.21,
+      "vendedoresCount": 25,
+      "facturasCount": 4623
     }
   ],
   "sellerMonthlyData": [
@@ -129,7 +140,7 @@
       "facturasCount": 1023
     },
     {
-      "vendedor": "MARIANA CHACIN",
+      "vendedor": "CUENTAS CLAVES 1 - MC",
       "mes": "ENERO",
       "ano": 2026,
       "cajas": 55454.8,
@@ -285,7 +296,7 @@
       "facturasCount": 1058
     },
     {
-      "vendedor": "SAIRU VALLES",
+      "vendedor": "CUENTAS CLAVES 2 - SV",
       "mes": "ENERO",
       "ano": 2026,
       "cajas": 18365.1,
@@ -454,7 +465,7 @@
       "facturasCount": 1128
     },
     {
-      "vendedor": "MARIANA CHACIN",
+      "vendedor": "CUENTAS CLAVES 1 - MC",
       "mes": "FEBRERO",
       "ano": 2026,
       "cajas": 6845.9,
@@ -610,7 +621,7 @@
       "facturasCount": 1026
     },
     {
-      "vendedor": "SAIRU VALLES",
+      "vendedor": "CUENTAS CLAVES 2 - SV",
       "mes": "FEBRERO",
       "ano": 2026,
       "cajas": 6983.6,
@@ -779,7 +790,7 @@
       "facturasCount": 1282
     },
     {
-      "vendedor": "MARIANA CHACIN",
+      "vendedor": "CUENTAS CLAVES 1 - MC",
       "mes": "MARZO",
       "ano": 2026,
       "cajas": 12298,
@@ -935,7 +946,7 @@
       "facturasCount": 1441
     },
     {
-      "vendedor": "SAIRU VALLES",
+      "vendedor": "CUENTAS CLAVES 2 - SV",
       "mes": "MARZO",
       "ano": 2026,
       "cajas": 6334.1,
@@ -1104,7 +1115,7 @@
       "facturasCount": 1340
     },
     {
-      "vendedor": "MARIANA CHACIN",
+      "vendedor": "CUENTAS CLAVES 1 - MC",
       "mes": "ABRIL",
       "ano": 2026,
       "cajas": 13715.9,
@@ -1260,7 +1271,7 @@
       "facturasCount": 1194
     },
     {
-      "vendedor": "SAIRU VALLES",
+      "vendedor": "CUENTAS CLAVES 2 - SV",
       "mes": "ABRIL",
       "ano": 2026,
       "cajas": 5062.8,
@@ -1429,7 +1440,7 @@
       "facturasCount": 1292
     },
     {
-      "vendedor": "MARIANA CHACIN",
+      "vendedor": "CUENTAS CLAVES 1 - MC",
       "mes": "MAYO",
       "ano": 2026,
       "cajas": 9074.5,
@@ -1585,7 +1596,7 @@
       "facturasCount": 1319
     },
     {
-      "vendedor": "SAIRU VALLES",
+      "vendedor": "CUENTAS CLAVES 2 - SV",
       "mes": "MAYO",
       "ano": 2026,
       "cajas": 5103.6,
@@ -1754,7 +1765,7 @@
       "facturasCount": 1474
     },
     {
-      "vendedor": "MARIANA CHACIN",
+      "vendedor": "CUENTAS CLAVES 1 - MC",
       "mes": "JUNIO",
       "ano": 2026,
       "cajas": 16536.6,
@@ -1910,7 +1921,7 @@
       "facturasCount": 1352
     },
     {
-      "vendedor": "SAIRU VALLES",
+      "vendedor": "CUENTAS CLAVES 2 - SV",
       "mes": "JUNIO",
       "ano": 2026,
       "cajas": 5506.1,
@@ -2079,7 +2090,7 @@
       "facturasCount": 1618
     },
     {
-      "vendedor": "MARIANA CHACIN",
+      "vendedor": "CUENTAS CLAVES 1 - MC",
       "mes": "JULIO",
       "ano": 2026,
       "cajas": 28059.2,
@@ -2235,7 +2246,7 @@
       "facturasCount": 1565
     },
     {
-      "vendedor": "SAIRU VALLES",
+      "vendedor": "CUENTAS CLAVES 2 - SV",
       "mes": "JULIO",
       "ano": 2026,
       "cajas": 12411,
@@ -2404,7 +2415,7 @@
       "facturasCount": 1509
     },
     {
-      "vendedor": "MARIANA CHACIN",
+      "vendedor": "CUENTAS CLAVES 1 - MC",
       "mes": "AGOSTO",
       "ano": 2026,
       "cajas": 16669.6,
@@ -2560,7 +2571,7 @@
       "facturasCount": 1417
     },
     {
-      "vendedor": "SAIRU VALLES",
+      "vendedor": "CUENTAS CLAVES 2 - SV",
       "mes": "AGOSTO",
       "ano": 2026,
       "cajas": 13018.5,
@@ -2911,7 +2922,7 @@
       "facturasCount": 571
     },
     {
-      "vendedor": "MARIANA CHACIN",
+      "vendedor": "CUENTAS CLAVES 1 - MC",
       "mes": "SEPTIEMBRE",
       "ano": 2026,
       "cajas": 5500.96,
@@ -3002,7 +3013,7 @@
       "facturasCount": 338
     },
     {
-      "vendedor": "SAIRU VALLES",
+      "vendedor": "CUENTAS CLAVES 2 - SV",
       "mes": "SEPTIEMBRE",
       "ano": 2026,
       "cajas": 49565.77,
@@ -3054,7 +3065,7 @@
       "facturasCount": 1060
     },
     {
-      "vendedor": "MARIANA CHACIN",
+      "vendedor": "CUENTAS CLAVES 1 - MC",
       "mes": "OCTUBRE",
       "ano": 2026,
       "cajas": 7505.69,
@@ -3210,7 +3221,7 @@
       "facturasCount": 1012
     },
     {
-      "vendedor": "SAIRU VALLES",
+      "vendedor": "CUENTAS CLAVES 2 - SV",
       "mes": "OCTUBRE",
       "ano": 2026,
       "cajas": 22027.17,
@@ -3364,6 +3375,331 @@
       "cajasFA": 3773.1,
       "cajasDV": -471.91,
       "facturasCount": 410
+    },
+    {
+      "vendedor": "ELISA SOLER",
+      "mes": "NOVIEMBRE",
+      "ano": 2026,
+      "cajas": 5660.48,
+      "kgs": 21778.1,
+      "montoNeto": 60120.49,
+      "montoFA": 64464.23,
+      "montoDV": -4343.74,
+      "cajasFA": 5936.56,
+      "cajasDV": -276.08,
+      "facturasCount": 468
+    },
+    {
+      "vendedor": "J PABLO ARAUJO - CAB/OJE",
+      "mes": "NOVIEMBRE",
+      "ano": 2026,
+      "cajas": 2378.35,
+      "kgs": 11266.52,
+      "montoNeto": 32559.01,
+      "montoFA": 36461.66,
+      "montoDV": -3902.65,
+      "cajasFA": 2554.6,
+      "cajasDV": -176.25,
+      "facturasCount": 142
+    },
+    {
+      "vendedor": "MARIA BRICEÑO",
+      "mes": "NOVIEMBRE",
+      "ano": 2026,
+      "cajas": 8710.23,
+      "kgs": 17966.78,
+      "montoNeto": 60485.2,
+      "montoFA": 61763.27,
+      "montoDV": -1278.07,
+      "cajasFA": 8827.39,
+      "cajasDV": -117.16,
+      "facturasCount": 417
+    },
+    {
+      "vendedor": "HERNAN PAZ",
+      "mes": "NOVIEMBRE",
+      "ano": 2026,
+      "cajas": 2930.87,
+      "kgs": 19410.01,
+      "montoNeto": 63117.94,
+      "montoFA": 64807.42,
+      "montoDV": -1689.48,
+      "cajasFA": 3095.5,
+      "cajasDV": -164.63,
+      "facturasCount": 72
+    },
+    {
+      "vendedor": "MARYERY GARCIA",
+      "mes": "NOVIEMBRE",
+      "ano": 2026,
+      "cajas": 8453.08,
+      "kgs": 23275.49,
+      "montoNeto": 68391.06,
+      "montoFA": 70389.49,
+      "montoDV": -1998.43,
+      "cajasFA": 8702.07,
+      "cajasDV": -248.99,
+      "facturasCount": 401
+    },
+    {
+      "vendedor": "LEONARDO RIOS",
+      "mes": "NOVIEMBRE",
+      "ano": 2026,
+      "cajas": 2169.86,
+      "kgs": 5502.24,
+      "montoNeto": 17987.37,
+      "montoFA": 19355.22,
+      "montoDV": -1367.85,
+      "cajasFA": 2272.66,
+      "cajasDV": -102.8,
+      "facturasCount": 151
+    },
+    {
+      "vendedor": "J PABLO ARAUJO",
+      "mes": "NOVIEMBRE",
+      "ano": 2026,
+      "cajas": 13584.24,
+      "kgs": 25230.27,
+      "montoNeto": 86159.79,
+      "montoFA": 95782.19,
+      "montoDV": -9622.4,
+      "cajasFA": 13780.49,
+      "cajasDV": -196.25,
+      "facturasCount": 521
+    },
+    {
+      "vendedor": "EDUARDO PIÑA",
+      "mes": "NOVIEMBRE",
+      "ano": 2026,
+      "cajas": 2696.52,
+      "kgs": 11094.49,
+      "montoNeto": 37589.35,
+      "montoFA": 38843.99,
+      "montoDV": -1254.64,
+      "cajasFA": 2758.52,
+      "cajasDV": -62,
+      "facturasCount": 271
+    },
+    {
+      "vendedor": "SARAH REYES",
+      "mes": "NOVIEMBRE",
+      "ano": 2026,
+      "cajas": 2603.06,
+      "kgs": 14782.7,
+      "montoNeto": 43430.73,
+      "montoFA": 45485.9,
+      "montoDV": -2055.17,
+      "cajasFA": 2911.56,
+      "cajasDV": -308.5,
+      "facturasCount": 225
+    },
+    {
+      "vendedor": "MIKELANGELO DIAZ",
+      "mes": "NOVIEMBRE",
+      "ano": 2026,
+      "cajas": 9069.34,
+      "kgs": 15125.36,
+      "montoNeto": 45448.2,
+      "montoFA": 51174.96,
+      "montoDV": -5726.76,
+      "cajasFA": 9908.42,
+      "cajasDV": -839.08,
+      "facturasCount": 170
+    },
+    {
+      "vendedor": "OSCAR ORTIZ",
+      "mes": "NOVIEMBRE",
+      "ano": 2026,
+      "cajas": 1162.26,
+      "kgs": 1974.72,
+      "montoNeto": 6525.52,
+      "montoFA": 6798.56,
+      "montoDV": -273.04,
+      "cajasFA": 1218.26,
+      "cajasDV": -56,
+      "facturasCount": 76
+    },
+    {
+      "vendedor": "ANGEL NAVARRO",
+      "mes": "NOVIEMBRE",
+      "ano": 2026,
+      "cajas": 441.25,
+      "kgs": 393.2,
+      "montoNeto": 1458.26,
+      "montoFA": 3110.05,
+      "montoDV": -1651.79,
+      "cajasFA": 532.25,
+      "cajasDV": -91,
+      "facturasCount": 77
+    },
+    {
+      "vendedor": "VICTOR CAMPOS",
+      "mes": "NOVIEMBRE",
+      "ano": 2026,
+      "cajas": 2473.33,
+      "kgs": 9157.66,
+      "montoNeto": 39474.64,
+      "montoFA": 42965.85,
+      "montoDV": -3491.21,
+      "cajasFA": 2669.08,
+      "cajasDV": -195.75,
+      "facturasCount": 116
+    },
+    {
+      "vendedor": "LUIS GUANIPA",
+      "mes": "NOVIEMBRE",
+      "ano": 2026,
+      "cajas": 483,
+      "kgs": 1606.44,
+      "montoNeto": 6685.37,
+      "montoFA": 7130.53,
+      "montoDV": -445.16,
+      "cajasFA": 623,
+      "cajasDV": -140,
+      "facturasCount": 63
+    },
+    {
+      "vendedor": "MARIANGEL GONZALEZ",
+      "mes": "NOVIEMBRE",
+      "ano": 2026,
+      "cajas": 2288.97,
+      "kgs": 4023.99,
+      "montoNeto": 12742.45,
+      "montoFA": 13242.46,
+      "montoDV": -500.01,
+      "cajasFA": 2378.3,
+      "cajasDV": -89.33,
+      "facturasCount": 163
+    },
+    {
+      "vendedor": "JUAN HERNANDEZ",
+      "mes": "NOVIEMBRE",
+      "ano": 2026,
+      "cajas": 3406.81,
+      "kgs": 6918.75,
+      "montoNeto": 29679.45,
+      "montoFA": 40269.62,
+      "montoDV": -10590.17,
+      "cajasFA": 4439.81,
+      "cajasDV": -1033,
+      "facturasCount": 134
+    },
+    {
+      "vendedor": "OSWALDO CHURION",
+      "mes": "NOVIEMBRE",
+      "ano": 2026,
+      "cajas": 3687.03,
+      "kgs": 46646.59,
+      "montoNeto": 66389.57,
+      "montoFA": 71535.77,
+      "montoDV": -5146.2,
+      "cajasFA": 4014.7,
+      "cajasDV": -327.67,
+      "facturasCount": 65
+    },
+    {
+      "vendedor": "CARLOS FUENMAYOR",
+      "mes": "NOVIEMBRE",
+      "ano": 2026,
+      "cajas": 4582.59,
+      "kgs": 14945.64,
+      "montoNeto": 39315.51,
+      "montoFA": 40156.23,
+      "montoDV": -840.72,
+      "cajasFA": 4768.92,
+      "cajasDV": -186.33,
+      "facturasCount": 96
+    },
+    {
+      "vendedor": "CUENTAS CLAVES 2 - SV",
+      "mes": "NOVIEMBRE",
+      "ano": 2026,
+      "cajas": 20236.68,
+      "kgs": 112550.28,
+      "montoNeto": 250718.58,
+      "montoFA": 254589.17,
+      "montoDV": -3870.59,
+      "cajasFA": 20392.34,
+      "cajasDV": -155.66,
+      "facturasCount": 141
+    },
+    {
+      "vendedor": "YOLEIDA LUGO",
+      "mes": "NOVIEMBRE",
+      "ano": 2026,
+      "cajas": 1082.92,
+      "kgs": 11987.32,
+      "montoNeto": 21790.06,
+      "montoFA": 26877.51,
+      "montoDV": -5087.45,
+      "cajasFA": 1412,
+      "cajasDV": -329.08,
+      "facturasCount": 168
+    },
+    {
+      "vendedor": "ANGELICA MORENO",
+      "mes": "NOVIEMBRE",
+      "ano": 2026,
+      "cajas": 4427.71,
+      "kgs": 17041.09,
+      "montoNeto": 29990.01,
+      "montoFA": 31642.73,
+      "montoDV": -1652.72,
+      "cajasFA": 4555.87,
+      "cajasDV": -128.16,
+      "facturasCount": 106
+    },
+    {
+      "vendedor": "ADEL JARABA",
+      "mes": "NOVIEMBRE",
+      "ano": 2026,
+      "cajas": 1531.49,
+      "kgs": 7338.45,
+      "montoNeto": 15928.35,
+      "montoFA": 18162.07,
+      "montoDV": -2233.72,
+      "cajasFA": 2141.49,
+      "cajasDV": -610,
+      "facturasCount": 87
+    },
+    {
+      "vendedor": "PEDRO ABREU",
+      "mes": "NOVIEMBRE",
+      "ano": 2026,
+      "cajas": 444.76,
+      "kgs": 5673.21,
+      "montoNeto": 12165.72,
+      "montoFA": 12499.16,
+      "montoDV": -333.44,
+      "cajasFA": 516.47,
+      "cajasDV": -71.71,
+      "facturasCount": 40
+    },
+    {
+      "vendedor": "JOSE G. GONZALEZ",
+      "mes": "NOVIEMBRE",
+      "ano": 2026,
+      "cajas": 13584.73,
+      "kgs": 18885.92,
+      "montoNeto": 56207.67,
+      "montoFA": 65878.9,
+      "montoDV": -9671.23,
+      "cajasFA": 16312.78,
+      "cajasDV": -2728.05,
+      "facturasCount": 286
+    },
+    {
+      "vendedor": "CUENTAS CLAVES 1 - MC",
+      "mes": "NOVIEMBRE",
+      "ano": 2026,
+      "cajas": 2566.2,
+      "kgs": 18868.2,
+      "montoNeto": 48315.16,
+      "montoFA": 56621.73,
+      "montoDV": -8306.57,
+      "cajasFA": 3728.98,
+      "cajasDV": -1162.78,
+      "facturasCount": 167
     }
   ]
 }

@@ -31,6 +31,8 @@ import { VendedorMultiSelect, SellerOption } from './VendedorMultiSelect';
 // Curated Vibrant Seller Palette (25 Official Sellers)
 const SELLER_COLORS: { [seller: string]: string } = {
   'MARIA BRICEÑO': '#db2777', // Magenta Pink
+  'CUENTAS CLAVES 1 - MC': '#3b82f6', // Blue
+  'CUENTAS CLAVE 1 - MC': '#3b82f6', // Blue
   'MARIANA CHACIN': '#3b82f6', // Blue
   'JOHNATAN SOTO': '#1d4ed8', // Deep Royal Blue
   'HERNAN PAZ': '#059669', // Mint Forest
@@ -43,6 +45,8 @@ const SELLER_COLORS: { [seller: string]: string } = {
   'ADEL JARABA': '#0d9488', // Deep Teal
   'JUAN HERNANDEZ': '#e11d48', // Crimson Rose
   'YOLEIDA LUGO': '#c026d3', // Electric Fuchsia
+  'CUENTAS CLAVES 2 - SV': '#10b981', // Emerald Green
+  'CUENTAS CLAVE 2 - SV': '#10b981', // Emerald Green
   'SAIRU VALLES': '#10b981', // Emerald Green
   'ELISA SOLER': '#f97316', // Tangerine
   'ALI PEREZ': '#dc2626', // Red

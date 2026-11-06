@@ -171,7 +171,7 @@ export const Cuotas: React.FC = () => {
                 if (!live) return baseRow;
                 return {
                   ...baseRow,
-                  cartera: baseRow.cartera,
+                  cartera: live.cartera > 0 ? live.cartera : baseRow.cartera,
                   rubros: {
                     salpicao: live.salpicao,
                     azucar: live.azucar,
@@ -230,8 +230,6 @@ export const Cuotas: React.FC = () => {
             <ParetoSubmodule />
           ) : activeTab === 'volumen_sku' ? (
             <SkuVolumeSubmodule />
-          ) : activeTab === 'auditoria_maestra' ? (
-            <MaestraActivaAuditSubmodule onPortfolioSynced={handlePortfolioSynced} />
           ) : activeTab === 'activacion_clientes' ? (
             <ActivacionClientesSubmodule
               viewLevel={activeView}
@@ -257,7 +255,6 @@ export const Cuotas: React.FC = () => {
                 viewLevel={activeView}
                 maestraTotalActive={maestraStats.totalActive}
                 maestraRoutesCount={maestraStats.routesCount}
-                onOpenMaestraAudit={() => setActiveTab('auditoria_maestra')}
               />
             )}
 
@@ -269,11 +266,6 @@ export const Cuotas: React.FC = () => {
                 diasTranscurridos={diasTranscurridos}
                 syncVersion={portfolioSyncVersion}
               />
-            )}
-
-            {/* PESTAÑA AUDITORÍA Y SINCRONIZACIÓN DE MAESTRA DE CLIENTES ACTIVOS */}
-            {activeTab === 'auditoria_maestra' && (
-              <MaestraActivaAuditSubmodule onPortfolioSynced={handlePortfolioSynced} />
             )}
 
             {/* PESTAÑA VOLUMEN CON HISTORIAL Y FILTRO MULTISELECCIÓN DE MESES */}

@@ -590,10 +590,10 @@ async function startServer() {
   // Sellers monthly volume endpoints (with Supabase and Google Sheets sync)
   const sellersVolumeCachePath = path.join(process.cwd(), 'sellers_monthly_volume_cache.json');
 
-  // Lista oficial exacta de las 25 carteras activas de la Fuerza de Ventas (Octubre 2026)
+  // Lista oficial exacta de las 25 carteras activas de la Fuerza de Ventas (Noviembre 2026)
   const OFFICIAL_SELLERS_LIST = [
     'MARIA BRICEÑO',
-    'MARIANA CHACIN',
+    'CUENTAS CLAVES 1 - MC',
     'MIKELANGELO DIAZ',
     'HERNAN PAZ',
     'OSWALDO CHURION',
@@ -605,7 +605,7 @@ async function startServer() {
     'ADEL JARABA',
     'JUAN HERNANDEZ',
     'YOLEIDA LUGO',
-    'SAIRU VALLES',
+    'CUENTAS CLAVES 2 - SV',
     'ELISA SOLER',
     'ANGEL NAVARRO',
     'MARIANGEL GONZALEZ',
@@ -646,19 +646,31 @@ async function startServer() {
 
     if (
       n === 'CUENTAS CLAVE 1' ||
+      n === 'CUENTAS CLAVES 1' ||
       n === 'CUENTAS CLAVE 1 - MC' ||
+      n === 'CUENTAS CLAVES 1 - MC' ||
       n === 'MARIANA CHACIN' ||
-      n === 'CUENTAS CLAVE 1 - MC (MARIANA CHACIN)'
+      n === 'CUENTAS CLAVE 1 - MC (MARIANA CHACIN)' ||
+      n === 'CUENTAS CLAVES 1 - MC (MARIANA CHACIN)' ||
+      n.includes('CUENTAS CLAVE 1') ||
+      n.includes('CUENTAS CLAVES 1') ||
+      n.includes('MARIANA CHACIN')
     ) {
-      return 'MARIANA CHACIN';
+      return 'CUENTAS CLAVES 1 - MC';
     }
     if (
       n === 'CUENTAS CLAVE 2' ||
+      n === 'CUENTAS CLAVES 2' ||
       n === 'CUENTAS CLAVE 2 - SV' ||
+      n === 'CUENTAS CLAVES 2 - SV' ||
       n === 'SAIRU VALLES' ||
-      n === 'CUENTAS CLAVE 2 - SV (SAIRU VALLES)'
+      n === 'CUENTAS CLAVE 2 - SV (SAIRU VALLES)' ||
+      n === 'CUENTAS CLAVES 2 - SV (SAIRU VALLES)' ||
+      n.includes('CUENTAS CLAVE 2') ||
+      n.includes('CUENTAS CLAVES 2') ||
+      n.includes('SAIRU VALLES')
     ) {
-      return 'SAIRU VALLES';
+      return 'CUENTAS CLAVES 2 - SV';
     }
     if (
       n === 'MIKELANGELO DIAZ' ||
@@ -872,6 +884,9 @@ async function startServer() {
               return;
             }
             const rawFecha = String(r['Fecha'] || r['fecha'] || '').trim();
+            if (rawFecha.slice(0, 10) < '2026-11-01') {
+              return;
+            }
             let mes = String(r['Mes'] || r['mes'] || '').trim().toUpperCase();
             if (!mes && rawFecha.length >= 7) {
               const mm = rawFecha.slice(5, 7);
@@ -1341,15 +1356,19 @@ async function startServer() {
       let csvText = CUOTAS_VOLUMEN_CSV_SEED;
       try {
         const sheetUrl =
-          'https://docs.google.com/spreadsheets/d/16pU4iEcNU_1j6sB7rZbshu2PM8OyH5hI7a24-vYO7P0/gviz/tq?tqx=out:csv&sheet=' +
-          encodeURIComponent('Cuotas Volumen');
+          'https://docs.google.com/spreadsheets/d/16pU4iEcNU_1j6sB7rZbshu2PM8OyH5hI7a24-vYO7P0/export?format=csv&gid=1575247832';
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 6500);
         const sheetRes = await fetch(sheetUrl, { signal: controller.signal });
         clearTimeout(timeout);
         if (sheetRes.ok) {
           const liveCsv = await sheetRes.text();
-          if (liveCsv && liveCsv.includes('POLLO TODAS LAS MARCAS')) {
+          if (
+            liveCsv &&
+            (liveCsv.includes('POLLO VENCAMPO') ||
+              liveCsv.includes('POLLO TODAS LAS MARCAS') ||
+              liveCsv.includes('Articulo'))
+          ) {
             csvText = liveCsv;
           }
         }

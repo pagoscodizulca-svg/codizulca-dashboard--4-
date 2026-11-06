@@ -154,20 +154,28 @@ export const resolveCanonicalSellerForClient = (rawVendor: string): {
 } => {
   const u = normUpperAscii(rawVendor);
 
-  if (u.includes('CUENTAS CLAVE 1') || u.includes('MARIANA CHACIN')) {
+  if (
+    u.includes('CUENTAS CLAVE 1') ||
+    u.includes('CUENTAS CLAVES 1') ||
+    u.includes('MARIANA CHACIN')
+  ) {
     return {
-      canonicalSeller: 'MARIANA CHACIN',
-      routeLabel: 'MARIANA CHACIN (Cuentas Clave 1 - MC)',
+      canonicalSeller: 'CUENTAS CLAVES 1 - MC',
+      routeLabel: 'CUENTAS CLAVES 1 - MC',
       supervisor: 'NELSON FINOL',
-      zona: 'Cuentas Clave 1',
+      zona: 'Cuentas Claves 1 - MC',
     };
   }
-  if (u.includes('CUENTAS CLAVE 2') || u.includes('SAIRU VALLES')) {
+  if (
+    u.includes('CUENTAS CLAVE 2') ||
+    u.includes('CUENTAS CLAVES 2') ||
+    u.includes('SAIRU VALLES')
+  ) {
     return {
-      canonicalSeller: 'SAIRU VALLES',
-      routeLabel: 'SAIRU VALLES (Cuentas Clave 2 - SV)',
+      canonicalSeller: 'CUENTAS CLAVES 2 - SV',
+      routeLabel: 'CUENTAS CLAVES 2 - SV',
       supervisor: 'NELSON FINOL',
-      zona: 'Cuentas Clave 2',
+      zona: 'Cuentas Claves 2 - SV',
     };
   }
   if (u.includes('MIKELANGELO') || u.includes('JOHNATAN')) {

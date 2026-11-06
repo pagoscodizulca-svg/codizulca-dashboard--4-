@@ -30,8 +30,12 @@ describe('Ventas & Cuotas Business Calculations Test Suite', () => {
     });
 
     it('debe normalizar códigos legacy y pasar las rutas de Johnatan Soto a MIKELANGELO DIAZ y la ruta de Ali Perez a ANGEL NAVARRO', () => {
-      expect(normalizeSellerName('CUENTAS CLAVE 1 - MC')).toBe('MARIANA CHACIN');
-      expect(normalizeSellerName('CUENTAS CLAVE 2 - SV')).toBe('SAIRU VALLES');
+      expect(normalizeSellerName('CUENTAS CLAVE 1 - MC')).toBe('CUENTAS CLAVES 1 - MC');
+      expect(normalizeSellerName('CUENTAS CLAVES 1 - MC')).toBe('CUENTAS CLAVES 1 - MC');
+      expect(normalizeSellerName('MARIANA CHACIN')).toBe('CUENTAS CLAVES 1 - MC');
+      expect(normalizeSellerName('CUENTAS CLAVE 2 - SV')).toBe('CUENTAS CLAVES 2 - SV');
+      expect(normalizeSellerName('CUENTAS CLAVES 2 - SV')).toBe('CUENTAS CLAVES 2 - SV');
+      expect(normalizeSellerName('SAIRU VALLES')).toBe('CUENTAS CLAVES 2 - SV');
       expect(normalizeSellerName('OSCAR ORTIZ- CORO')).toBe('OSCAR ORTIZ');
       expect(normalizeSellerName('OSCAR ORTIZ- LA COSTA')).toBe('OSCAR ORTIZ');
       expect(normalizeSellerName('MIKELANGELO DIAZ')).toBe('MIKELANGELO DIAZ');
@@ -92,12 +96,14 @@ describe('Ventas & Cuotas Business Calculations Test Suite', () => {
 
     it('debe asignar a NELSON FINOL sus 12 carteras de vendedores según la regla de negocio', () => {
       expect(getSellerMetadata('MARIA BRICEÑO').supervisor).toBe('NELSON FINOL');
+      expect(getSellerMetadata('CUENTAS CLAVES 1 - MC').supervisor).toBe('NELSON FINOL');
       expect(getSellerMetadata('MARIANA CHACIN').supervisor).toBe('NELSON FINOL');
       expect(getSellerMetadata('CARLOS FUENMAYOR').supervisor).toBe('NELSON FINOL');
       expect(getSellerMetadata('SARAH REYES').supervisor).toBe('NELSON FINOL');
       expect(getSellerMetadata('J PABLO ARAUJO - CAB/OJE').supervisor).toBe('NELSON FINOL');
       expect(getSellerMetadata('JOSE G. GONZALEZ').supervisor).toBe('NELSON FINOL');
       expect(getSellerMetadata('YOLEIDA LUGO').supervisor).toBe('NELSON FINOL');
+      expect(getSellerMetadata('CUENTAS CLAVES 2 - SV').supervisor).toBe('NELSON FINOL');
       expect(getSellerMetadata('SAIRU VALLES').supervisor).toBe('NELSON FINOL');
       expect(getSellerMetadata('J PABLO ARAUJO').supervisor).toBe('NELSON FINOL');
       expect(getSellerMetadata('EDUARDO PIÑA').supervisor).toBe('NELSON FINOL');
@@ -169,8 +175,8 @@ describe('Ventas & Cuotas Business Calculations Test Suite', () => {
       expect(countBySeller.get('HERNAN PAZ')).toBeGreaterThan(0);
       expect(countBySeller.get('J PABLO ARAUJO - CAB/OJE')).toBeGreaterThan(0);
       expect(countBySeller.get('LUIS GUANIPA')).toBeGreaterThan(0);
-      expect(countBySeller.get('MARIANA CHACIN')).toBeGreaterThan(0);
-      expect(countBySeller.get('SAIRU VALLES')).toBeGreaterThan(0);
+      expect(countBySeller.get('CUENTAS CLAVES 1 - MC')).toBeGreaterThan(0);
+      expect(countBySeller.get('CUENTAS CLAVES 2 - SV')).toBeGreaterThan(0);
     });
   });
 

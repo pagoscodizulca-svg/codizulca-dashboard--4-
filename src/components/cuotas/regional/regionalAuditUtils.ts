@@ -154,7 +154,7 @@ export const buildSellerAuditRecords = (
     // Calificación de acompañamiento dada por el Gerente Regional (1 a 5)
     let calif = Math.min(5, Math.max(2, 5 - Math.floor(dias / 4)));
     if (name.includes('ADEL JARABA') || name.includes('FOOD SERVICE SUR')) calif = 3;
-    if (name.includes('ALI PEREZ') || name.includes('CUENTAS CLAVE 1')) calif = 5;
+    if (name.includes('ALI PEREZ') || name.includes('CUENTAS CLAVE 1') || name.includes('CUENTAS CLAVES 1')) calif = 5;
 
     const rootCause = AUDIT_ROOT_CAUSES[hash % AUDIT_ROOT_CAUSES.length];
 

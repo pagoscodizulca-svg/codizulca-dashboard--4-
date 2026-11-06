@@ -16,7 +16,7 @@ export interface SellerMetadata {
 // Nota: Johnatan Soto, Ali Perez y Nelson Finol son exclusivamente Supervisores Comerciales sin cartera propia; los clientes de Johnatan Soto pasaron a Mikelangelo Diaz y los clientes de Ali Perez pasaron a Angel Navarro, Mariangel Gonzalez y Victor Campos.
 export const OFFICIAL_SELLERS_LIST = [
   'MARIA BRICEÑO',
-  'MARIANA CHACIN',
+  'CUENTAS CLAVES 1 - MC',
   'MIKELANGELO DIAZ',
   'HERNAN PAZ',
   'OSWALDO CHURION',
@@ -28,7 +28,7 @@ export const OFFICIAL_SELLERS_LIST = [
   'ADEL JARABA',
   'JUAN HERNANDEZ',
   'YOLEIDA LUGO',
-  'SAIRU VALLES',
+  'CUENTAS CLAVES 2 - SV',
   'ELISA SOLER',
   'ANGEL NAVARRO',
   'MARIANGEL GONZALEZ',
@@ -80,13 +80,17 @@ export const SELLER_METADATA_MAP: Record<string, { supervisor: string; zona: str
   // SUPERVISOR: NELSON FINOL (12 Carteras de Fuerza de Ventas y Cuentas Clave)
   // ==========================================
   'MARIA BRICEÑO': { supervisor: 'NELSON FINOL', zona: 'Maracaibo', region: 'Supervisión Nelson Finol' },
-  'MARIANA CHACIN': { supervisor: 'NELSON FINOL', zona: 'Cuentas Clave 1', region: 'Supervisión Nelson Finol' },
+  'CUENTAS CLAVES 1 - MC': { supervisor: 'NELSON FINOL', zona: 'Cuentas Claves 1 - MC', region: 'Supervisión Nelson Finol' },
+  'CUENTAS CLAVE 1 - MC': { supervisor: 'NELSON FINOL', zona: 'Cuentas Claves 1 - MC', region: 'Supervisión Nelson Finol' },
+  'MARIANA CHACIN': { supervisor: 'NELSON FINOL', zona: 'Cuentas Claves 1 - MC', region: 'Supervisión Nelson Finol' },
   'CARLOS FUENMAYOR': { supervisor: 'NELSON FINOL', zona: 'Maracaibo', region: 'Supervisión Nelson Finol' },
   'SARAH REYES': { supervisor: 'NELSON FINOL', zona: 'Maracaibo / San Francisco', region: 'Supervisión Nelson Finol' },
   'J PABLO ARAUJO - CAB/OJE': { supervisor: 'NELSON FINOL', zona: 'Cabimas / Ciudad Ojeda', region: 'Supervisión Nelson Finol' },
   'JOSE G. GONZALEZ': { supervisor: 'NELSON FINOL', zona: 'Maracaibo', region: 'Supervisión Nelson Finol' },
   'YOLEIDA LUGO': { supervisor: 'NELSON FINOL', zona: 'Maracaibo', region: 'Supervisión Nelson Finol' },
-  'SAIRU VALLES': { supervisor: 'NELSON FINOL', zona: 'Cuentas Clave 2', region: 'Supervisión Nelson Finol' },
+  'CUENTAS CLAVES 2 - SV': { supervisor: 'NELSON FINOL', zona: 'Cuentas Claves 2 - SV', region: 'Supervisión Nelson Finol' },
+  'CUENTAS CLAVE 2 - SV': { supervisor: 'NELSON FINOL', zona: 'Cuentas Claves 2 - SV', region: 'Supervisión Nelson Finol' },
+  'SAIRU VALLES': { supervisor: 'NELSON FINOL', zona: 'Cuentas Claves 2 - SV', region: 'Supervisión Nelson Finol' },
   'J PABLO ARAUJO': { supervisor: 'NELSON FINOL', zona: 'Costa Oriental del Lago', region: 'Supervisión Nelson Finol' },
   'EDUARDO PIÑA': { supervisor: 'NELSON FINOL', zona: 'Maracaibo', region: 'Supervisión Nelson Finol' },
   'MARYERY GARCIA': { supervisor: 'NELSON FINOL', zona: 'Ciudad Ojeda / COL', region: 'Supervisión Nelson Finol' },
@@ -167,19 +171,31 @@ export const normalizeSellerName = (vendedorName: string): string => {
 
   if (
     n === 'CUENTAS CLAVE 1' ||
+    n === 'CUENTAS CLAVES 1' ||
     n === 'CUENTAS CLAVE 1 - MC' ||
+    n === 'CUENTAS CLAVES 1 - MC' ||
     n === 'MARIANA CHACIN' ||
-    n === 'CUENTAS CLAVE 1 - MC (MARIANA CHACIN)'
+    n === 'CUENTAS CLAVE 1 - MC (MARIANA CHACIN)' ||
+    n === 'CUENTAS CLAVES 1 - MC (MARIANA CHACIN)' ||
+    n.includes('CUENTAS CLAVE 1') ||
+    n.includes('CUENTAS CLAVES 1') ||
+    n.includes('MARIANA CHACIN')
   ) {
-    return 'MARIANA CHACIN';
+    return 'CUENTAS CLAVES 1 - MC';
   }
   if (
     n === 'CUENTAS CLAVE 2' ||
+    n === 'CUENTAS CLAVES 2' ||
     n === 'CUENTAS CLAVE 2 - SV' ||
+    n === 'CUENTAS CLAVES 2 - SV' ||
     n === 'SAIRU VALLES' ||
-    n === 'CUENTAS CLAVE 2 - SV (SAIRU VALLES)'
+    n === 'CUENTAS CLAVE 2 - SV (SAIRU VALLES)' ||
+    n === 'CUENTAS CLAVES 2 - SV (SAIRU VALLES)' ||
+    n.includes('CUENTAS CLAVE 2') ||
+    n.includes('CUENTAS CLAVES 2') ||
+    n.includes('SAIRU VALLES')
   ) {
-    return 'SAIRU VALLES';
+    return 'CUENTAS CLAVES 2 - SV';
   }
   // Johnatan Soto pasó a Supervisor; todas sus rutas anteriores y las de Villa del Rosario pasan a Mikelangelo Diaz
   if (

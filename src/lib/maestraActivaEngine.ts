@@ -88,20 +88,28 @@ export function resolveMaestraSellerHierarchy(rawVendedor: string): {
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '');
 
-  if (ascii.includes('CUENTAS CLAVE 1') || ascii.includes('MARIANA CHACIN')) {
+  if (
+    ascii.includes('CUENTAS CLAVE 1') ||
+    ascii.includes('CUENTAS CLAVES 1') ||
+    ascii.includes('MARIANA CHACIN')
+  ) {
     return {
-      vendedor: clean || 'CUENTAS CLAVE 1 - MC',
-      canonicalSeller: 'MARIANA CHACIN',
+      vendedor: 'CUENTAS CLAVES 1 - MC',
+      canonicalSeller: 'CUENTAS CLAVES 1 - MC',
       supervisor: 'NELSON FINOL',
-      zona: 'Cuentas Clave 1',
+      zona: 'Cuentas Claves 1 - MC',
     };
   }
-  if (ascii.includes('CUENTAS CLAVE 2') || ascii.includes('SAIRU VALLES')) {
+  if (
+    ascii.includes('CUENTAS CLAVE 2') ||
+    ascii.includes('CUENTAS CLAVES 2') ||
+    ascii.includes('SAIRU VALLES')
+  ) {
     return {
-      vendedor: clean || 'CUENTAS CLAVE 2 - SV',
-      canonicalSeller: 'SAIRU VALLES',
+      vendedor: 'CUENTAS CLAVES 2 - SV',
+      canonicalSeller: 'CUENTAS CLAVES 2 - SV',
       supervisor: 'NELSON FINOL',
-      zona: 'Cuentas Clave 2',
+      zona: 'Cuentas Claves 2 - SV',
     };
   }
   if (ascii.includes('FOOD SERVICE SENIOR')) {
