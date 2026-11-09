@@ -4,6 +4,7 @@ import { GapAnalysisPanel } from '../components/dashboard/GapAnalysisPanel';
 import {
   PRODUCT_CATALOG_BY_SKU,
   isGenericProductLabel,
+  normalizeProductIdentityKey,
   resolveCatalogProductName,
 } from '../data/productCatalog';
 import { supabase } from '../lib/supabase';
@@ -414,7 +415,10 @@ export const DashboardOverview: React.FC = () => {
   const availableSkus = React.useMemo(() => {
     const pMap = new Map<string, string>();
     combinedProductData.forEach(p => {
-        if (p.idArt && p.baseName) pMap.set(p.idArt, p.baseName);
+      const cleanId = String(p.idArt || '').trim().replace(/^0+/, '') || String(p.idArt || '').trim();
+      if (!cleanId) return;
+      const canonicalName = resolveCatalogProductName(cleanId, p.baseName);
+      if (canonicalName) pMap.set(cleanId, canonicalName);
     });
     return Array.from(pMap.entries()).sort((a, b) => a[1].localeCompare(b[1])); // [id, name][]
   }, [combinedProductData]);
@@ -552,7 +556,7 @@ export const DashboardOverview: React.FC = () => {
         fetchSheetTabCsv('Supervisores'),
       ]);
 
-      // Build product catalog maps
+      // Build product catalog maps: prioritize official PRODUCT_CATALOG_BY_SKU + Google Sheet 'Productos'
       const productMap = new Map<string, string>(Object.entries(PRODUCT_CATALOG_BY_SKU));
       const productCategoryMap = new Map<string, string>();
       try {
@@ -561,10 +565,12 @@ export const DashboardOverview: React.FC = () => {
           const parsedCache = JSON.parse(cachedMap);
           if (parsedCache && typeof parsedCache === 'object') {
             Object.entries(parsedCache).forEach(([k, v]) => {
+              const cleanKey = String(k || '').trim().replace(/^0+/, '') || String(k || '').trim();
               const val = String(v || '').trim();
-              if (k && val && !isGenericProductLabel(val)) {
+              // Only use cached entry if SKU is not already in the official PRODUCT_CATALOG_BY_SKU
+              if (cleanKey && val && !isGenericProductLabel(val) && !PRODUCT_CATALOG_BY_SKU[cleanKey]) {
                 productMap.set(k, val);
-                productMap.set(k.replace(/^0+/, ''), val);
+                productMap.set(cleanKey, val);
               }
             });
           }
@@ -574,11 +580,14 @@ export const DashboardOverview: React.FC = () => {
       const parsedProductos = productosCsvText ? parseProductosCatalogCsv(productosCsvText) : null;
       if (parsedProductos) {
         parsedProductos.byCode.forEach((entry, codeKey) => {
-          if (entry.producto) {
+          const cleanCode = String(codeKey || '').trim().replace(/^0+/, '') || String(codeKey || '').trim();
+          if (entry.producto && !isGenericProductLabel(entry.producto)) {
             productMap.set(codeKey, entry.producto);
+            productMap.set(cleanCode, entry.producto);
           }
           if (entry.categoria) {
             productCategoryMap.set(codeKey, entry.categoria);
+            productCategoryMap.set(cleanCode, entry.categoria);
           }
         });
       }
@@ -618,6 +627,18 @@ export const DashboardOverview: React.FC = () => {
         console.warn('[Sync] Failed to load detailed history_sales rows:', histErr);
       }
 
+      // Enrich productMap with any valid product name from historical ERP records not yet in catalog
+      janToOctDetailRows.forEach((r) => {
+        const cleanSku = String(r.id_articulo || '').trim().replace(/^0+/, '') || String(r.id_articulo || '').trim();
+        if (cleanSku && !productMap.has(cleanSku) && r.articulo && !isGenericProductLabel(r.articulo)) {
+          productMap.set(cleanSku, r.articulo.trim());
+        }
+      });
+
+      try {
+        localStorage.setItem('app_product_map_cache', JSON.stringify(Object.fromEntries(productMap.entries())));
+      } catch {}
+
       // 4. Combine Jan-Oct (Supabase `history_sales`) + Nov (Google Sheets `Ventas` >= 2026-11-01)
       const unifiedDetailRows = [...janToOctDetailRows, ...novemberDetailRows];
       setRawFacturacionRows(
@@ -626,10 +647,10 @@ export const DashboardOverview: React.FC = () => {
           idCliente: r.id_cliente,
           cliente: r.cliente,
           idArt: r.id_articulo,
-          articulo: r.articulo,
+          articulo: resolveCatalogProductName(r.id_articulo, r.articulo, productMap),
           vendedor: r.vendedor,
           supervisor: supervisorBySeller.get(r.vendedor) || r.supervisor,
-          categoria: productCategoryMap.get(r.id_articulo) || 'GENERAL',
+          categoria: productCategoryMap.get(r.id_articulo) || productCategoryMap.get(String(r.id_articulo || '').replace(/^0+/, '')) || 'GENERAL',
           cajas: r.cajas,
           unidades: r.unidades,
           kg: r.kgs_lts,
@@ -886,12 +907,41 @@ export const DashboardOverview: React.FC = () => {
       return date;
     };
 
+    const buildUniqueShortLabels = <T extends { fullName: string; idArt: string; displayDateSuffix?: string }>(
+      items: T[],
+      maxLen: number
+    ): string[] => {
+      const rawShorts = items.map((item) => {
+        const base = String(item.fullName || '').trim();
+        let short = base.length > maxLen ? base.substring(0, maxLen - 2).trim() + '...' : base;
+        if (item.displayDateSuffix) {
+          short = `${short} (${item.displayDateSuffix})`;
+        }
+        return short;
+      });
+
+      const counts = new Map<string, number>();
+      rawShorts.forEach((s) => counts.set(s, (counts.get(s) || 0) + 1));
+
+      return items.map((item, idx) => {
+        const candidate = rawShorts[idx];
+        if ((counts.get(candidate) || 0) <= 1) return candidate;
+        const base = String(item.fullName || '').trim();
+        const tokens = base.split(/\s+/);
+        const lastToken = tokens.length > 1 ? tokens[tokens.length - 1] : `#${item.idArt}`;
+        const prefixLen = Math.max(8, maxLen - lastToken.length - 4);
+        const disambiguated = `${base.substring(0, prefixLen).trim()}… ${lastToken}`;
+        return item.displayDateSuffix ? `${disambiguated} (${item.displayDateSuffix})` : disambiguated;
+      });
+    };
+
     // If 2 periods are selected: Specialized Comparative Dual-Period Data Structure
     if (selectedTimeGroups.length === 2) {
       const [m1, m2] = [...selectedTimeGroups].sort((a, b) => a.localeCompare(b));
       
       const productMap = new Map<string, {
         idArt: string;
+        skuSet: Set<string>;
         baseName: string;
         m1Facturado: number;
         m2Facturado: number;
@@ -906,10 +956,15 @@ export const DashboardOverview: React.FC = () => {
       filtered.forEach(p => {
         const gd = mapGroupDate(p.date);
         if (gd !== m1 && gd !== m2) return;
-        if (!productMap.has(p.idArt)) {
-          productMap.set(p.idArt, {
-            idArt: p.idArt,
-            baseName: p.baseName,
+        const cleanSku = String(p.idArt || '').trim().replace(/^0+/, '') || String(p.idArt || '').trim();
+        const canonicalName = resolveCatalogProductName(cleanSku, p.baseName);
+        const normKey = normalizeProductIdentityKey(canonicalName) || cleanSku;
+
+        if (!productMap.has(normKey)) {
+          productMap.set(normKey, {
+            idArt: cleanSku,
+            skuSet: new Set(cleanSku ? [cleanSku] : []),
+            baseName: canonicalName,
             m1Facturado: 0,
             m2Facturado: 0,
             m1Kg: 0,
@@ -920,7 +975,8 @@ export const DashboardOverview: React.FC = () => {
             m2DV: 0,
           });
         }
-        const item = productMap.get(p.idArt)!;
+        const item = productMap.get(normKey)!;
+        if (cleanSku) item.skuSet.add(cleanSku);
         const amt = Number(p.facturado) || 0;
         const kg = Number(p.despachado) || Number(p.kgFacturado) || 0;
         const fa = Number(p.montoFA) || amt;
@@ -954,9 +1010,14 @@ export const DashboardOverview: React.FC = () => {
         list = list.slice(0, 25);
       }
 
-      return list.map(p => {
-        let shortName = p.baseName;
-        if (shortName.length > 20) shortName = shortName.substring(0, 18) + '...';
+      const shortLabels = buildUniqueShortLabels(
+        list.map((p) => ({ fullName: p.baseName, idArt: Array.from(p.skuSet).join(', ') || p.idArt })),
+        20
+      );
+
+      return list.map((p, idx) => {
+        const mergedIdArt = Array.from(p.skuSet).join(', ') || p.idArt;
+        const shortName = shortLabels[idx];
 
         const diffFact = p.m2Facturado - p.m1Facturado;
         const pctFact = p.m1Facturado > 0 ? (diffFact / p.m1Facturado) * 100 : (p.m2Facturado > 0 ? 100 : 0);
@@ -964,7 +1025,7 @@ export const DashboardOverview: React.FC = () => {
         const pctKg = p.m1Kg > 0 ? (diffKg / p.m1Kg) * 100 : (p.m2Kg > 0 ? 100 : 0);
 
         return {
-          idArt: p.idArt,
+          idArt: mergedIdArt,
           name: shortName,
           fullName: p.baseName,
           originalName: p.baseName,
@@ -992,83 +1053,136 @@ export const DashboardOverview: React.FC = () => {
       });
     }
 
-    // Standard View: Single month or Consolidated
-    let groupsToShow = selectedTimeGroups;
-    if (groupsToShow.length === 0 && availableGroups.length > 0) {
-      groupsToShow = [availableGroups[0]];
-    }
+    // Standard View: Single date/month or Consolidated across active period ("Fechas (Todas)")
+    const isConsolidatedAllDates = selectedTimeGroups.length === 0;
+    const groupsToShow = selectedTimeGroups;
 
-    if (groupsToShow.length > 0) {
+    if (!isConsolidatedAllDates) {
       filtered = filtered.filter(p => groupsToShow.includes(mapGroupDate(p.date)));
+    } else if (!appliedFilters.startDate && !appliedFilters.endDate) {
+      const targetPeriodPrefix = periodoActivo === '2026-10' ? '2026-10' : '2026-11';
+      const periodMatches = filtered.filter(p => String(p.date || '').startsWith(targetPeriodPrefix));
+      if (periodMatches.length > 0) {
+        filtered = periodMatches;
+      } else if (availableGroups.length > 0) {
+        const latestMonthPrefix = availableGroups[0].slice(0, 7);
+        filtered = filtered.filter(p => String(p.date || '').startsWith(latestMonthPrefix));
+      }
     }
 
-    let allowedIdArts: Set<string> | null = null;
-    if (showTop5 && selectedSkus.length === 0) {
-      const byDate = new Map<string, Map<string, { facturado: number; kg: number }>>();
-      filtered.forEach(p => {
-        const gd = mapGroupDate(p.date);
-        if (!byDate.has(gd)) byDate.set(gd, new Map());
-        const dMap = byDate.get(gd)!;
-        if (!dMap.has(p.idArt)) dMap.set(p.idArt, { facturado: 0, kg: 0 });
-        const cur = dMap.get(p.idArt)!;
-        cur.facturado += (Number(p.facturado) || 0);
-        cur.kg += (Number(p.despachado) || Number(p.kgFacturado) || 0);
-      });
-      
-      allowedIdArts = new Set();
-      byDate.forEach((dMap, gd) => {
-        const sorted = Array.from(dMap.entries()).sort((a, b) => {
-          if (productSortMetric === 'despachado') {
-            return b[1].kg - a[1].kg;
-          }
-          return b[1].facturado - a[1].facturado;
-        });
-        sorted.slice(0, 5).forEach(x => allowedIdArts!.add(`${x[0]}|${gd}`));
-      });
-    }
+    const effectiveGroupDate = (date: string) => {
+      if (isConsolidatedAllDates) {
+        return periodoActivo === '2026-10' ? 'Octubre 2026' : 'Noviembre 2026';
+      }
+      return mapGroupDate(date);
+    };
 
-    const grouped = new Map<string, any>();
+    // Single-pass consolidation by (normalizedProductName | groupDate) so no product ever duplicates in Top 5
+    const byGroupDate = new Map<string, Map<string, {
+      idArt: string;
+      skuSet: Set<string>;
+      groupDate: string;
+      displayDateSuffix?: string;
+      fullName: string;
+      originalName: string;
+      facturado: number;
+      despachado: number;
+      kgFacturado: number;
+      rawFacturado: number;
+      date: string;
+    }>>();
+
     filtered.forEach(p => {
-      let groupDate = mapGroupDate(p.date);
-      let displayDate = mapDisplayDate(p.date);
-      
-      if (allowedIdArts && !allowedIdArts.has(`${p.idArt}|${groupDate}`)) return;
-      
-      const aggKey = `${p.idArt}|${groupDate}`;
-      if (!grouped.has(aggKey)) {
-        let name = p.baseName;
-        if (name.length > 20) name = name.substring(0, 17) + '...';
-        
-        if (groupsToShow.length > 1) {
-          name = `${name} (${displayDate})`;
-        }
-        
-        grouped.set(aggKey, {
-          idArt: p.idArt,
+      const groupDate = effectiveGroupDate(p.date);
+      const displayDate = isConsolidatedAllDates ? groupDate : mapDisplayDate(p.date);
+      const cleanSku = String(p.idArt || '').trim().replace(/^0+/, '') || String(p.idArt || '').trim();
+      const canonicalName = resolveCatalogProductName(cleanSku, p.baseName);
+      const normKey = normalizeProductIdentityKey(canonicalName) || cleanSku;
+
+      if (!byGroupDate.has(groupDate)) {
+        byGroupDate.set(groupDate, new Map());
+      }
+      const groupMap = byGroupDate.get(groupDate)!;
+
+      if (!groupMap.has(normKey)) {
+        groupMap.set(normKey, {
+          idArt: cleanSku,
+          skuSet: new Set(cleanSku ? [cleanSku] : []),
           groupDate,
-          name,
-          fullName: p.baseName,
-          originalName: p.baseName,
+          displayDateSuffix: !isConsolidatedAllDates && groupsToShow.length > 1 ? displayDate : undefined,
+          fullName: canonicalName,
+          originalName: canonicalName,
           facturado: 0,
           despachado: 0,
           kgFacturado: 0,
           rawFacturado: 0,
-          date: groupDate
+          date: groupDate,
         });
       }
-      
-      const g = grouped.get(aggKey)!;
+
+      const g = groupMap.get(normKey)!;
+      if (cleanSku) g.skuSet.add(cleanSku);
       const amt = Number(p.facturado) || 0;
       const kg = Number(p.despachado) || Number(p.kgFacturado) || 0;
-      g.facturado += (amt / 1000);
-      g.despachado += (kg / 1000);
+      g.facturado += amt / 1000;
+      g.despachado += kg / 1000;
       g.kgFacturado += kg;
       g.rawFacturado += amt;
     });
-    
-    let result = Array.from(grouped.values());
-    
-    result.sort((a, b) => {
+
+    let consolidatedItems: Array<{
+      idArt: string;
+      groupDate: string;
+      displayDateSuffix?: string;
+      fullName: string;
+      originalName: string;
+      facturado: number;
+      despachado: number;
+      kgFacturado: number;
+      rawFacturado: number;
+      date: string;
+    }> = [];
+
+    byGroupDate.forEach((groupMap) => {
+      let groupEntries = Array.from(groupMap.values()).map((entry) => ({
+        idArt: Array.from(entry.skuSet).join(', ') || entry.idArt,
+        groupDate: entry.groupDate,
+        displayDateSuffix: entry.displayDateSuffix,
+        fullName: entry.fullName,
+        originalName: entry.originalName,
+        facturado: entry.facturado,
+        despachado: entry.despachado,
+        kgFacturado: entry.kgFacturado,
+        rawFacturado: entry.rawFacturado,
+        date: entry.date,
+      }));
+
+      const positiveEntries = groupEntries.filter((r) =>
+        productSortMetric === 'despachado' ? r.kgFacturado > 0 : r.rawFacturado > 0
+      );
+      if (positiveEntries.length > 0) {
+        groupEntries = positiveEntries.map((r) => ({
+          ...r,
+          facturado: Math.max(0, Number(r.facturado.toFixed(3))),
+          despachado: Math.max(0, Number(r.despachado.toFixed(3))),
+        }));
+      }
+
+      groupEntries.sort((a, b) => {
+        if (productSortMetric === 'despachado') {
+          return b.kgFacturado - a.kgFacturado;
+        }
+        return b.rawFacturado - a.rawFacturado;
+      });
+
+      if (showTop5 && selectedSkus.length === 0) {
+        groupEntries = groupEntries.slice(0, 5);
+      }
+
+      consolidatedItems.push(...groupEntries);
+    });
+
+    consolidatedItems.sort((a, b) => {
       if (productSortMetric === 'despachado') {
         return b.kgFacturado - a.kgFacturado;
       }
@@ -1076,11 +1190,24 @@ export const DashboardOverview: React.FC = () => {
     });
 
     if (!showTop5 && selectedSkus.length === 0) {
-      result = result.slice(0, 35);
+      consolidatedItems = consolidatedItems.slice(0, 35);
     }
-    
-    return result;
-  }, [combinedProductData, skuFilter, showTop5, timeView, selectedTimeGroups, availableGroups, selectedSkus, productSortMetric, appliedFilters]);
+
+    const uniqueShortNames = buildUniqueShortLabels(consolidatedItems, 24);
+
+    return consolidatedItems.map((item, idx) => ({
+      idArt: item.idArt,
+      groupDate: item.groupDate,
+      name: uniqueShortNames[idx],
+      fullName: item.fullName,
+      originalName: item.originalName,
+      facturado: item.facturado,
+      despachado: item.despachado,
+      kgFacturado: item.kgFacturado,
+      rawFacturado: item.rawFacturado,
+      date: item.date,
+    }));
+  }, [combinedProductData, skuFilter, showTop5, timeView, selectedTimeGroups, availableGroups, selectedSkus, productSortMetric, appliedFilters, periodoActivo]);
 
   // Dynamically filtered KPIs reflecting active period ('2026-11' vs '2026-10') and active filters
   const activeKpis = React.useMemo(() => {
@@ -1290,10 +1417,12 @@ export const DashboardOverview: React.FC = () => {
     // 2. Extract products shown in chart or relevant to comparison
     const graphedMap = new Map<string, { idArt: string; name: string }>();
     productData.forEach(p => {
-      if (p.idArt && !graphedMap.has(p.idArt)) {
-        graphedMap.set(p.idArt, {
+      const fullName = p.fullName || p.originalName || p.name;
+      const normKey = normalizeProductIdentityKey(fullName) || String(p.idArt || '').trim();
+      if (normKey && !graphedMap.has(normKey)) {
+        graphedMap.set(normKey, {
           idArt: p.idArt,
-          name: p.fullName || p.originalName || p.name
+          name: fullName
         });
       }
     });
@@ -1312,9 +1441,9 @@ export const DashboardOverview: React.FC = () => {
       m2DV: number;
     }>();
     
-    graphedMap.forEach((info, idArt) => {
-      productStats.set(idArt, {
-        idArt,
+    graphedMap.forEach((info, normKey) => {
+      productStats.set(normKey, {
+        idArt: info.idArt,
         name: info.name,
         m1Facturado: 0,
         m2Facturado: 0,
@@ -1330,9 +1459,12 @@ export const DashboardOverview: React.FC = () => {
     allData.forEach(p => {
       const gDate = mapGroupDate(p.date);
       if (gDate !== m1 && gDate !== m2) return;
-      if (!productStats.has(p.idArt)) return;
+      const cleanSku = String(p.idArt || '').trim().replace(/^0+/, '') || String(p.idArt || '').trim();
+      const canonicalName = resolveCatalogProductName(cleanSku, p.baseName);
+      const normKey = normalizeProductIdentityKey(canonicalName) || cleanSku;
+      if (!productStats.has(normKey)) return;
       
-      const stat = productStats.get(p.idArt)!;
+      const stat = productStats.get(normKey)!;
       const amt = Number(p.facturado) || 0;
       const kg = Number(p.despachado) || Number(p.kgFacturado) || 0;
       const fa = Number(p.montoFA) || amt;
@@ -1539,10 +1671,13 @@ export const DashboardOverview: React.FC = () => {
         totalMonthFA += (p.montoFA || amt);
         totalMonthDV += (p.montoDV || 0);
 
-        if (!productMap.has(p.idArt)) {
-          productMap.set(p.idArt, { name: p.baseName, value: 0 });
+        const cleanSku = String(p.idArt || '').trim().replace(/^0+/, '') || String(p.idArt || '').trim();
+        const canonicalName = resolveCatalogProductName(cleanSku, p.baseName);
+        const normKey = normalizeProductIdentityKey(canonicalName) || cleanSku;
+        if (!productMap.has(normKey)) {
+          productMap.set(normKey, { name: canonicalName, value: 0 });
         }
-        productMap.get(p.idArt)!.value += amt;
+        productMap.get(normKey)!.value += amt;
       });
 
       if (mKey === '2026-10' && historialOctubre2026 && historialOctubre2026.facturacionTotal > 0) {
@@ -1910,8 +2045,8 @@ export const DashboardOverview: React.FC = () => {
 
       {/* Chart 2: Facturado vs Despachado */}
       <div className="bg-zinc-950/60 border border-white/5 rounded-xl p-6 shadow-[0_4px_20px_rgba(0,0,0,0.5)] relative">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between mb-8 gap-4">
-          <div>
+        <div className="flex flex-col xl:flex-row xl:items-center justify-between mb-6 gap-4 pb-4 border-b border-white/5">
+          <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <h3 className="text-sm font-bold text-white uppercase tracking-wider">
                 Facturado vs Despachado
@@ -1932,13 +2067,13 @@ export const DashboardOverview: React.FC = () => {
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center justify-start xl:justify-end gap-2">
             {/* Control: Ordenar por Facturado vs Despachado */}
-            <div className="flex bg-black/60 border border-white/10 rounded-md p-0.5">
+            <div className="flex bg-black/60 border border-white/10 rounded-md p-0.5 h-8 items-center">
               <button
                 type="button"
                 onClick={() => setProductSortMetric('facturado')}
-                className={`flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold rounded transition-colors ${
+                className={`flex items-center gap-1.5 px-2.5 h-full text-xs font-bold rounded transition-colors ${
                   productSortMetric === 'facturado' 
                     ? 'bg-red-600 text-white shadow' 
                     : 'text-zinc-400 hover:text-white'
@@ -1951,7 +2086,7 @@ export const DashboardOverview: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setProductSortMetric('despachado')}
-                className={`flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold rounded transition-colors ${
+                className={`flex items-center gap-1.5 px-2.5 h-full text-xs font-bold rounded transition-colors ${
                   productSortMetric === 'despachado' 
                     ? 'bg-zinc-800 text-white border border-white/20 shadow' 
                     : 'text-zinc-400 hover:text-white'
@@ -1962,19 +2097,30 @@ export const DashboardOverview: React.FC = () => {
                 <span>Más Despachados (KG)</span>
               </button>
             </div>
+
+            {selectedSkus.length === 0 && (
+              <div className="flex bg-black/50 border border-white/10 rounded-md p-0.5 h-8 items-center">
+                <button 
+                  onClick={() => setShowTop5(true)}
+                  className={`px-3 h-full text-xs font-bold rounded shadow transition-colors ${showTop5 ? 'bg-red-600 text-white' : 'text-zinc-400 hover:text-white'}`}>Top 5</button>
+                <button 
+                  onClick={() => setShowTop5(false)}
+                  className={`px-3 h-full text-xs font-bold rounded shadow transition-colors ${!showTop5 ? 'bg-red-600 text-white' : 'text-zinc-400 hover:text-white'}`}>Todos</button>
+              </div>
+            )}
             
             {/* Multi-select de SKUs */}
             <div className="relative" ref={skuPickerRef}>
               <button 
                 onClick={() => setShowSkuPicker(!showSkuPicker)}
-                className={`flex items-center gap-1 bg-black/50 border ${selectedSkus.length > 0 ? 'border-red-500/50' : 'border-white/10'} rounded-md px-3 py-1 text-xs font-medium text-zinc-300 hover:bg-zinc-900 transition-colors h-[26px]`}
+                className={`flex items-center gap-1.5 bg-black/50 border ${selectedSkus.length > 0 ? 'border-red-500/50' : 'border-white/10'} rounded-md px-3 text-xs font-medium text-zinc-300 hover:bg-zinc-900 transition-colors h-8`}
               >
                 <Filter className="w-3 h-3 text-zinc-400" />
                 {selectedSkus.length === 0 ? 'Filtrar SKUs' : `${selectedSkus.length} Productos`}
               </button>
               
               {showSkuPicker && (
-                <div className="absolute right-0 lg:left-0 top-full mt-2 w-72 bg-zinc-950 border border-white/10 rounded-lg p-3 shadow-2xl z-50 flex flex-col gap-2">
+                <div className="absolute right-0 top-full mt-2 w-72 bg-zinc-950 border border-white/10 rounded-lg p-3 shadow-2xl z-50 flex flex-col gap-2">
                   <div className="flex justify-between items-center mb-1">
                     <span className="text-xs font-bold text-white">Seleccionar Productos</span>
                     {selectedSkus.length > 0 && (
@@ -2014,26 +2160,26 @@ export const DashboardOverview: React.FC = () => {
               )}
             </div>
 
-            <div className="flex bg-black/50 border border-white/10 rounded-md p-0.5">
+            <div className="flex bg-black/50 border border-white/10 rounded-md p-0.5 h-8 items-center">
               <button 
                 onClick={() => setTimeView('day')}
-                className={`px-3 py-1 text-xs font-bold rounded shadow transition-colors ${timeView === 'day' ? 'bg-zinc-800 text-white' : 'text-zinc-400 hover:text-white'}`}>Día</button>
+                className={`px-3 h-full text-xs font-bold rounded shadow transition-colors ${timeView === 'day' ? 'bg-zinc-800 text-white' : 'text-zinc-400 hover:text-white'}`}>Día</button>
               <button 
                 onClick={() => setTimeView('month')}
-                className={`px-3 py-1 text-xs font-bold rounded shadow transition-colors ${timeView === 'month' ? 'bg-zinc-800 text-white' : 'text-zinc-400 hover:text-white'}`}>Mes</button>
+                className={`px-3 h-full text-xs font-bold rounded shadow transition-colors ${timeView === 'month' ? 'bg-zinc-800 text-white' : 'text-zinc-400 hover:text-white'}`}>Mes</button>
             </div>
 
             <div className="relative" ref={datePickerRef}>
               <button 
                 onClick={() => setShowDatePicker(!showDatePicker)}
-                className={`flex items-center gap-1 bg-black/50 border ${selectedTimeGroups.length > 0 ? 'border-red-500/50' : 'border-white/10'} rounded-md px-3 py-1 text-xs font-medium text-zinc-300 hover:bg-zinc-900 transition-colors h-[26px]`}
+                className={`flex items-center gap-1.5 bg-black/50 border ${selectedTimeGroups.length > 0 ? 'border-red-500/50' : 'border-white/10'} rounded-md px-3 text-xs font-medium text-zinc-300 hover:bg-zinc-900 transition-colors h-8`}
               >
                 <CalendarIcon className="w-3 h-3 text-red-500" />
                 {selectedTimeGroups.length === 0 ? 'Fechas (Todas)' : `${selectedTimeGroups.length} sel.`}
               </button>
               
               {showDatePicker && (
-                <div className="absolute right-0 lg:left-0 top-full mt-2 w-64 bg-zinc-950 border border-white/10 rounded-lg p-3 shadow-2xl z-50 flex flex-col gap-2">
+                <div className="absolute right-0 top-full mt-2 w-64 bg-zinc-950 border border-white/10 rounded-lg p-3 shadow-2xl z-50 flex flex-col gap-2">
                   <div className="flex justify-between items-center mb-1">
                     <span className="text-xs font-bold text-white">Seleccionar {timeView === 'day' ? 'Días' : 'Meses'}</span>
                     {selectedTimeGroups.length > 0 && (
@@ -2064,17 +2210,6 @@ export const DashboardOverview: React.FC = () => {
                 </div>
               )}
             </div>
-
-            {selectedSkus.length === 0 && (
-              <div className="flex bg-black/50 border border-white/10 rounded-md p-0.5">
-                <button 
-                  onClick={() => setShowTop5(true)}
-                  className={`px-3 py-1 text-xs font-bold rounded shadow transition-colors ${showTop5 ? 'bg-red-600 text-white' : 'text-zinc-400 hover:text-white'}`}>Top 5</button>
-                <button 
-                  onClick={() => setShowTop5(false)}
-                  className={`px-3 py-1 text-xs font-bold rounded shadow transition-colors ${!showTop5 ? 'bg-red-600 text-white' : 'text-zinc-400 hover:text-white'}`}>Todos</button>
-              </div>
-            )}
           </div>
         </div>
         
@@ -2475,55 +2610,105 @@ export const DashboardOverview: React.FC = () => {
         )}
 
         {/* GRÁFICA PRINCIPAL */}
-        <div className="h-[400px] w-full mt-2">
+        <div className="h-[380px] w-full mt-2">
           <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={productData} margin={{ top: 20, right: 20, bottom: 90, left: 20 }}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#333" />
+            <ComposedChart data={productData} barGap={6} margin={{ top: 16, right: 12, bottom: 55, left: 4 }}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#27272a" />
               <XAxis 
                 dataKey="name" 
                 interval={0} 
-                angle={-45}
+                angle={-25}
                 textAnchor="end"
-                height={85}
-                tick={{ fill: '#71717a', fontSize: 10 }} 
-                axisLine={false} 
+                height={60}
+                tick={{ fill: '#a1a1aa', fontSize: 11, fontWeight: 500 }} 
+                axisLine={{ stroke: '#27272a' }} 
                 tickLine={false} 
-                dy={10} 
+                dy={8} 
               />
               
               {selectedTimeGroups.length === 2 && monthComparisonData ? (
                 comparisonChartMode === 'facturado' ? (
                   <>
-                    <YAxis yAxisId="left" tickFormatter={(v) => `$${v}k`} tick={{ fill: '#71717a', fontSize: 12 }} axisLine={false} tickLine={false} dx={-10} />
+                    <YAxis
+                      yAxisId="left"
+                      domain={[0, 'auto']}
+                      width={64}
+                      tickFormatter={(v) => (v === 0 ? '$0' : Math.abs(v) >= 1 ? `$${Number(v.toFixed(1))}k` : `$${Math.round(v * 1000)}`)}
+                      tick={{ fill: '#a1a1aa', fontSize: 11 }}
+                      axisLine={false}
+                      tickLine={false}
+                    />
                     <Tooltip content={<ProductTooltip />} cursor={{ fill: '#ffffff', opacity: 0.05 }} />
-                    <Bar yAxisId="left" dataKey="m1FacturadoK" name={`${monthComparisonData.m1LabelShort} ($k USD)`} fill="#991b1b" barSize={16} radius={[2, 2, 0, 0]} />
-                    <Bar yAxisId="left" dataKey="m2FacturadoK" name={`${monthComparisonData.m2LabelShort} ($k USD)`} fill="#ef4444" barSize={16} radius={[2, 2, 0, 0]} />
+                    <Bar yAxisId="left" dataKey="m1FacturadoK" name={`${monthComparisonData.m1LabelShort} ($k USD)`} fill="#991b1b" barSize={20} radius={[4, 4, 0, 0]} />
+                    <Bar yAxisId="left" dataKey="m2FacturadoK" name={`${monthComparisonData.m2LabelShort} ($k USD)`} fill="#ef4444" barSize={20} radius={[4, 4, 0, 0]} />
                   </>
                 ) : comparisonChartMode === 'despachado' ? (
                   <>
-                    <YAxis yAxisId="left" tickFormatter={(v) => `${v}k kg`} tick={{ fill: '#71717a', fontSize: 12 }} axisLine={false} tickLine={false} dx={-10} />
+                    <YAxis
+                      yAxisId="left"
+                      domain={[0, 'auto']}
+                      width={72}
+                      tickFormatter={(v) => (v === 0 ? '0 kg' : Math.abs(v) >= 1 ? `${Number(v.toFixed(1))}k kg` : `${Math.round(v * 1000)} kg`)}
+                      tick={{ fill: '#a1a1aa', fontSize: 11 }}
+                      axisLine={false}
+                      tickLine={false}
+                    />
                     <Tooltip content={<ProductTooltip />} cursor={{ fill: '#ffffff', opacity: 0.05 }} />
-                    <Bar yAxisId="left" dataKey="m1KgK" name={`${monthComparisonData.m1LabelShort} (k kg)`} fill="#0369a1" barSize={16} radius={[2, 2, 0, 0]} />
-                    <Bar yAxisId="left" dataKey="m2KgK" name={`${monthComparisonData.m2LabelShort} (k kg)`} fill="#38bdf8" barSize={16} radius={[2, 2, 0, 0]} />
+                    <Bar yAxisId="left" dataKey="m1KgK" name={`${monthComparisonData.m1LabelShort} (k kg)`} fill="#0369a1" barSize={20} radius={[4, 4, 0, 0]} />
+                    <Bar yAxisId="left" dataKey="m2KgK" name={`${monthComparisonData.m2LabelShort} (k kg)`} fill="#38bdf8" barSize={20} radius={[4, 4, 0, 0]} />
                   </>
                 ) : (
                   <>
-                    <YAxis yAxisId="left" tickFormatter={(v) => `$${v}k`} tick={{ fill: '#71717a', fontSize: 12 }} axisLine={false} tickLine={false} dx={-10} />
-                    <YAxis yAxisId="right" orientation="right" tickFormatter={(v) => `${v}k kg`} tick={{ fill: '#71717a', fontSize: 12 }} axisLine={false} tickLine={false} dx={10} />
+                    <YAxis
+                      yAxisId="left"
+                      domain={[0, 'auto']}
+                      width={64}
+                      tickFormatter={(v) => (v === 0 ? '$0' : Math.abs(v) >= 1 ? `$${Number(v.toFixed(1))}k` : `$${Math.round(v * 1000)}`)}
+                      tick={{ fill: '#a1a1aa', fontSize: 11 }}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <YAxis
+                      yAxisId="right"
+                      orientation="right"
+                      domain={[0, 'auto']}
+                      width={72}
+                      tickFormatter={(v) => (v === 0 ? '0 kg' : Math.abs(v) >= 1 ? `${Number(v.toFixed(1))}k kg` : `${Math.round(v * 1000)} kg`)}
+                      tick={{ fill: '#a1a1aa', fontSize: 11 }}
+                      axisLine={false}
+                      tickLine={false}
+                    />
                     <Tooltip content={<ProductTooltip />} cursor={{ fill: '#ffffff', opacity: 0.05 }} />
-                    <Bar yAxisId="left" dataKey="m1FacturadoK" name={`${monthComparisonData.m1LabelShort} ($k)`} fill="#991b1b" barSize={12} radius={[2, 2, 0, 0]} />
-                    <Bar yAxisId="left" dataKey="m2FacturadoK" name={`${monthComparisonData.m2LabelShort} ($k)`} fill="#ef4444" barSize={12} radius={[2, 2, 0, 0]} />
-                    <Bar yAxisId="right" dataKey="m1KgK" name={`${monthComparisonData.m1LabelShort} (kg)`} fill="#0369a1" barSize={12} radius={[2, 2, 0, 0]} />
-                    <Bar yAxisId="right" dataKey="m2KgK" name={`${monthComparisonData.m2LabelShort} (kg)`} fill="#38bdf8" barSize={12} radius={[2, 2, 0, 0]} />
+                    <Bar yAxisId="left" dataKey="m1FacturadoK" name={`${monthComparisonData.m1LabelShort} ($k)`} fill="#991b1b" barSize={14} radius={[4, 4, 0, 0]} />
+                    <Bar yAxisId="left" dataKey="m2FacturadoK" name={`${monthComparisonData.m2LabelShort} ($k)`} fill="#ef4444" barSize={14} radius={[4, 4, 0, 0]} />
+                    <Bar yAxisId="right" dataKey="m1KgK" name={`${monthComparisonData.m1LabelShort} (kg)`} fill="#0369a1" barSize={14} radius={[4, 4, 0, 0]} />
+                    <Bar yAxisId="right" dataKey="m2KgK" name={`${monthComparisonData.m2LabelShort} (kg)`} fill="#38bdf8" barSize={14} radius={[4, 4, 0, 0]} />
                   </>
                 )
               ) : (
                 <>
-                  <YAxis yAxisId="left" tickFormatter={(v) => `$${v}k`} tick={{ fill: '#71717a', fontSize: 12 }} axisLine={false} tickLine={false} dx={-10} />
-                  <YAxis yAxisId="right" orientation="right" tickFormatter={(v) => `${v}k kg`} tick={{ fill: '#71717a', fontSize: 12 }} axisLine={false} tickLine={false} dx={10} />
+                  <YAxis
+                    yAxisId="left"
+                    domain={[0, 'auto']}
+                    width={64}
+                    tickFormatter={(v) => (v === 0 ? '$0' : Math.abs(v) >= 1 ? `$${Number(v.toFixed(1))}k` : `$${Math.round(v * 1000)}`)}
+                    tick={{ fill: '#a1a1aa', fontSize: 11 }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <YAxis
+                    yAxisId="right"
+                    orientation="right"
+                    domain={[0, 'auto']}
+                    width={72}
+                    tickFormatter={(v) => (v === 0 ? '0 kg' : Math.abs(v) >= 1 ? `${Number(v.toFixed(1))}k kg` : `${Math.round(v * 1000)} kg`)}
+                    tick={{ fill: '#a1a1aa', fontSize: 11 }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
                   <Tooltip content={<ProductTooltip />} cursor={{ fill: '#ffffff', opacity: 0.05 }} />
-                  <Bar yAxisId="left" dataKey="facturado" fill="#dc2626" barSize={20} radius={[2, 2, 0, 0]} />
-                  <Bar yAxisId="right" dataKey="despachado" fill="#3b82f6" barSize={20} radius={[2, 2, 0, 0]} />
+                  <Bar yAxisId="left" dataKey="facturado" fill="#dc2626" barSize={28} radius={[4, 4, 0, 0]} />
+                  <Bar yAxisId="right" dataKey="despachado" fill="#3b82f6" barSize={28} radius={[4, 4, 0, 0]} />
                 </>
               )}
             </ComposedChart>

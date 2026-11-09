@@ -22,6 +22,11 @@ import {
 } from '../components/cuotas/volumeQuotasData';
 import { RubrosActivationTable } from '../components/cuotas/RubrosActivationTable';
 import { MonthlyVolumeHistoryTable } from '../components/cuotas/MonthlyVolumeHistoryTable';
+import {
+  PRODUCT_CATALOG_BY_SKU,
+  normalizeProductIdentityKey,
+  resolveCatalogProductName,
+} from '../data/productCatalog';
 
 describe('Regla de Negocio: Exclusión de Cuentas Claves 1 y 2 en Activación e Inclusión en Volumen', () => {
   beforeEach(() => {
@@ -293,6 +298,30 @@ describe('Regla de Negocio: Exclusión de Cuentas Claves 1 y 2 en Activación e 
       const sellerTableFoot = sellerTable.querySelector('tfoot');
       expect(sellerTableFoot).not.toBeNull();
       expect(within(sellerTableFoot!).getAllByText(/4[.,]500/).length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('4. Catálogo Oficial de Productos (productCatalog.ts) — Sin duplicados en Top 5', () => {
+    it('garantiza que cada SKU en PRODUCT_CATALOG_BY_SKU tenga un nombre único y que SKU 272 y 1568 no se dupliquen como POLLO VENCAMPO POR KG', () => {
+      expect(resolveCatalogProductName('272')).toBe('FILET DE PECHUGA LIDER POLLO X KG');
+      expect(resolveCatalogProductName('1568')).toBe('POLLO VENCAMPO POR KG');
+      expect(resolveCatalogProductName('187')).toBe('FILET DE PECHUGA PL POR KG');
+      expect(resolveCatalogProductName('302')).toBe('MANTEQUILLA CON SAL PURISIMA BARRA 18X200GR');
+      expect(resolveCatalogProductName('1624')).toBe('MORTADELA ESP D/POLLO ASTURIAS 20UNDX500GR');
+      expect(resolveCatalogProductName('1625')).toBe('MORTADELA ESP D/POLLO SALPICAO 20UNDX500GR');
+      expect(resolveCatalogProductName('1642')).toBe('ARVEJAS VENCAMPO 25 UND X 400GR');
+      expect(resolveCatalogProductName('1643')).toBe('LOMO DE CERDO AHUMADO SALPICAO POR KG');
+      expect(resolveCatalogProductName('1644')).toBe('CARAOTAS NEGRAS VENCAMPO 25 UND X 400GR');
+
+      const seenNames = new Map<string, string>();
+      for (const [sku, name] of Object.entries(PRODUCT_CATALOG_BY_SKU)) {
+        const norm = normalizeProductIdentityKey(name);
+        expect(
+          seenNames.has(norm),
+          `Nombre duplicado en PRODUCT_CATALOG_BY_SKU: "${name}" en SKUs ${seenNames.get(norm)} y ${sku}`
+        ).toBe(false);
+        seenNames.set(norm, sku);
+      }
     });
   });
 });

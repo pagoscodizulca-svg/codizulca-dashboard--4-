@@ -47,7 +47,7 @@
   {
     "period": "2026-10",
     "product_id": "1142",
-    "product_name": "POLLO VENCAMPO POR KG",
+    "product_name": "MORT. SALCH MILANO ALPINO X KG",
     "total_boxes_sold": 1.55,
     "total_revenue": 433.4,
     "total_kgs": 12.15,
@@ -317,7 +317,7 @@
   {
     "period": "2026-10",
     "product_id": "1624",
-    "product_name": "ACEITE VENCAMPO 12X900ML",
+    "product_name": "MORTADELA ESP D/POLLO ASTURIAS 20UNDX500GR",
     "total_boxes_sold": 871.6,
     "total_revenue": 20101.04,
     "total_kgs": 8716,
@@ -326,7 +326,7 @@
   {
     "period": "2026-10",
     "product_id": "1625",
-    "product_name": "AZUCAR BLANCA VENCAMPO 1X20ND",
+    "product_name": "MORTADELA ESP D/POLLO SALPICAO 20UNDX500GR",
     "total_boxes_sold": 397.95,
     "total_revenue": 8268.46,
     "total_kgs": 3979.5,
@@ -542,7 +542,7 @@
   {
     "period": "2026-10",
     "product_id": "187",
-    "product_name": "MANTEQUILLA CON SAL PURISIMA BARRA 18X200GR",
+    "product_name": "FILET DE PECHUGA PL POR KG",
     "total_boxes_sold": 6207,
     "total_revenue": 36486.9,
     "total_kgs": 6207.62,
@@ -929,7 +929,7 @@
   {
     "period": "2026-10",
     "product_id": "1623",
-    "product_name": "ACEITE VENCAMPO 12X900ML",
+    "product_name": "MINI TOCINO ASTURIAS X POR KG",
     "total_boxes_sold": 329,
     "total_revenue": 1961.61,
     "total_kgs": 326.94,
@@ -947,7 +947,7 @@
   {
     "period": "2026-10",
     "product_id": "272",
-    "product_name": "POLLO VENCAMPO POR KG",
+    "product_name": "FILET DE PECHUGA LIDER POLLO X KG",
     "total_boxes_sold": 20441,
     "total_revenue": 129611.32,
     "total_kgs": 20449.4,
@@ -983,7 +983,7 @@
   {
     "period": "2026-10",
     "product_id": "1642",
-    "product_name": "TOCINO FRESCO ASTURIAS X KG",
+    "product_name": "ARVEJAS VENCAMPO 25 UND X 400GR",
     "total_boxes_sold": 370,
     "total_revenue": 7424.4,
     "total_kgs": 3700,
@@ -992,7 +992,7 @@
   {
     "period": "2026-10",
     "product_id": "1143",
-    "product_name": "MORT. ESPECIAL COCIDA ASTURIAS X KG",
+    "product_name": "CHORIZO T/ESPAÑOL VELA ALPINO 1X 900GR",
     "total_boxes_sold": 0.33,
     "total_revenue": 119.39,
     "total_kgs": 2.94,
@@ -1046,7 +1046,7 @@
   {
     "period": "2026-10",
     "product_id": "1644",
-    "product_name": "ACEITE VENCAMPO 12X900ML",
+    "product_name": "CARAOTAS NEGRAS VENCAMPO 25 UND X 400GR",
     "total_boxes_sold": 618.96,
     "total_revenue": 12845.35,
     "total_kgs": 6189.6,
@@ -1055,7 +1055,7 @@
   {
     "period": "2026-10",
     "product_id": "1643",
-    "product_name": "AZUCAR BLANCA VENCAMPO 1X20ND",
+    "product_name": "LOMO DE CERDO AHUMADO SALPICAO POR KG",
     "total_boxes_sold": 5140,
     "total_revenue": 34734.62,
     "total_kgs": 5152.09,
@@ -1073,7 +1073,7 @@
   {
     "period": "2026-10",
     "product_id": "1339",
-    "product_name": "TOCINO FRESCO ASTURIAS X KG",
+    "product_name": "TOCINETA AHUMADA SALPICAO X KG",
     "total_boxes_sold": 24,
     "total_revenue": 218.96,
     "total_kgs": 23.8,

@@ -1,1 +1,4195 @@
-{"id_articulo":272,"articulo":"POLLO VENCAMPO POR KG","totalMonto":128290.61,"totalCajas":20249,"totalKgs":20254.29,"clientsCount":279,"clients":[{"id_cliente":"6634","cliente":"RESTAURANT YANGTSE LC, C.A","vendedor":"OSWALDO CHURION","monto":24673.98,"cajas":4013,"kgs":4012.2,"months":{"OCTUBRE":{"monto":24673.98,"cajas":4013,"kgs":4012.2}}},{"id_cliente":"2961","cliente":"MAXI PINGUINO, C.A","vendedor":"EDUARDO PIÑA","monto":6510.4,"cajas":1002,"kgs":1001.6,"months":{"OCTUBRE":{"monto":6510.4,"cajas":1002,"kgs":1001.6}}},{"id_cliente":"7751","cliente":"JULIA LIZ PRIETO FERRER","vendedor":"CUENTAS CLAVE 1 - MC","monto":5744.9,"cajas":991,"kgs":990.5,"months":{"OCTUBRE":{"monto":5744.9,"cajas":991,"kgs":990.5}}},{"id_cliente":"3829","cliente":"CARNICERIA & CHARCUTERIA PURO LOMO, C.A","vendedor":"J PABLO ARAUJO - CAB/OJE","monto":3907.62,"cajas":600,"kgs":600.9,"months":{"OCTUBRE":{"monto":3907.62,"cajas":600,"kgs":600.9}}},{"id_cliente":"4474","cliente":"COMERCIAL NATHAN J&E, C.A","vendedor":"MARIA BRICEÑO","monto":3759.32,"cajas":592,"kgs":592.25,"months":{"OCTUBRE":{"monto":3759.32,"cajas":592,"kgs":592.25}}},{"id_cliente":"7219","cliente":"KRISPY STAR,C.A","vendedor":"HERNAN PAZ","monto":3467.8,"cajas":495,"kgs":495.4,"months":{"OCTUBRE":{"monto":3467.8,"cajas":495,"kgs":495.4}}},{"id_cliente":"2545","cliente":"COMERCIAL VICTORIA 2021, C.A","vendedor":"CARLOS FUENMAYOR","monto":3270.8,"cajas":503,"kgs":503.2,"months":{"OCTUBRE":{"monto":3270.8,"cajas":503,"kgs":503.2}}},{"id_cliente":"7701","cliente":"MULTITIENDAS FARMAPLUS GRAN BAZAR, C.A","vendedor":"CUENTAS CLAVE 1 - MC","monto":2867.1,"cajas":503,"kgs":503,"months":{"OCTUBRE":{"monto":2867.1,"cajas":503,"kgs":503}}},{"id_cliente":"7547","cliente":"CASA COMPRAS MINI MARKET,C.A","vendedor":"JOSE G. GONZALEZ","monto":2685.06,"cajas":423,"kgs":423.3,"months":{"OCTUBRE":{"monto":2685.06,"cajas":423,"kgs":423.3}}},{"id_cliente":"3720","cliente":"SUPERMERCADO TIA JUANA CITY, C.A","vendedor":"MARYERY GARCIA","monto":2565.1,"cajas":399,"kgs":399.2,"months":{"OCTUBRE":{"monto":2565.1,"cajas":399,"kgs":399.2}}},{"id_cliente":"2639","cliente":"INVERSIONES ABIMAEL, C.A","vendedor":"EDUARDO PIÑA","monto":2486.2,"cajas":401,"kgs":401,"months":{"OCTUBRE":{"monto":2486.2,"cajas":401,"kgs":401}}},{"id_cliente":"7924","cliente":"SUPERMERCADO LIBERTAD CITY, C.A","vendedor":"MARYERY GARCIA","monto":1942.78,"cajas":306,"kgs":305.9,"months":{"OCTUBRE":{"monto":1942.78,"cajas":306,"kgs":305.9}}},{"id_cliente":"8309","cliente":"QUICKMART, C.A.","vendedor":"JOSE G. GONZALEZ","monto":1661.4,"cajas":256,"kgs":255.6,"months":{"OCTUBRE":{"monto":1661.4,"cajas":256,"kgs":255.6}}},{"id_cliente":"5629","cliente":"MINIMERCADO A QUE DARIO, C.A","vendedor":"JOSE G. GONZALEZ","monto":1454.7,"cajas":224,"kgs":223.8,"months":{"OCTUBRE":{"monto":1454.7,"cajas":224,"kgs":223.8}}},{"id_cliente":"7695","cliente":"CESAR ANDRES MOISES ACERO","vendedor":"HERNAN PAZ","monto":1405,"cajas":208,"kgs":208,"months":{"OCTUBRE":{"monto":1405,"cajas":208,"kgs":208}}},{"id_cliente":"6975","cliente":"INVERSIONES Y COMERCIALIZADORA EL GORDO COMPAÑIA, C.A","vendedor":"EDUARDO PIÑA","monto":1400.62,"cajas":223,"kgs":222.5,"months":{"OCTUBRE":{"monto":1400.62,"cajas":223,"kgs":222.5}}},{"id_cliente":"5177","cliente":"SUPER TIENDA CAPRICORNIO, C.A.","vendedor":"SARAH REYES","monto":1339,"cajas":206,"kgs":206,"months":{"OCTUBRE":{"monto":1339,"cajas":206,"kgs":206}}},{"id_cliente":"2019","cliente":"FARMACIA FARMAEXPRESS 24 SAN FRANCISCO, C.A","vendedor":"SARAH REYES","monto":1276.6,"cajas":196,"kgs":196.4,"months":{"OCTUBRE":{"monto":1276.6,"cajas":196,"kgs":196.4}}},{"id_cliente":"2085","cliente":"DISTRIBUIDORA Y COMERCIALIZADORA SANTA BARBARA,C.A","vendedor":"J PABLO ARAUJO","monto":1254.5,"cajas":193,"kgs":193,"months":{"OCTUBRE":{"monto":1254.5,"cajas":193,"kgs":193}}},{"id_cliente":"7174","cliente":"MARIO ALIMENTOS, C.A","vendedor":"CARLOS FUENMAYOR","monto":1083.76,"cajas":173,"kgs":174.8,"months":{"OCTUBRE":{"monto":1083.76,"cajas":173,"kgs":174.8}}},{"id_cliente":"8095","cliente":"SUPERMARKET FIORELLA EXPRESS, C.A.","vendedor":"CUENTAS CLAVE 1 - MC","monto":1052.22,"cajas":184,"kgs":184.6,"months":{"OCTUBRE":{"monto":1052.22,"cajas":184,"kgs":184.6}}},{"id_cliente":"6751","cliente":"LURISMAR JOSE PIÑA PEÑA","vendedor":"JOSE G. GONZALEZ","monto":988,"cajas":152,"kgs":152,"months":{"OCTUBRE":{"monto":988,"cajas":152,"kgs":152}}},{"id_cliente":"275","cliente":"SUPER OFERTON, C.A","vendedor":"J PABLO ARAUJO - CAB/OJE","monto":935.22,"cajas":147,"kgs":146.7,"months":{"OCTUBRE":{"monto":935.22,"cajas":147,"kgs":146.7}}},{"id_cliente":"1613","cliente":"MARKET & INVERSIONES TERI, C.A","vendedor":"J PABLO ARAUJO","monto":929.5,"cajas":143,"kgs":143,"months":{"OCTUBRE":{"monto":929.5,"cajas":143,"kgs":143}}},{"id_cliente":"4777","cliente":"BORIS JESUS RINCON FERNANDEZ","vendedor":"ANGELICA MORENO","monto":907.4,"cajas":140,"kgs":139.6,"months":{"OCTUBRE":{"monto":907.4,"cajas":140,"kgs":139.6}}},{"id_cliente":"1595","cliente":"CHARLAVIPAN, C.A","vendedor":"MARIA BRICEÑO","monto":873.54,"cajas":137,"kgs":137.4,"months":{"OCTUBRE":{"monto":873.54,"cajas":137,"kgs":137.4}}},{"id_cliente":"7594","cliente":"INVERSIONES GA & SC ,C.A","vendedor":"JOSE G. GONZALEZ","monto":830.62,"cajas":130,"kgs":130.1,"months":{"OCTUBRE":{"monto":830.62,"cajas":130,"kgs":130.1}}},{"id_cliente":"8115","cliente":"MIGUEL ANGEL FERNANDEZ LEON","vendedor":"MARIA BRICEÑO","monto":797.84,"cajas":126,"kgs":126.1,"months":{"OCTUBRE":{"monto":797.84,"cajas":126,"kgs":126.1}}},{"id_cliente":"7635","cliente":"DISTRIBUIDORA Y COMERCIALIZADORA CHIRINOS,CA","vendedor":"J PABLO ARAUJO","monto":776.75,"cajas":119,"kgs":119.5,"months":{"OCTUBRE":{"monto":776.75,"cajas":119,"kgs":119.5}}},{"id_cliente":"7511","cliente":"5TA AVENIDA RESTAURANT & INVERSIONES,C.A","vendedor":"JOSE G. GONZALEZ","monto":764.65,"cajas":121,"kgs":120.5,"months":{"OCTUBRE":{"monto":764.65,"cajas":121,"kgs":120.5}}},{"id_cliente":"5413","cliente":"INVERSIONES Y DISTRIBUCIONES LA FORTALEZA, C.A.","vendedor":"JOSE G. GONZALEZ","monto":721.52,"cajas":124,"kgs":124.4,"months":{"OCTUBRE":{"monto":721.52,"cajas":124,"kgs":124.4}}},{"id_cliente":"6816","cliente":"LA UNION INVERSIONES, C.A","vendedor":"ANGELICA MORENO","monto":659.1,"cajas":101,"kgs":101.4,"months":{"OCTUBRE":{"monto":659.1,"cajas":101,"kgs":101.4}}},{"id_cliente":"7574","cliente":"ALKOSTO DONDE COMPRAR ES GANAR, C.A.","vendedor":"JOSE G. GONZALEZ","monto":656.5,"cajas":101,"kgs":101,"months":{"OCTUBRE":{"monto":656.5,"cajas":101,"kgs":101}}},{"id_cliente":"903","cliente":"ITALCARNE, C.A.","vendedor":"ANGELICA MORENO","monto":648.7,"cajas":100,"kgs":99.8,"months":{"OCTUBRE":{"monto":648.7,"cajas":100,"kgs":99.8}}},{"id_cliente":"8021","cliente":"KARIN ELENA MELEAN ARAUJO","vendedor":"MARIA BRICEÑO","monto":630,"cajas":99,"kgs":99,"months":{"OCTUBRE":{"monto":630,"cajas":99,"kgs":99}}},{"id_cliente":"6339","cliente":"DISTRIBUIDORA ALIANS, C..A","vendedor":"JUAN HERNANDEZ","monto":612.56,"cajas":99,"kgs":98.8,"months":{"OCTUBRE":{"monto":612.56,"cajas":99,"kgs":98.8}}},{"id_cliente":"6828","cliente":"SABORES DEL TRIGO, C.A","vendedor":"SARAH REYES","monto":608.4,"cajas":94,"kgs":93.6,"months":{"OCTUBRE":{"monto":608.4,"cajas":94,"kgs":93.6}}},{"id_cliente":"334","cliente":"CARNICERIA LA ENSENADA, COMPAÑIA ANONIMA","vendedor":"MARIA BRICEÑO","monto":576.8,"cajas":90,"kgs":90.4,"months":{"OCTUBRE":{"monto":576.8,"cajas":90,"kgs":90.4}}},{"id_cliente":"4865","cliente":"INVERSIONES HERMANOS PARRA RODRIGUEZ, C.A","vendedor":"ELISA SOLER","monto":555.1,"cajas":85,"kgs":85.4,"months":{"OCTUBRE":{"monto":555.1,"cajas":85,"kgs":85.4}}},{"id_cliente":"2764","cliente":"INVERSIONES FERRER MEDINA, C.A","vendedor":"ELISA SOLER","monto":552.5,"cajas":85,"kgs":85,"months":{"OCTUBRE":{"monto":552.5,"cajas":85,"kgs":85}}},{"id_cliente":"3767","cliente":"PERIJANERO DE TURISMO, C.A","vendedor":"MIKELANGELO DIAZ - VILLA DEL ROS","monto":546.65,"cajas":85,"kgs":84.1,"months":{"OCTUBRE":{"monto":546.65,"cajas":85,"kgs":84.1}}},{"id_cliente":"357","cliente":"AGROPECUARIA SAN BENITO DE I.F, C.A.","vendedor":"MARIA BRICEÑO","monto":538.66,"cajas":86,"kgs":85.4,"months":{"OCTUBRE":{"monto":538.66,"cajas":86,"kgs":85.4}}},{"id_cliente":"8182","cliente":"LA TERRAZA 2026, C.A","vendedor":"CARLOS FUENMAYOR","monto":527.8,"cajas":81,"kgs":81.2,"months":{"OCTUBRE":{"monto":527.8,"cajas":81,"kgs":81.2}}},{"id_cliente":"8048","cliente":"NORMA COROMOTO CARREÑO DE VENEGAS( COMERCIALIZADORA VENCAR DE NORMA CARREÑO)","vendedor":"J PABLO ARAUJO","monto":513.5,"cajas":79,"kgs":79,"months":{"OCTUBRE":{"monto":513.5,"cajas":79,"kgs":79}}},{"id_cliente":"7609","cliente":"MULTITIENDAS FARMAPLUS LOS HATICOS, C.A","vendedor":"J PABLO ARAUJO - CAB/OJE","monto":513.5,"cajas":79,"kgs":79,"months":{"OCTUBRE":{"monto":513.5,"cajas":79,"kgs":79}}},{"id_cliente":"735","cliente":"INVERSIONES VENZUCARNE, C.A.","vendedor":"JUAN HERNANDEZ","monto":497.25,"cajas":76,"kgs":76.5,"months":{"OCTUBRE":{"monto":497.25,"cajas":76,"kgs":76.5}}},{"id_cliente":"356","cliente":"INVERSIONES BOSCAN, C.A.","vendedor":"MARIA BRICEÑO","monto":495.18,"cajas":78,"kgs":77.4,"months":{"OCTUBRE":{"monto":495.18,"cajas":78,"kgs":77.4}}},{"id_cliente":"4783","cliente":"ELVIN JESUS URDANETA VILLAR  ( COMERCIALIZADORA MOVIL NOVILLO GRIL )","vendedor":"JOSE G. GONZALEZ","monto":493.52,"cajas":80,"kgs":79.6,"months":{"OCTUBRE":{"monto":493.52,"cajas":80,"kgs":79.6}}},{"id_cliente":"4092","cliente":"INVERSIONES BRIAGUI, C.A","vendedor":"ANGELICA MORENO","monto":478.4,"cajas":75,"kgs":73.6,"months":{"OCTUBRE":{"monto":478.4,"cajas":75,"kgs":73.6}}},{"id_cliente":"8179","cliente":"INVERSIONES JOHEMARKET, C.A.","vendedor":"CARLOS FUENMAYOR","monto":476.78,"cajas":77,"kgs":76.9,"months":{"OCTUBRE":{"monto":476.78,"cajas":77,"kgs":76.9}}},{"id_cliente":"353","cliente":"DISTRIBUIDORA DE POLLOS LA UNICA, COMPAÑIA ANONIMA","vendedor":"MARIA BRICEÑO","monto":472.74,"cajas":75,"kgs":75,"months":{"OCTUBRE":{"monto":472.74,"cajas":75,"kgs":75}}},{"id_cliente":"7514","cliente":"ALKOSTO DONDE COMPRAR ES GANAR, C.A.","vendedor":"JUAN HERNANDEZ","monto":448.8,"cajas":66,"kgs":66,"months":{"OCTUBRE":{"monto":448.8,"cajas":66,"kgs":66}}},{"id_cliente":"5963","cliente":"INVERSIONES JOINGMAR , C.A","vendedor":"EDUARDO PIÑA","monto":448.5,"cajas":69,"kgs":69,"months":{"OCTUBRE":{"monto":448.5,"cajas":69,"kgs":69}}},{"id_cliente":"7296","cliente":"INVERSIONES Y COMERCIALIZADORA LA \"Y\" DE YUSMAIRA VASQUEZ F.P","vendedor":"ANGELICA MORENO","monto":425.1,"cajas":65,"kgs":65.4,"months":{"OCTUBRE":{"monto":425.1,"cajas":65,"kgs":65.4}}},{"id_cliente":"6166","cliente":"TEKESITOS PASAPALOS, C.A","vendedor":"SARAH REYES","monto":421.2,"cajas":65,"kgs":64.8,"months":{"OCTUBRE":{"monto":421.2,"cajas":65,"kgs":64.8}}},{"id_cliente":"7391","cliente":"GERALEX, C.A","vendedor":"YOLEIDA LUGO","monto":405.6,"cajas":62,"kgs":62.4,"months":{"OCTUBRE":{"monto":405.6,"cajas":62,"kgs":62.4}}},{"id_cliente":"6808","cliente":"PANADERIA Y PASTELERIA EL ARCA, C.A","vendedor":"JOSE G. GONZALEZ","monto":403,"cajas":62,"kgs":62,"months":{"OCTUBRE":{"monto":403,"cajas":62,"kgs":62}}},{"id_cliente":"6140","cliente":"PANADERIA DON MIGUEL, C.A","vendedor":"HERNAN PAZ","monto":397.42,"cajas":64,"kgs":64.1,"months":{"OCTUBRE":{"monto":397.42,"cajas":64,"kgs":64.1}}},{"id_cliente":"4223","cliente":"ANDREINA PAOLA PRIETO SILVA","vendedor":"ANGELICA MORENO","monto":390,"cajas":60,"kgs":60,"months":{"OCTUBRE":{"monto":390,"cajas":60,"kgs":60}}},{"id_cliente":"3234","cliente":"INVERSIONES VARGAS J & A, C.A","vendedor":"J PABLO ARAUJO","monto":388.05,"cajas":60,"kgs":59.7,"months":{"OCTUBRE":{"monto":388.05,"cajas":60,"kgs":59.7}}},{"id_cliente":"5580","cliente":"IGNACIO CONSEPCION  FUGUET CASTRO","vendedor":"ELISA SOLER","monto":381.55,"cajas":59,"kgs":58.7,"months":{"OCTUBRE":{"monto":381.55,"cajas":59,"kgs":58.7}}},{"id_cliente":"8005","cliente":"MULTITIENDAS VIRGEN DE COROMOTO, C.A.","vendedor":"MARIA BRICEÑO","monto":379.88,"cajas":61,"kgs":60.4,"months":{"OCTUBRE":{"monto":379.88,"cajas":61,"kgs":60.4}}},{"id_cliente":"7798","cliente":"EDIXON JAVIER SANCHEZ RINCON","vendedor":"MARIA BRICEÑO","monto":375.9,"cajas":60,"kgs":59.1,"months":{"OCTUBRE":{"monto":375.9,"cajas":60,"kgs":59.1}}},{"id_cliente":"5044","cliente":"L BESHA RESTAURAN, C.A","vendedor":"EDUARDO PIÑA","monto":371.8,"cajas":57,"kgs":57.2,"months":{"OCTUBRE":{"monto":371.8,"cajas":57,"kgs":57.2}}},{"id_cliente":"8370","cliente":"CLIENTE 8370","vendedor":"J PABLO ARAUJO - CAB/OJE","monto":359.8,"cajas":51,"kgs":51.4,"months":{"OCTUBRE":{"monto":359.8,"cajas":51,"kgs":51.4}}},{"id_cliente":"7990","cliente":"INVERSORA Y COMERCIALIZADORA P¨SOILA, C. A.","vendedor":"YOLEIDA LUGO","monto":358.8,"cajas":55,"kgs":55.2,"months":{"OCTUBRE":{"monto":358.8,"cajas":55,"kgs":55.2}}},{"id_cliente":"524","cliente":"LACTEOS Y CHARCUTERIA EL RINCON DEL QUESO, C.A.","vendedor":"SARAH REYES","monto":342.55,"cajas":52,"kgs":52.7,"months":{"OCTUBRE":{"monto":342.55,"cajas":52,"kgs":52.7}}},{"id_cliente":"2853","cliente":"INVERSIONES ABIMAEL, C.A","vendedor":"MIKELANGELO DIAZ","monto":339.3,"cajas":52,"kgs":52.2,"months":{"OCTUBRE":{"monto":339.3,"cajas":52,"kgs":52.2}}},{"id_cliente":"4305","cliente":"MINIMARKET LA BENDICION M & N , C.A","vendedor":"MARIA BRICEÑO","monto":330.2,"cajas":51,"kgs":50.8,"months":{"OCTUBRE":{"monto":330.2,"cajas":51,"kgs":50.8}}},{"id_cliente":"4897","cliente":"INVERSIONES Y ACCESORIOS KELY, C.A","vendedor":"MARYERY GARCIA","monto":328.14,"cajas":51,"kgs":51.6,"months":{"OCTUBRE":{"monto":328.14,"cajas":51,"kgs":51.6}}},{"id_cliente":"3383","cliente":"INVERSIONES ABUELO TOCO C.A","vendedor":"LEONARDO RIOS","monto":325,"cajas":50,"kgs":50,"months":{"OCTUBRE":{"monto":325,"cajas":50,"kgs":50}}},{"id_cliente":"8030","cliente":"MULTITIENDAS VIRGEN DE COROMOTO, C.A.","vendedor":"LEONARDO RIOS","monto":322.4,"cajas":50,"kgs":49.6,"months":{"OCTUBRE":{"monto":322.4,"cajas":50,"kgs":49.6}}},{"id_cliente":"8235","cliente":"ENDER EDIXON GARCIA SUAREZ","vendedor":"JOSE G. GONZALEZ","monto":318.5,"cajas":49,"kgs":49,"months":{"OCTUBRE":{"monto":318.5,"cajas":49,"kgs":49}}},{"id_cliente":"8231","cliente":"INVERSIONES MARIACENTER2025, C.A.","vendedor":"J PABLO ARAUJO","monto":314.6,"cajas":48,"kgs":48.4,"months":{"OCTUBRE":{"monto":314.6,"cajas":48,"kgs":48.4}}},{"id_cliente":"3152","cliente":"INVERSIONES LA MURALLA, C.A.","vendedor":"J PABLO ARAUJO","monto":312,"cajas":48,"kgs":48,"months":{"OCTUBRE":{"monto":312,"cajas":48,"kgs":48}}},{"id_cliente":"7064","cliente":"SHU ZHEN ME LIANG","vendedor":"JOSE G. GONZALEZ","monto":310,"cajas":50,"kgs":50,"months":{"OCTUBRE":{"monto":310,"cajas":50,"kgs":50}}},{"id_cliente":"6744","cliente":"ROXENY DEL CARMEN CHOURIO BOSCAN","vendedor":"MARIA BRICEÑO","monto":309.16,"cajas":49,"kgs":48.8,"months":{"OCTUBRE":{"monto":309.16,"cajas":49,"kgs":48.8}}},{"id_cliente":"2275","cliente":"VIVERES NUEVA VICTORIA , C.A","vendedor":"MARIA BRICEÑO","monto":308.1,"cajas":47,"kgs":47.4,"months":{"OCTUBRE":{"monto":308.1,"cajas":47,"kgs":47.4}}},{"id_cliente":"8134","cliente":"MULTITIENDAS EL MANA, CA","vendedor":"ELISA SOLER","monto":304.2,"cajas":47,"kgs":46.8,"months":{"OCTUBRE":{"monto":304.2,"cajas":47,"kgs":46.8}}},{"id_cliente":"8327","cliente":"MEDINA ROJAS OCTAVIO ANTONIO","vendedor":"CARLOS FUENMAYOR","monto":300.08,"cajas":49,"kgs":48.4,"months":{"OCTUBRE":{"monto":300.08,"cajas":49,"kgs":48.4}}},{"id_cliente":"7834","cliente":"COMERCIAL EL CORDERO COMPAÑIA ANONIMA","vendedor":"ELISA SOLER","monto":297.7,"cajas":45,"kgs":45.8,"months":{"OCTUBRE":{"monto":297.7,"cajas":45,"kgs":45.8}}},{"id_cliente":"6548","cliente":"MINIMARKET ISANGELI 2024, C,A","vendedor":"MIKELANGELO DIAZ","monto":274.57,"cajas":42,"kgs":43.1,"months":{"OCTUBRE":{"monto":274.57,"cajas":42,"kgs":43.1}}},{"id_cliente":"38","cliente":"ABASTOS URDANETA, C.A","vendedor":"ANGELICA MORENO","monto":258.94,"cajas":40,"kgs":39.84,"months":{"OCTUBRE":{"monto":258.94,"cajas":40,"kgs":39.84}}},{"id_cliente":"8043","cliente":"MULTITIENDAS VIRGEN DE COROMOTO, C.A.","vendedor":"J PABLO ARAUJO - CAB/OJE","monto":257.4,"cajas":40,"kgs":39.6,"months":{"OCTUBRE":{"monto":257.4,"cajas":40,"kgs":39.6}}},{"id_cliente":"4427","cliente":"INVERSIONES VERGEL PARRA, C.A","vendedor":"MARIA BRICEÑO","monto":256.06,"cajas":41,"kgs":41.3,"months":{"OCTUBRE":{"monto":256.06,"cajas":41,"kgs":41.3}}},{"id_cliente":"7996","cliente":"YASMIL COROMOTO SANCHEZ CUEVAS","vendedor":"MARIANGEL GONZALEZ","monto":253.5,"cajas":39,"kgs":39,"months":{"OCTUBRE":{"monto":253.5,"cajas":39,"kgs":39}}},{"id_cliente":"6010","cliente":"SUPER BIG MARKET, C.A","vendedor":"ADEL JARABA","monto":250.9,"cajas":39,"kgs":38.6,"months":{"OCTUBRE":{"monto":250.9,"cajas":39,"kgs":38.6}}},{"id_cliente":"7364","cliente":"JUNIOR SALVADOR VILLASMIL LEDEZMA","vendedor":"MARIA BRICEÑO","monto":250.5,"cajas":39,"kgs":39,"months":{"OCTUBRE":{"monto":250.5,"cajas":39,"kgs":39}}},{"id_cliente":"4960","cliente":"INVERSIONES VIVERES Y CHARCUTERIA M&M, C.A","vendedor":"MARYERY GARCIA","monto":246.76,"cajas":40,"kgs":39.8,"months":{"OCTUBRE":{"monto":246.76,"cajas":40,"kgs":39.8}}},{"id_cliente":"6269","cliente":"ASTRID CAROLINA MELENDEZ COLINA","vendedor":"J PABLO ARAUJO","monto":246.61,"cajas":38,"kgs":37.94,"months":{"OCTUBRE":{"monto":246.61,"cajas":38,"kgs":37.94}}},{"id_cliente":"7861","cliente":"CRIS ALEXANDRA MARIN DE ISEA","vendedor":"MARIANGEL GONZALEZ","monto":244.4,"cajas":38,"kgs":37.6,"months":{"OCTUBRE":{"monto":244.4,"cajas":38,"kgs":37.6}}},{"id_cliente":"2758","cliente":"INVERSIONES DOS FRATELLOS L & G, C.A","vendedor":"ELISA SOLER","monto":241.34,"cajas":37,"kgs":37.13,"months":{"OCTUBRE":{"monto":241.34,"cajas":37,"kgs":37.13}}},{"id_cliente":"6977","cliente":"QUESTEFANIPAOLA,C.A","vendedor":"ELISA SOLER","monto":239.2,"cajas":37,"kgs":36.8,"months":{"OCTUBRE":{"monto":239.2,"cajas":37,"kgs":36.8}}},{"id_cliente":"6589","cliente":"MERCADO MAYORISTA 77 PARAGUANA C,A","vendedor":"MARIA BRICEÑO","monto":236.6,"cajas":36,"kgs":36.4,"months":{"OCTUBRE":{"monto":236.6,"cajas":36,"kgs":36.4}}},{"id_cliente":"6229","cliente":"NUEVO SUPERMERCADO FAMILIA, CA","vendedor":"MARYERY GARCIA","monto":232.7,"cajas":36,"kgs":35.8,"months":{"OCTUBRE":{"monto":232.7,"cajas":36,"kgs":35.8}}},{"id_cliente":"8252","cliente":"ASOCIACION COOPERATIVA DON LUCHO R.S","vendedor":"JOSE G. GONZALEZ","monto":228.8,"cajas":35,"kgs":35.2,"months":{"OCTUBRE":{"monto":228.8,"cajas":35,"kgs":35.2}}},{"id_cliente":"8244","cliente":"EMPRENDIMIENTO YANALY CHURIO","vendedor":"JOSE G. GONZALEZ","monto":226.92,"cajas":37,"kgs":36.6,"months":{"OCTUBRE":{"monto":226.92,"cajas":37,"kgs":36.6}}},{"id_cliente":"5587","cliente":"MARIALEJANDRA CAROLINA GONZALEZ NUÑEZ","vendedor":"MARYERY GARCIA","monto":226.2,"cajas":35,"kgs":34.8,"months":{"OCTUBRE":{"monto":226.2,"cajas":35,"kgs":34.8}}},{"id_cliente":"7109","cliente":"PANADERIA LA DULCE ESPERANZA","vendedor":"J PABLO ARAUJO","monto":223.6,"cajas":34,"kgs":34.4,"months":{"OCTUBRE":{"monto":223.6,"cajas":34,"kgs":34.4}}},{"id_cliente":"7650","cliente":"INVERSIONES & COMERCIALIZADORA P&C,CA","vendedor":"J PABLO ARAUJO","monto":221,"cajas":34,"kgs":34,"months":{"OCTUBRE":{"monto":221,"cajas":34,"kgs":34}}},{"id_cliente":"6626","cliente":"COMERCIALIZADORA WENDYS, C.A","vendedor":"J PABLO ARAUJO - CAB/OJE","monto":219.9,"cajas":35,"kgs":34.5,"months":{"OCTUBRE":{"monto":219.9,"cajas":35,"kgs":34.5}}},{"id_cliente":"6719","cliente":"INVERSIONES ALAMMAR, C.A","vendedor":"MARYERY GARCIA","monto":209.56,"cajas":34,"kgs":33.8,"months":{"OCTUBRE":{"monto":209.56,"cajas":34,"kgs":33.8}}},{"id_cliente":"4378","cliente":"ALEXANDER ANTONIO PACHANO HERRERA","vendedor":"LUIS GUANIPA","monto":206.7,"cajas":32,"kgs":31.8,"months":{"OCTUBRE":{"monto":206.7,"cajas":32,"kgs":31.8}}},{"id_cliente":"8107","cliente":"VERONICA CAROLINA RODRIGUEZ MOSQUERA","vendedor":"MARYERY GARCIA","monto":205.4,"cajas":32,"kgs":31.6,"months":{"OCTUBRE":{"monto":205.4,"cajas":32,"kgs":31.6}}},{"id_cliente":"2968","cliente":"V&G CARNICERIA, C.A","vendedor":"MIKELANGELO DIAZ - VILLA DEL ROS","monto":202.8,"cajas":31,"kgs":31.2,"months":{"OCTUBRE":{"monto":202.8,"cajas":31,"kgs":31.2}}},{"id_cliente":"5988","cliente":"RAFAEL FELIPE BRAVO YANEZ","vendedor":"ELISA SOLER","monto":201.5,"cajas":31,"kgs":31,"months":{"OCTUBRE":{"monto":201.5,"cajas":31,"kgs":31}}},{"id_cliente":"8220","cliente":"DISTRIBUIDORAY PROCESADORA HG (DISPROHG), C.A","vendedor":"ANGEL NAVARRO","monto":201.5,"cajas":31,"kgs":31,"months":{"OCTUBRE":{"monto":201.5,"cajas":31,"kgs":31}}},{"id_cliente":"6540","cliente":"DISTRIBUIDORA EL SOL DE BEIRUT, C.A.","vendedor":"LEONARDO RIOS","monto":198.9,"cajas":30,"kgs":30.6,"months":{"OCTUBRE":{"monto":198.9,"cajas":30,"kgs":30.6}}},{"id_cliente":"1141","cliente":"DELI MARKET GARIBALDI, C.A.","vendedor":"ADEL JARABA","monto":198.25,"cajas":30,"kgs":30.5,"months":{"OCTUBRE":{"monto":198.25,"cajas":30,"kgs":30.5}}},{"id_cliente":"1937","cliente":"INVERSIONES LUIS SANTIAGO 2014, C.A","vendedor":"ANGELICA MORENO","monto":197.6,"cajas":31,"kgs":30.4,"months":{"OCTUBRE":{"monto":197.6,"cajas":31,"kgs":30.4}}},{"id_cliente":"7088","cliente":"SILVIA LEONOR NAVA TREMOT","vendedor":"YOLEIDA LUGO","monto":197.6,"cajas":30,"kgs":30.4,"months":{"OCTUBRE":{"monto":197.6,"cajas":30,"kgs":30.4}}},{"id_cliente":"7931","cliente":"ALICIA LEAL ROMERO","vendedor":"ELISA SOLER","monto":195,"cajas":30,"kgs":30,"months":{"OCTUBRE":{"monto":195,"cajas":30,"kgs":30}}},{"id_cliente":"6855","cliente":"SUMINISTROS MARQUES, C.A","vendedor":"EDUARDO PIÑA","monto":192.2,"cajas":31,"kgs":31,"months":{"OCTUBRE":{"monto":192.2,"cajas":31,"kgs":31}}},{"id_cliente":"3318","cliente":"INVERSIONES ROMERO 2017, C.A","vendedor":"LEONARDO RIOS","monto":191.1,"cajas":29,"kgs":29.4,"months":{"OCTUBRE":{"monto":191.1,"cajas":29,"kgs":29.4}}},{"id_cliente":"7065","cliente":"JESUS SALVADOR ALDANA VASQUEZ","vendedor":"JOSE G. GONZALEZ","monto":190.34,"cajas":31,"kgs":30.7,"months":{"OCTUBRE":{"monto":190.34,"cajas":31,"kgs":30.7}}},{"id_cliente":"2667","cliente":"INVERSIONES Y MINIMERCADO MI TORITO, C.A","vendedor":"ELISA SOLER","monto":188.5,"cajas":29,"kgs":29,"months":{"OCTUBRE":{"monto":188.5,"cajas":29,"kgs":29}}},{"id_cliente":"3386","cliente":"INVERSIONES ABUELO TOCO C.A","vendedor":"YOLEIDA LUGO","monto":188.5,"cajas":29,"kgs":29,"months":{"OCTUBRE":{"monto":188.5,"cajas":29,"kgs":29}}},{"id_cliente":"3892","cliente":"DIVENCA,C.A","vendedor":"EDUARDO PIÑA","monto":187.2,"cajas":29,"kgs":28.8,"months":{"OCTUBRE":{"monto":187.2,"cajas":29,"kgs":28.8}}},{"id_cliente":"3940","cliente":"JOSE GREGORIO FLORES PIMENTEL","vendedor":"MARIANGEL GONZALEZ","monto":185.9,"cajas":29,"kgs":28.6,"months":{"OCTUBRE":{"monto":185.9,"cajas":29,"kgs":28.6}}},{"id_cliente":"5149","cliente":"ANDREINA DEL CARMEN ARENAS MONTERO","vendedor":"J PABLO ARAUJO","monto":183.3,"cajas":28,"kgs":28.2,"months":{"OCTUBRE":{"monto":183.3,"cajas":28,"kgs":28.2}}},{"id_cliente":"7569","cliente":"ANUAR ANTONIO HAMDAN CASTILLO (AUTO MERCADO EL POPULAR\"\" DE ANUAR ANTONIO HADAM CASTILLO)","vendedor":"MARYERY GARCIA","monto":182,"cajas":28,"kgs":28,"months":{"OCTUBRE":{"monto":182,"cajas":28,"kgs":28}}},{"id_cliente":"1953","cliente":"ABASTO EL NANO, C.A","vendedor":"MARIA BRICEÑO","monto":180.8,"cajas":29,"kgs":28.3,"months":{"OCTUBRE":{"monto":180.8,"cajas":29,"kgs":28.3}}},{"id_cliente":"7784","cliente":"COMERCIAL EL CORDERO COMPAÑIA ANONIMA","vendedor":"EDUARDO PIÑA","monto":179.8,"cajas":29,"kgs":29,"months":{"OCTUBRE":{"monto":179.8,"cajas":29,"kgs":29}}},{"id_cliente":"7346","cliente":"EMILIO GREGORIO SANCHEZ HERNANDEZ","vendedor":"YOLEIDA LUGO","monto":175.5,"cajas":27,"kgs":27,"months":{"OCTUBRE":{"monto":175.5,"cajas":27,"kgs":27}}},{"id_cliente":"2735","cliente":"INVERSIONES LA IDEAL DE JACOBO OLAVES, C.A","vendedor":"EDUARDO PIÑA","monto":174.84,"cajas":28,"kgs":28.2,"months":{"OCTUBRE":{"monto":174.84,"cajas":28,"kgs":28.2}}},{"id_cliente":"3935","cliente":"INVERSIONES RODRILARA, C.A","vendedor":"MARYERY GARCIA","monto":174.84,"cajas":28,"kgs":28.2,"months":{"OCTUBRE":{"monto":174.84,"cajas":28,"kgs":28.2}}},{"id_cliente":"7061","cliente":"COMERCIAL MANA DEL CIELO, C.A","vendedor":"ELISA SOLER","monto":171.6,"cajas":26,"kgs":26.4,"months":{"OCTUBRE":{"monto":171.6,"cajas":26,"kgs":26.4}}},{"id_cliente":"4323","cliente":"GRUPO MACHADO & P, C.A","vendedor":"MARYERY GARCIA","monto":169,"cajas":26,"kgs":26,"months":{"OCTUBRE":{"monto":169,"cajas":26,"kgs":26}}},{"id_cliente":"5011","cliente":"GABRIEL JOSE ROJAS ARTEGA","vendedor":"EDUARDO PIÑA","monto":163.8,"cajas":25,"kgs":25.2,"months":{"OCTUBRE":{"monto":163.8,"cajas":25,"kgs":25.2}}},{"id_cliente":"2959","cliente":"RAMONA CHIQUINQUIRA VASQUEZ GUANIPA","vendedor":"SARAH REYES","monto":156,"cajas":24,"kgs":24,"months":{"OCTUBRE":{"monto":156,"cajas":24,"kgs":24}}},{"id_cliente":"1273","cliente":"OPENCOR, C.A.","vendedor":"LEONARDO RIOS","monto":155.64,"cajas":24,"kgs":23.95,"months":{"OCTUBRE":{"monto":155.64,"cajas":24,"kgs":23.95}}},{"id_cliente":"7832","cliente":"YADENY COROMOTO YORES","vendedor":"LEONARDO RIOS","monto":150.8,"cajas":23,"kgs":23.2,"months":{"OCTUBRE":{"monto":150.8,"cajas":23,"kgs":23.2}}},{"id_cliente":"4507","cliente":"INVERSIONES Y SERVICIOS SATELITES MACHIQUES, C.A","vendedor":"J PABLO ARAUJO","monto":139.1,"cajas":21,"kgs":21.4,"months":{"OCTUBRE":{"monto":139.1,"cajas":21,"kgs":21.4}}},{"id_cliente":"7045","cliente":"ANTHONY JOSE SALAZAR PRIETO","vendedor":"EDUARDO PIÑA","monto":137.8,"cajas":21,"kgs":21.2,"months":{"OCTUBRE":{"monto":137.8,"cajas":21,"kgs":21.2}}},{"id_cliente":"4745","cliente":"LA BENDICION AL GRILL, C.A","vendedor":"SARAH REYES","monto":136.5,"cajas":21,"kgs":21,"months":{"OCTUBRE":{"monto":136.5,"cajas":21,"kgs":21}}},{"id_cliente":"931","cliente":"COMERCIAL JY, C.A.","vendedor":"YOLEIDA LUGO","monto":136.5,"cajas":21,"kgs":21,"months":{"OCTUBRE":{"monto":136.5,"cajas":21,"kgs":21}}},{"id_cliente":"5092","cliente":"CARLOS EDUARDO PEÑA MOGOLLON ( INVERSIONES CARLOS PEÑA )","vendedor":"YOLEIDA LUGO","monto":136.5,"cajas":21,"kgs":21,"months":{"OCTUBRE":{"monto":136.5,"cajas":21,"kgs":21}}},{"id_cliente":"6771","cliente":"INVERSIONES JEHOVA ADONAI, C.A","vendedor":"ELISA SOLER","monto":136.5,"cajas":21,"kgs":21,"months":{"OCTUBRE":{"monto":136.5,"cajas":21,"kgs":21}}},{"id_cliente":"8259","cliente":"PETTO MULTISABORES, C.A.","vendedor":"ELISA SOLER","monto":136.5,"cajas":21,"kgs":21,"months":{"OCTUBRE":{"monto":136.5,"cajas":21,"kgs":21}}},{"id_cliente":"3270","cliente":"ABASTO Y LICORES DOÑA ELENA 2014, C.A","vendedor":"OSCAR ORTIZ- CORO","monto":134,"cajas":20,"kgs":20,"months":{"OCTUBRE":{"monto":134,"cajas":20,"kgs":20}}},{"id_cliente":"8277","cliente":"CARLOS ALFREDO RODRIGUEZ RODRIGUEZ","vendedor":"ADEL JARABA","monto":133.25,"cajas":20,"kgs":20.5,"months":{"OCTUBRE":{"monto":133.25,"cajas":20,"kgs":20.5}}},{"id_cliente":"73","cliente":"COMERCIALIZADORA Y DISTRIBUIDORA JESUCRISTO ES ELSEÑOR, C.A","vendedor":"ADEL JARABA","monto":132.99,"cajas":20,"kgs":20.46,"months":{"OCTUBRE":{"monto":132.99,"cajas":20,"kgs":20.46}}},{"id_cliente":"725","cliente":"CAFE Y PASAPALOS LOS FRAILEGONES, C.A","vendedor":"YOLEIDA LUGO","monto":130,"cajas":20,"kgs":20,"months":{"OCTUBRE":{"monto":130,"cajas":20,"kgs":20}}},{"id_cliente":"2258","cliente":"MULTITIENDA FARMAEXPRESS DELICIAS, C.A.","vendedor":"ELISA SOLER","monto":130,"cajas":20,"kgs":20,"months":{"OCTUBRE":{"monto":130,"cajas":20,"kgs":20}}},{"id_cliente":"7732","cliente":"JULIA LIZ PRIETO FERRER","vendedor":"J PABLO ARAUJO","monto":128.7,"cajas":20,"kgs":19.8,"months":{"OCTUBRE":{"monto":128.7,"cajas":20,"kgs":19.8}}},{"id_cliente":"4098","cliente":"DISTRIBUIDORA ANTON HNOS, C.A","vendedor":"VICTOR CAMPOS","monto":128.7,"cajas":20,"kgs":19.8,"months":{"OCTUBRE":{"monto":128.7,"cajas":20,"kgs":19.8}}},{"id_cliente":"6023","cliente":"INVERSIONES YUSMELI 2024, C.A","vendedor":"OSCAR ORTIZ- CORO","monto":128.64,"cajas":19,"kgs":19.2,"months":{"OCTUBRE":{"monto":128.64,"cajas":19,"kgs":19.2}}},{"id_cliente":"7224","cliente":"MARBELYS YURUBIS MORAN","vendedor":"JUAN HERNANDEZ","monto":127.4,"cajas":20,"kgs":19.6,"months":{"OCTUBRE":{"monto":127.4,"cajas":20,"kgs":19.6}}},{"id_cliente":"6268","cliente":"RUTH DEL VALLE DIAZ DE PERNIA","vendedor":"ANGEL NAVARRO","monto":126.1,"cajas":19,"kgs":19.4,"months":{"OCTUBRE":{"monto":126.1,"cajas":19,"kgs":19.4}}},{"id_cliente":"3484","cliente":"EDITH DIAZ DOMINGUEZ (CAFE Y DELICATESSES EL BOMBON)","vendedor":"MARYERY GARCIA","monto":125.86,"cajas":20,"kgs":20.3,"months":{"OCTUBRE":{"monto":125.86,"cajas":20,"kgs":20.3}}},{"id_cliente":"1686","cliente":"CENTRO SOL, C.A","vendedor":"J PABLO ARAUJO","monto":125.77,"cajas":19,"kgs":19.35,"months":{"OCTUBRE":{"monto":125.77,"cajas":19,"kgs":19.35}}},{"id_cliente":"1832","cliente":"DISTRIBUIDORA DE CARNES Y POLLOS BASTIDAS, C.A","vendedor":"MARYERY GARCIA","monto":125.24,"cajas":20,"kgs":20.2,"months":{"OCTUBRE":{"monto":125.24,"cajas":20,"kgs":20.2}}},{"id_cliente":"7159","cliente":"SHU ZHEN ME LIANG","vendedor":"FOOD SERVICE SENIOR - JUAN HERNANDEZ","monto":124.8,"cajas":19,"kgs":19.2,"months":{"OCTUBRE":{"monto":124.8,"cajas":19,"kgs":19.2}}},{"id_cliente":"5822","cliente":"COMERCIALIZADORA E INVERSIONES  LUZMER MMXXL, C.A","vendedor":"MARIA BRICEÑO","monto":123.58,"cajas":19,"kgs":19.4,"months":{"OCTUBRE":{"monto":123.58,"cajas":19,"kgs":19.4}}},{"id_cliente":"3638","cliente":"NEGOCIOS INVERSIONES REALES (N.I.R), C.A.","vendedor":"VICTOR CAMPOS","monto":123.5,"cajas":19,"kgs":19,"months":{"OCTUBRE":{"monto":123.5,"cajas":19,"kgs":19}}},{"id_cliente":"6736","cliente":"INVERSIONES PARRA W&E 2024, C.A","vendedor":"JOSE G. GONZALEZ","monto":123.5,"cajas":19,"kgs":19,"months":{"OCTUBRE":{"monto":123.5,"cajas":19,"kgs":19}}},{"id_cliente":"1296","cliente":"INVERSIONES LOS ANGELES A-1, C.A.","vendedor":"YOLEIDA LUGO","monto":123.5,"cajas":19,"kgs":19,"months":{"OCTUBRE":{"monto":123.5,"cajas":19,"kgs":19}}},{"id_cliente":"3908","cliente":"HORTICARNES EL MARQUEZ, C.A","vendedor":"YOLEIDA LUGO","monto":123.5,"cajas":19,"kgs":19,"months":{"OCTUBRE":{"monto":123.5,"cajas":19,"kgs":19}}},{"id_cliente":"4536","cliente":"INVERSIONES LOS COMPADRES A&R, C.A","vendedor":"YOLEIDA LUGO","monto":123.5,"cajas":19,"kgs":19,"months":{"OCTUBRE":{"monto":123.5,"cajas":19,"kgs":19}}},{"id_cliente":"5318","cliente":"SIRIA SPORT, C.A","vendedor":"YOLEIDA LUGO","monto":123.5,"cajas":19,"kgs":19,"months":{"OCTUBRE":{"monto":123.5,"cajas":19,"kgs":19}}},{"id_cliente":"1027","cliente":"INVERSIONES SANCHEZ & DELGADO, C.A.","vendedor":"ADEL JARABA","monto":123.5,"cajas":19,"kgs":19,"months":{"OCTUBRE":{"monto":123.5,"cajas":19,"kgs":19}}},{"id_cliente":"2136","cliente":"SUPER MERCADO Y PANADERIA SANTO DOMINGO, C.A","vendedor":"CARLOS FUENMAYOR","monto":123.5,"cajas":19,"kgs":19,"months":{"OCTUBRE":{"monto":123.5,"cajas":19,"kgs":19}}},{"id_cliente":"5586","cliente":"TORETE CARNICERIA, C.A","vendedor":"MARYERY GARCIA","monto":123.5,"cajas":19,"kgs":19,"months":{"OCTUBRE":{"monto":123.5,"cajas":19,"kgs":19}}},{"id_cliente":"6753","cliente":"YOLANDA DEL VALLE CRISCI MANCILLA","vendedor":"JOSE G. GONZALEZ","monto":123.07,"cajas":20,"kgs":19.85,"months":{"OCTUBRE":{"monto":123.07,"cajas":20,"kgs":19.85}}},{"id_cliente":"3956","cliente":"INVERSIONES ROMERO & URDANETA, C.A","vendedor":"SARAH REYES","monto":122.2,"cajas":19,"kgs":18.8,"months":{"OCTUBRE":{"monto":122.2,"cajas":19,"kgs":18.8}}},{"id_cliente":"6330","cliente":"INVERSIONES Y COMERCIALIZADORA J&S 2023, C.A","vendedor":"MARIA BRICEÑO","monto":121.66,"cajas":20,"kgs":19.1,"months":{"OCTUBRE":{"monto":121.66,"cajas":20,"kgs":19.1}}},{"id_cliente":"3750","cliente":"CARLOS EDUARDO LOPEZ BARROSO","vendedor":"OSCAR ORTIZ- CORO","monto":121.27,"cajas":18,"kgs":18.1,"months":{"OCTUBRE":{"monto":121.27,"cajas":18,"kgs":18.1}}},{"id_cliente":"5530","cliente":"SILVIA PATRICIA HERNANDEZ LEONES \"\"INVERSIONES TROPIGOLLO DE SILVIA HERNANDEZ F. P","vendedor":"MARIANGEL GONZALEZ","monto":120.9,"cajas":19,"kgs":18.6,"months":{"OCTUBRE":{"monto":120.9,"cajas":19,"kgs":18.6}}},{"id_cliente":"5834","cliente":"INVERSIONES MI PEQUEÑA GRISBERT, C.A","vendedor":"MIKELANGELO DIAZ - VILLA DEL ROS","monto":119.6,"cajas":19,"kgs":18.4,"months":{"OCTUBRE":{"monto":119.6,"cajas":19,"kgs":18.4}}},{"id_cliente":"2308","cliente":"CHARCUTERIA Y CARNICERIA AQUI ME QUEDO, C.A","vendedor":"ANGELICA MORENO","monto":119.6,"cajas":18,"kgs":18.4,"months":{"OCTUBRE":{"monto":119.6,"cajas":18,"kgs":18.4}}},{"id_cliente":"6720","cliente":"ANNY MARGARITA RINCON HERNANDEZ","vendedor":"MARIA BRICEÑO","monto":119.04,"cajas":19,"kgs":19.2,"months":{"OCTUBRE":{"monto":119.04,"cajas":19,"kgs":19.2}}},{"id_cliente":"5782","cliente":"JOSE GREGORIO JORDAN JORDAN","vendedor":"EDUARDO PIÑA","monto":118.55,"cajas":18,"kgs":18.7,"months":{"OCTUBRE":{"monto":118.55,"cajas":18,"kgs":18.7}}},{"id_cliente":"5844","cliente":"CARNICERIA Y CHARCUTERIA LA LUCITANA, C.A","vendedor":"PEDRO ABREU","monto":117.8,"cajas":19,"kgs":19,"months":{"OCTUBRE":{"monto":117.8,"cajas":19,"kgs":19}}},{"id_cliente":"3976","cliente":"INVERSIONES ROIGEN, C.A","vendedor":"VICTOR CAMPOS","monto":117,"cajas":18,"kgs":18,"months":{"OCTUBRE":{"monto":117,"cajas":18,"kgs":18}}},{"id_cliente":"6348","cliente":"PANADERIA, PASTELERIA Y CHARCUTERIA TIO CONCORDIA, C,A","vendedor":"EDUARDO PIÑA","monto":115.6,"cajas":18,"kgs":18.2,"months":{"OCTUBRE":{"monto":115.6,"cajas":18,"kgs":18.2}}},{"id_cliente":"7817","cliente":"ALBERT DAVID MOSQUERA LOPEZ","vendedor":"ELISA SOLER","monto":114.4,"cajas":18,"kgs":17.6,"months":{"OCTUBRE":{"monto":114.4,"cajas":18,"kgs":17.6}}},{"id_cliente":"1810","cliente":"PROCESADORA MARINA DE LA COSTA ORIENTAL DEL LAGO, C.A","vendedor":"YOLEIDA LUGO","monto":113.1,"cajas":17,"kgs":17.4,"months":{"OCTUBRE":{"monto":113.1,"cajas":17,"kgs":17.4}}},{"id_cliente":"6509","cliente":"JAIRO JOSE CARRASQUERO URDANETA.","vendedor":"MARYERY GARCIA","monto":112.22,"cajas":18,"kgs":18.1,"months":{"OCTUBRE":{"monto":112.22,"cajas":18,"kgs":18.1}}},{"id_cliente":"6291","cliente":"SUPERMARKET EXCEL, C.A.","vendedor":"J PABLO ARAUJO","monto":111.15,"cajas":17,"kgs":17.1,"months":{"OCTUBRE":{"monto":111.15,"cajas":17,"kgs":17.1}}},{"id_cliente":"1831","cliente":"CREACIONES NATYCRIS","vendedor":"J PABLO ARAUJO","monto":110.5,"cajas":17,"kgs":17,"months":{"OCTUBRE":{"monto":110.5,"cajas":17,"kgs":17}}},{"id_cliente":"6954","cliente":"EDUARDO EMIRO GOMEZ MORAN","vendedor":"J PABLO ARAUJO","monto":109.2,"cajas":16,"kgs":16.8,"months":{"OCTUBRE":{"monto":109.2,"cajas":16,"kgs":16.8}}},{"id_cliente":"7926","cliente":"INVERSIONES Y DISTRIBUIDORA LAUREMAR, C.A.","vendedor":"YOLEIDA LUGO","monto":109.2,"cajas":17,"kgs":16.8,"months":{"OCTUBRE":{"monto":109.2,"cajas":17,"kgs":16.8}}},{"id_cliente":"6669","cliente":"INVERSIONES PARRA W&E 2024, C.A","vendedor":"MARYERY GARCIA","monto":104,"cajas":16,"kgs":16,"months":{"OCTUBRE":{"monto":104,"cajas":16,"kgs":16}}},{"id_cliente":"5682","cliente":"HAZEM BALLAN","vendedor":"MARYERY GARCIA","monto":102.88,"cajas":16,"kgs":16.1,"months":{"OCTUBRE":{"monto":102.88,"cajas":16,"kgs":16.1}}},{"id_cliente":"8181","cliente":"SUPER TIENDAS STEVEN S, C. A.","vendedor":"SARAH REYES","monto":101.4,"cajas":16,"kgs":15.6,"months":{"OCTUBRE":{"monto":101.4,"cajas":16,"kgs":15.6}}},{"id_cliente":"6238","cliente":"CARLOS ALBERTO VENTURA","vendedor":"MARIANGEL GONZALEZ","monto":77.35,"cajas":12,"kgs":11.9,"months":{"OCTUBRE":{"monto":77.35,"cajas":12,"kgs":11.9}}},{"id_cliente":"4162","cliente":"MAGGIOLA LEJANDRA ALVAREZ MELENDEZ  ( INVERSIONES M&A DE MAGGIOLA ALVAREZ FP)","vendedor":"EDUARDO PIÑA","monto":73.45,"cajas":12,"kgs":11.3,"months":{"OCTUBRE":{"monto":73.45,"cajas":12,"kgs":11.3}}},{"id_cliente":"3404","cliente":"INVERSIONES CORDERO,C.A","vendedor":"ADEL JARABA","monto":72.8,"cajas":11,"kgs":11.2,"months":{"OCTUBRE":{"monto":72.8,"cajas":11,"kgs":11.2}}},{"id_cliente":"8165","cliente":"KATERINE LISMARLLY BASTIDAS BRACHO","vendedor":"PEDRO ABREU","monto":72.54,"cajas":12,"kgs":11.7,"months":{"OCTUBRE":{"monto":72.54,"cajas":12,"kgs":11.7}}},{"id_cliente":"6336","cliente":"DEIVIS JOSE REYES FUENMAYOR","vendedor":"ANGELICA MORENO","monto":71.5,"cajas":11,"kgs":11,"months":{"OCTUBRE":{"monto":71.5,"cajas":11,"kgs":11}}},{"id_cliente":"3806","cliente":"INVERSIONES, PANIFICADORA Y PANADERIA LA GUADALUPE, C.A.","vendedor":"ANGEL NAVARRO","monto":71.5,"cajas":11,"kgs":11,"months":{"OCTUBRE":{"monto":71.5,"cajas":11,"kgs":11}}},{"id_cliente":"3939","cliente":"GABYROS MARKET, C.A","vendedor":"MARIANGEL GONZALEZ","monto":71.5,"cajas":11,"kgs":11,"months":{"OCTUBRE":{"monto":71.5,"cajas":11,"kgs":11}}},{"id_cliente":"7833","cliente":"EMPRENDIMIENTO MARIANGEL ARROYO 2","vendedor":"ANGEL NAVARRO","monto":70.2,"cajas":11,"kgs":10.8,"months":{"OCTUBRE":{"monto":70.2,"cajas":11,"kgs":10.8}}},{"id_cliente":"7451","cliente":"ROSANA CAROLINA ALARCON MATHEUS (INVERSIONES ROSS DE ROSANA ALARCON)","vendedor":"PEDRO ABREU","monto":70.06,"cajas":12,"kgs":11.3,"months":{"OCTUBRE":{"monto":70.06,"cajas":12,"kgs":11.3}}},{"id_cliente":"6170","cliente":"YALITZA DEL VALLE CUMARE CUMARE","vendedor":"EDUARDO PIÑA","monto":68.9,"cajas":11,"kgs":10.6,"months":{"OCTUBRE":{"monto":68.9,"cajas":11,"kgs":10.6}}},{"id_cliente":"7825","cliente":"SUGAR CAKER COFFEE, C.A.","vendedor":"ELISA SOLER","monto":68.9,"cajas":11,"kgs":10.6,"months":{"OCTUBRE":{"monto":68.9,"cajas":11,"kgs":10.6}}},{"id_cliente":"6431","cliente":"INVERSIONES Y COMERCIALIZADORA SANTA RITA DE CASIA 2020, C.A","vendedor":"MARIA BRICEÑO","monto":68.77,"cajas":11,"kgs":11.09,"months":{"OCTUBRE":{"monto":68.77,"cajas":11,"kgs":11.09}}},{"id_cliente":"1309","cliente":"MINIMARKET URUMACO PLAZA, C.A.","vendedor":"ELISA SOLER","monto":68.25,"cajas":10,"kgs":10.5,"months":{"OCTUBRE":{"monto":68.25,"cajas":10,"kgs":10.5}}},{"id_cliente":"2538","cliente":"MARIA JOSE GONZALEZ JIMENEZ","vendedor":"EDUARDO PIÑA","monto":68.2,"cajas":11,"kgs":11,"months":{"OCTUBRE":{"monto":68.2,"cajas":11,"kgs":11}}},{"id_cliente":"7517","cliente":"ANDREA CAROLINA CONTRERAS MEDINA","vendedor":"EDUARDO PIÑA","monto":68.2,"cajas":11,"kgs":11,"months":{"OCTUBRE":{"monto":68.2,"cajas":11,"kgs":11}}},{"id_cliente":"7894","cliente":"JAIRO ANTONIO LOZANO ESCORCIA \"JAIRO LOZANO, F.P\"","vendedor":"ELISA SOLER","monto":67.6,"cajas":10,"kgs":10.4,"months":{"OCTUBRE":{"monto":67.6,"cajas":10,"kgs":10.4}}},{"id_cliente":"7008","cliente":"VIVERES LA VICTORIA 2017, C.A","vendedor":"MARIA BRICEÑO","monto":67.27,"cajas":11,"kgs":10.85,"months":{"OCTUBRE":{"monto":67.27,"cajas":11,"kgs":10.85}}},{"id_cliente":"5816","cliente":"MUNDO PASTEL, C.A","vendedor":"ADEL JARABA","monto":66.3,"cajas":10,"kgs":10.2,"months":{"OCTUBRE":{"monto":66.3,"cajas":10,"kgs":10.2}}},{"id_cliente":"1463","cliente":"FRIGORIFICO LA GANADERA, C.A","vendedor":"J PABLO ARAUJO","monto":66.3,"cajas":10,"kgs":10.2,"months":{"OCTUBRE":{"monto":66.3,"cajas":10,"kgs":10.2}}},{"id_cliente":"6250","cliente":"LIKE MARKET, C.A","vendedor":"MARYERY GARCIA","monto":66.3,"cajas":10,"kgs":10.2,"months":{"OCTUBRE":{"monto":66.3,"cajas":10,"kgs":10.2}}},{"id_cliente":"4419","cliente":"INVERSIONES A Y F 2015, C.A","vendedor":"J PABLO ARAUJO","monto":66.3,"cajas":10,"kgs":10.2,"months":{"OCTUBRE":{"monto":66.3,"cajas":10,"kgs":10.2}}},{"id_cliente":"6951","cliente":"NEIMARLY DEL VALLE ACOSTA SMITH","vendedor":"MARIANGEL GONZALEZ","monto":66.3,"cajas":10,"kgs":10.2,"months":{"OCTUBRE":{"monto":66.3,"cajas":10,"kgs":10.2}}},{"id_cliente":"7295","cliente":"JOSUE JOSE FERNANDEZ OCAMPO (INVERSIONES LA OFERTA DE JOSUE FERNANDEZ F.P)","vendedor":"JOSE G. GONZALEZ","monto":66.09,"cajas":10,"kgs":10.66,"months":{"OCTUBRE":{"monto":66.09,"cajas":10,"kgs":10.66}}},{"id_cliente":"5003","cliente":"DISTRIBUIDORA SUPER OFERTAS, C.A.","vendedor":"MARYERY GARCIA","monto":65,"cajas":10,"kgs":10,"months":{"OCTUBRE":{"monto":65,"cajas":10,"kgs":10}}},{"id_cliente":"5832","cliente":"CAFETERIA LUNA NUEVA 2023, C.A","vendedor":"MIKELANGELO DIAZ - VILLA DEL ROS","monto":65,"cajas":10,"kgs":10,"months":{"OCTUBRE":{"monto":65,"cajas":10,"kgs":10}}},{"id_cliente":"3293","cliente":"DISTRIBUIDORA DISLAPENZO, C.A.","vendedor":"J PABLO ARAUJO","monto":65,"cajas":10,"kgs":10,"months":{"OCTUBRE":{"monto":65,"cajas":10,"kgs":10}}},{"id_cliente":"6612","cliente":"ROSA MARIA AVILA VILLALOBOS","vendedor":"YOLEIDA LUGO","monto":65,"cajas":10,"kgs":10,"months":{"OCTUBRE":{"monto":65,"cajas":10,"kgs":10}}},{"id_cliente":"6137","cliente":"LEOVANNYS JOSE BAPTISTA GARCIA","vendedor":"ELISA SOLER","monto":65,"cajas":10,"kgs":10,"months":{"OCTUBRE":{"monto":65,"cajas":10,"kgs":10}}},{"id_cliente":"5443","cliente":"LA NUEVA POSADA DEL LAGO, C,A","vendedor":"LUIS GUANIPA","monto":64.35,"cajas":10,"kgs":9.9,"months":{"OCTUBRE":{"monto":64.35,"cajas":10,"kgs":9.9}}},{"id_cliente":"7210","cliente":"EMPRENDIMIENTO YULIANA OVALLE","vendedor":"MARYERY GARCIA","monto":63.7,"cajas":10,"kgs":9.8,"months":{"OCTUBRE":{"monto":63.7,"cajas":10,"kgs":9.8}}},{"id_cliente":"7909","cliente":"JOSE GREGORIO ARIAS JIMENEZ","vendedor":"EDUARDO PIÑA","monto":63.7,"cajas":10,"kgs":9.8,"months":{"OCTUBRE":{"monto":63.7,"cajas":10,"kgs":9.8}}},{"id_cliente":"8187","cliente":"ROSWIN JOSE DELGADO ANCIANIS","vendedor":"CARLOS FUENMAYOR","monto":63.7,"cajas":10,"kgs":9.8,"months":{"OCTUBRE":{"monto":63.7,"cajas":10,"kgs":9.8}}},{"id_cliente":"5126","cliente":"PANADERIA Y CHARCUTERIA NUMBER ONE-1, C.A","vendedor":"MARIANGEL GONZALEZ","monto":63.7,"cajas":10,"kgs":9.8,"months":{"OCTUBRE":{"monto":63.7,"cajas":10,"kgs":9.8}}},{"id_cliente":"7036","cliente":"EDGAR JOSUE QUERO ROSSELL (COMERCIALIZADORA D JOS DE EDGAR JOSUE QUERO ROSSELL)","vendedor":"ELISA SOLER","monto":63.37,"cajas":9,"kgs":9.75,"months":{"OCTUBRE":{"monto":63.37,"cajas":9,"kgs":9.75}}},{"id_cliente":"7135","cliente":"INVERSIONES SUPER AHORRO L&E, C.A","vendedor":"ADEL JARABA","monto":63.05,"cajas":10,"kgs":9.7,"months":{"OCTUBRE":{"monto":63.05,"cajas":10,"kgs":9.7}}},{"id_cliente":"7728","cliente":"SUPERMERCADO MEGA ECONOMICO, C.A","vendedor":"EDUARDO PIÑA","monto":62.4,"cajas":10,"kgs":9.6,"months":{"OCTUBRE":{"monto":62.4,"cajas":10,"kgs":9.6}}},{"id_cliente":"1761","cliente":"DISTRIBUIDORA MONTOYA, C.A","vendedor":"EDUARDO PIÑA","monto":62,"cajas":10,"kgs":10,"months":{"OCTUBRE":{"monto":62,"cajas":10,"kgs":10}}},{"id_cliente":"4859","cliente":"INVERSIONES & CONSTRUCCIONES JAIDELCA, C.A.","vendedor":"EDUARDO PIÑA","monto":62,"cajas":10,"kgs":10,"months":{"OCTUBRE":{"monto":62,"cajas":10,"kgs":10}}},{"id_cliente":"7428","cliente":"MERCEDES DEL CARMEN DABOIN ARAUJO  ( COMERCIALIZADORA DABOIN F.P)","vendedor":"JOSE G. GONZALEZ","monto":62,"cajas":10,"kgs":10,"months":{"OCTUBRE":{"monto":62,"cajas":10,"kgs":10}}},{"id_cliente":"7767","cliente":"EMPRENDIMIENTO NOE ESTRADA","vendedor":"MARYERY GARCIA","monto":62,"cajas":10,"kgs":10,"months":{"OCTUBRE":{"monto":62,"cajas":10,"kgs":10}}},{"id_cliente":"8283","cliente":"JUANA SANCHEZ DE ROJAS (PASTELES JUANITA DE JUANA SANCHEZ DE ROJAS)","vendedor":"PEDRO ABREU","monto":62,"cajas":10,"kgs":10,"months":{"OCTUBRE":{"monto":62,"cajas":10,"kgs":10}}},{"id_cliente":"3758","cliente":"SUPERMARKETS GUT - LAC, C.A.","vendedor":"CARLOS FUENMAYOR","monto":61.75,"cajas":9,"kgs":9.5,"months":{"OCTUBRE":{"monto":61.75,"cajas":9,"kgs":9.5}}},{"id_cliente":"4224","cliente":"MINIMARKET LA BENDICION M & N , C.A","vendedor":"EDUARDO PIÑA","monto":61.1,"cajas":9,"kgs":9.4,"months":{"OCTUBRE":{"monto":61.1,"cajas":9,"kgs":9.4}}},{"id_cliente":"4584","cliente":"ALFREDO JOSE AÑEZ CHOURIO","vendedor":"ANGELICA MORENO","monto":61.1,"cajas":9,"kgs":9.4,"months":{"OCTUBRE":{"monto":61.1,"cajas":9,"kgs":9.4}}},{"id_cliente":"7299","cliente":"ANDREINA YARELYS ALVAREZ SANCHEZ (ABASTO E INVERSIONES JOHANDRE DE ANDREINA YARELIS ALVAREZ SANCHEZ, F.P)","vendedor":"MARYERY GARCIA","monto":60.45,"cajas":10,"kgs":9.3,"months":{"OCTUBRE":{"monto":60.45,"cajas":10,"kgs":9.3}}},{"id_cliente":"2244","cliente":"INVERSIONES KORMARELIAS 27, C.A","vendedor":"ELISA SOLER","monto":60.45,"cajas":9,"kgs":9.3,"months":{"OCTUBRE":{"monto":60.45,"cajas":9,"kgs":9.3}}},{"id_cliente":"6249","cliente":"INVERSIONES MERCADITO SHOP, C.A","vendedor":"MARYERY GARCIA","monto":60.14,"cajas":10,"kgs":9.7,"months":{"OCTUBRE":{"monto":60.14,"cajas":10,"kgs":9.7}}},{"id_cliente":"6264","cliente":"MARIA JOSE MONTES RODRIGUEZ","vendedor":"ANGELICA MORENO","monto":59.8,"cajas":9,"kgs":9.2,"months":{"OCTUBRE":{"monto":59.8,"cajas":9,"kgs":9.2}}},{"id_cliente":"8230","cliente":"ABASTOS DONDE EL GOCHO Y SU FAMILIA ,C.A","vendedor":"JOSE G. GONZALEZ","monto":59.8,"cajas":9,"kgs":9.2,"months":{"OCTUBRE":{"monto":59.8,"cajas":9,"kgs":9.2}}},{"id_cliente":"7388","cliente":"PANADERIA EKA, C.A.","vendedor":"YOLEIDA LUGO","monto":59.8,"cajas":9,"kgs":9.2,"months":{"OCTUBRE":{"monto":59.8,"cajas":9,"kgs":9.2}}},{"id_cliente":"6020","cliente":"LISANDRO JOSE URDANETA BOSCAN","vendedor":"MARYERY GARCIA","monto":59.02,"cajas":9,"kgs":9.52,"months":{"OCTUBRE":{"monto":59.02,"cajas":9,"kgs":9.52}}},{"id_cliente":"3661","cliente":"INVERSIONES EL MANSO TORO, C.A","vendedor":"ANGEL NAVARRO","monto":58.5,"cajas":9,"kgs":9,"months":{"OCTUBRE":{"monto":58.5,"cajas":9,"kgs":9}}},{"id_cliente":"4197","cliente":"COMERCIALIZADORA LA FINCA, C.A","vendedor":"J PABLO ARAUJO","monto":58.5,"cajas":9,"kgs":9,"months":{"OCTUBRE":{"monto":58.5,"cajas":9,"kgs":9}}},{"id_cliente":"8061","cliente":"SUPERMARKET FIORELLA EXPRESS, C.A.","vendedor":"J PABLO ARAUJO","monto":58.5,"cajas":9,"kgs":9,"months":{"OCTUBRE":{"monto":58.5,"cajas":9,"kgs":9}}},{"id_cliente":"7433","cliente":"JORGE ENRIQUE PRIETO BERMUDEZ","vendedor":"YOLEIDA LUGO","monto":58.5,"cajas":9,"kgs":9,"months":{"OCTUBRE":{"monto":58.5,"cajas":9,"kgs":9}}},{"id_cliente":"7968","cliente":"MARKET GIVALCA, C.A.","vendedor":"SARAH REYES","monto":58.5,"cajas":9,"kgs":9,"months":{"OCTUBRE":{"monto":58.5,"cajas":9,"kgs":9}}},{"id_cliente":"6931","cliente":"MARISOL JOSEFINA PRIETO","vendedor":"ELISA SOLER","monto":58.5,"cajas":9,"kgs":9,"months":{"OCTUBRE":{"monto":58.5,"cajas":9,"kgs":9}}},{"id_cliente":"5665","cliente":"ISSAM AL KAFIRI","vendedor":"OSCAR ORTIZ- CORO","monto":57.62,"cajas":9,"kgs":8.6,"months":{"OCTUBRE":{"monto":57.62,"cajas":9,"kgs":8.6}}},{"id_cliente":"3746","cliente":"INVERSIONES DE TODO Y MAS 2012, C.A","vendedor":"ELISA SOLER","monto":57.2,"cajas":9,"kgs":8.8,"months":{"OCTUBRE":{"monto":57.2,"cajas":9,"kgs":8.8}}},{"id_cliente":"6934","cliente":"ANDRIC ALEJANDRO AGUIRRE MORA (INVERSIONES KIMAND)","vendedor":"LUIS GUANIPA","monto":57.2,"cajas":9,"kgs":8.8,"months":{"OCTUBRE":{"monto":57.2,"cajas":9,"kgs":8.8}}},{"id_cliente":"7675","cliente":"SOL Y SAZON, C.A.","vendedor":"FOOD SERVICE SUR","monto":57.2,"cajas":9,"kgs":8.8,"months":{"OCTUBRE":{"monto":57.2,"cajas":9,"kgs":8.8}}},{"id_cliente":"5326","cliente":"ELIZABETH MARIA IRAUSQUIN URBINA","vendedor":"MARIANGEL GONZALEZ","monto":57.2,"cajas":9,"kgs":8.8,"months":{"OCTUBRE":{"monto":57.2,"cajas":9,"kgs":8.8}}},{"id_cliente":"7031","cliente":"FARMACIA GENESIS, C.A","vendedor":"ELISA SOLER","monto":57.2,"cajas":9,"kgs":8.8,"months":{"OCTUBRE":{"monto":57.2,"cajas":9,"kgs":8.8}}},{"id_cliente":"7102","cliente":"OSDUAL YARKIS SANCHEZ MAVARES","vendedor":"ELISA SOLER","monto":57.2,"cajas":9,"kgs":8.8,"months":{"OCTUBRE":{"monto":57.2,"cajas":9,"kgs":8.8}}},{"id_cliente":"7838","cliente":"COMERCIALIZADORA NICOBAS,C.A","vendedor":"JOSE G. GONZALEZ","monto":57.04,"cajas":9,"kgs":9.2,"months":{"OCTUBRE":{"monto":57.04,"cajas":9,"kgs":9.2}}},{"id_cliente":"7424","cliente":"ESPECIALIDADES EN CARNES BARUC,C.A","vendedor":"ELISA SOLER","monto":56.55,"cajas":9,"kgs":8.7,"months":{"OCTUBRE":{"monto":56.55,"cajas":9,"kgs":8.7}}},{"id_cliente":"3087","cliente":"NAIROBY TIBISAY BRACHO CONTRERAS","vendedor":"EDUARDO PIÑA","monto":55.9,"cajas":9,"kgs":8.6,"months":{"OCTUBRE":{"monto":55.9,"cajas":9,"kgs":8.6}}},{"id_cliente":"6989","cliente":"CARNICERIA EL TRUEQUE DYD C.A","vendedor":"ELISA SOLER","monto":55.9,"cajas":9,"kgs":8.6,"months":{"OCTUBRE":{"monto":55.9,"cajas":9,"kgs":8.6}}},{"id_cliente":"4529","cliente":"INVERSIONES EDUGEN, C.A","vendedor":"ELISA SOLER","monto":54.6,"cajas":8,"kgs":8.4,"months":{"OCTUBRE":{"monto":54.6,"cajas":8,"kgs":8.4}}},{"id_cliente":"1685","cliente":"CARMEN EUSEBIA GONZALEZ ABREU","vendedor":"J PABLO ARAUJO","monto":54.6,"cajas":8,"kgs":8.4,"months":{"OCTUBRE":{"monto":54.6,"cajas":8,"kgs":8.4}}},{"id_cliente":"6279","cliente":"INVERSIONES MI FORTALEZA, C.A","vendedor":"MARYERY GARCIA","monto":54.6,"cajas":8,"kgs":8.4,"months":{"OCTUBRE":{"monto":54.6,"cajas":8,"kgs":8.4}}},{"id_cliente":"7658","cliente":"DEIBIS GREGORIO ROMERO \"ABASTO SAN RAFAEL N1 DEIBIS ROMERO,F.P\"","vendedor":"EDUARDO PIÑA","monto":54.6,"cajas":8,"kgs":8.4,"months":{"OCTUBRE":{"monto":54.6,"cajas":8,"kgs":8.4}}},{"id_cliente":"7385","cliente":"DIVINA PASTORA INVERSIONES, COMPAÑIA ANONIMA","vendedor":"YOLEIDA LUGO","monto":54.6,"cajas":8,"kgs":8.4,"months":{"OCTUBRE":{"monto":54.6,"cajas":8,"kgs":8.4}}},{"id_cliente":"7344","cliente":"ABASTO DULCE ENCUENTRO, C.A.","vendedor":"MARYERY GARCIA","monto":53.3,"cajas":8,"kgs":8.2,"months":{"OCTUBRE":{"monto":53.3,"cajas":8,"kgs":8.2}}},{"id_cliente":"8008","cliente":"ELISA CHANG LUO","vendedor":"YOLEIDA LUGO","monto":53.3,"cajas":8,"kgs":8.2,"months":{"OCTUBRE":{"monto":53.3,"cajas":8,"kgs":8.2}}},{"id_cliente":"6922","cliente":"PEDRO ANTONIO FRAMCO RANGEL","vendedor":"JOSE G. GONZALEZ","monto":52.08,"cajas":8,"kgs":8.4,"months":{"OCTUBRE":{"monto":52.08,"cajas":8,"kgs":8.4}}},{"id_cliente":"6980","cliente":"QUESTEFANIPAOLA,C.A","vendedor":"ELISA SOLER","monto":49.4,"cajas":7,"kgs":7.6,"months":{"OCTUBRE":{"monto":49.4,"cajas":7,"kgs":7.6}}},{"id_cliente":"6794","cliente":"INVERSIONES JGH 2014, C.A.","vendedor":"OSCAR ORTIZ- LA COSTA","monto":48.88,"cajas":9,"kgs":9.4,"months":{"OCTUBRE":{"monto":48.88,"cajas":9,"kgs":9.4}}},{"id_cliente":"7874","cliente":"JESSICA ELIZABETH HURTADO ROJAS","vendedor":"ELISA SOLER","monto":48.1,"cajas":7,"kgs":7.4,"months":{"OCTUBRE":{"monto":48.1,"cajas":7,"kgs":7.4}}},{"id_cliente":"5979","cliente":"PI 3, 14 COFFE & LOUNG, C.A","vendedor":"EDUARDO PIÑA","monto":48.1,"cajas":7,"kgs":7.4,"months":{"OCTUBRE":{"monto":48.1,"cajas":7,"kgs":7.4}}},{"id_cliente":"6668","cliente":"ERNESTO STEEVIE PARRA LOPEZ","vendedor":"MARIA BRICEÑO","monto":44.95,"cajas":7,"kgs":7.25,"months":{"OCTUBRE":{"monto":44.95,"cajas":7,"kgs":7.25}}},{"id_cliente":"7890","cliente":"JHENRY JOSE QUIÑONEZ","vendedor":"ELISA SOLER","monto":42.9,"cajas":7,"kgs":6.6,"months":{"OCTUBRE":{"monto":42.9,"cajas":7,"kgs":6.6}}},{"id_cliente":"5338","cliente":"ALEJANDRO JAVIER VALERA PERDOMO","vendedor":"JOSE G. GONZALEZ","monto":40.92,"cajas":7,"kgs":6.6,"months":{"OCTUBRE":{"monto":40.92,"cajas":7,"kgs":6.6}}},{"id_cliente":"3844","cliente":"ALEXIS ANTONI DIAZ PEÑA (COMERCIAL LUCIA)","vendedor":"MARYERY GARCIA","monto":0,"cajas":0,"kgs":0,"months":{"OCTUBRE":{"monto":0,"cajas":0,"kgs":0}}},{"id_cliente":"4957","cliente":"COMERCIALIZADORA EL NENE, C.A","vendedor":"MARIA BRICEÑO","monto":0,"cajas":0,"kgs":0,"months":{"OCTUBRE":{"monto":0,"cajas":0,"kgs":0}}},{"id_cliente":"6830","cliente":"DISTRIBUIDORA DE VIVERES REY DE GLORIA, C.A","vendedor":"EDUARDO PIÑA","monto":0,"cajas":0,"kgs":0,"months":{"OCTUBRE":{"monto":0,"cajas":0,"kgs":0}}},{"id_cliente":"8335","cliente":"ANA MARIA ALDANA MATERAN","vendedor":"JOSE G. GONZALEZ","monto":0,"cajas":0,"kgs":0,"months":{"OCTUBRE":{"monto":0,"cajas":0,"kgs":0}}},{"id_cliente":"179","cliente":"MINIMARKET INVERSIONES EL PAPA Y LA GOCHA, C.A.","vendedor":"ANGELICA MORENO","monto":0,"cajas":0,"kgs":0,"months":{"OCTUBRE":{"monto":0,"cajas":0,"kgs":0}}},{"id_cliente":"8202","cliente":"FIORELLA SUPER MARKET. C.A.","vendedor":"CUENTAS CLAVE 1 - MC","monto":0,"cajas":0,"kgs":0,"months":{"OCTUBRE":{"monto":0,"cajas":0,"kgs":0}}},{"id_cliente":"1477","cliente":"SUPERMERCADO PRIMERO, C.A","vendedor":"J PABLO ARAUJO","monto":0,"cajas":0,"kgs":0,"months":{"OCTUBRE":{"monto":0,"cajas":0,"kgs":0}}},{"id_cliente":"1696","cliente":"LA ROMANA COMERCIALIZADORA Y DISTRIBUIDORA, C.A","vendedor":"JOSE G. GONZALEZ","monto":0,"cajas":0,"kgs":0,"months":{"OCTUBRE":{"monto":0,"cajas":0,"kgs":0}}},{"id_cliente":"4835","cliente":"ELVIN JESUS URDANETA VILLAR  ( COMERCIALIZADORA MOVIL NOVILLO GRIL )","vendedor":"JOSE G. GONZALEZ","monto":0,"cajas":0,"kgs":0,"months":{"OCTUBRE":{"monto":0,"cajas":0,"kgs":0}}},{"id_cliente":"896","cliente":"JESUS JAVIER LARREAL BRIÑEZ (INVERSIONES JESUS JAVIER LARREAL, F.P.)","vendedor":"ANGELICA MORENO","monto":0,"cajas":0,"kgs":0,"months":{"OCTUBRE":{"monto":0,"cajas":0,"kgs":0}}},{"id_cliente":"2111","cliente":"JOEL JOSE MATOS CALLEJA","vendedor":"ELISA SOLER","monto":0,"cajas":0,"kgs":0,"months":{"OCTUBRE":{"monto":0,"cajas":0,"kgs":0}}}]}
+{
+  "id_articulo": 272,
+  "articulo": "FILET DE PECHUGA LIDER POLLO X KG",
+  "totalMonto": 128290.61,
+  "totalCajas": 20249,
+  "totalKgs": 20254.29,
+  "clientsCount": 279,
+  "clients": [
+    {
+      "id_cliente": "6634",
+      "cliente": "RESTAURANT YANGTSE LC, C.A",
+      "vendedor": "OSWALDO CHURION",
+      "monto": 24673.98,
+      "cajas": 4013,
+      "kgs": 4012.2,
+      "months": {
+        "OCTUBRE": {
+          "monto": 24673.98,
+          "cajas": 4013,
+          "kgs": 4012.2
+        }
+      }
+    },
+    {
+      "id_cliente": "2961",
+      "cliente": "MAXI PINGUINO, C.A",
+      "vendedor": "EDUARDO PIÑA",
+      "monto": 6510.4,
+      "cajas": 1002,
+      "kgs": 1001.6,
+      "months": {
+        "OCTUBRE": {
+          "monto": 6510.4,
+          "cajas": 1002,
+          "kgs": 1001.6
+        }
+      }
+    },
+    {
+      "id_cliente": "7751",
+      "cliente": "JULIA LIZ PRIETO FERRER",
+      "vendedor": "CUENTAS CLAVE 1 - MC",
+      "monto": 5744.9,
+      "cajas": 991,
+      "kgs": 990.5,
+      "months": {
+        "OCTUBRE": {
+          "monto": 5744.9,
+          "cajas": 991,
+          "kgs": 990.5
+        }
+      }
+    },
+    {
+      "id_cliente": "3829",
+      "cliente": "CARNICERIA & CHARCUTERIA PURO LOMO, C.A",
+      "vendedor": "J PABLO ARAUJO - CAB/OJE",
+      "monto": 3907.62,
+      "cajas": 600,
+      "kgs": 600.9,
+      "months": {
+        "OCTUBRE": {
+          "monto": 3907.62,
+          "cajas": 600,
+          "kgs": 600.9
+        }
+      }
+    },
+    {
+      "id_cliente": "4474",
+      "cliente": "COMERCIAL NATHAN J&E, C.A",
+      "vendedor": "MARIA BRICEÑO",
+      "monto": 3759.32,
+      "cajas": 592,
+      "kgs": 592.25,
+      "months": {
+        "OCTUBRE": {
+          "monto": 3759.32,
+          "cajas": 592,
+          "kgs": 592.25
+        }
+      }
+    },
+    {
+      "id_cliente": "7219",
+      "cliente": "KRISPY STAR,C.A",
+      "vendedor": "HERNAN PAZ",
+      "monto": 3467.8,
+      "cajas": 495,
+      "kgs": 495.4,
+      "months": {
+        "OCTUBRE": {
+          "monto": 3467.8,
+          "cajas": 495,
+          "kgs": 495.4
+        }
+      }
+    },
+    {
+      "id_cliente": "2545",
+      "cliente": "COMERCIAL VICTORIA 2021, C.A",
+      "vendedor": "CARLOS FUENMAYOR",
+      "monto": 3270.8,
+      "cajas": 503,
+      "kgs": 503.2,
+      "months": {
+        "OCTUBRE": {
+          "monto": 3270.8,
+          "cajas": 503,
+          "kgs": 503.2
+        }
+      }
+    },
+    {
+      "id_cliente": "7701",
+      "cliente": "MULTITIENDAS FARMAPLUS GRAN BAZAR, C.A",
+      "vendedor": "CUENTAS CLAVE 1 - MC",
+      "monto": 2867.1,
+      "cajas": 503,
+      "kgs": 503,
+      "months": {
+        "OCTUBRE": {
+          "monto": 2867.1,
+          "cajas": 503,
+          "kgs": 503
+        }
+      }
+    },
+    {
+      "id_cliente": "7547",
+      "cliente": "CASA COMPRAS MINI MARKET,C.A",
+      "vendedor": "JOSE G. GONZALEZ",
+      "monto": 2685.06,
+      "cajas": 423,
+      "kgs": 423.3,
+      "months": {
+        "OCTUBRE": {
+          "monto": 2685.06,
+          "cajas": 423,
+          "kgs": 423.3
+        }
+      }
+    },
+    {
+      "id_cliente": "3720",
+      "cliente": "SUPERMERCADO TIA JUANA CITY, C.A",
+      "vendedor": "MARYERY GARCIA",
+      "monto": 2565.1,
+      "cajas": 399,
+      "kgs": 399.2,
+      "months": {
+        "OCTUBRE": {
+          "monto": 2565.1,
+          "cajas": 399,
+          "kgs": 399.2
+        }
+      }
+    },
+    {
+      "id_cliente": "2639",
+      "cliente": "INVERSIONES ABIMAEL, C.A",
+      "vendedor": "EDUARDO PIÑA",
+      "monto": 2486.2,
+      "cajas": 401,
+      "kgs": 401,
+      "months": {
+        "OCTUBRE": {
+          "monto": 2486.2,
+          "cajas": 401,
+          "kgs": 401
+        }
+      }
+    },
+    {
+      "id_cliente": "7924",
+      "cliente": "SUPERMERCADO LIBERTAD CITY, C.A",
+      "vendedor": "MARYERY GARCIA",
+      "monto": 1942.78,
+      "cajas": 306,
+      "kgs": 305.9,
+      "months": {
+        "OCTUBRE": {
+          "monto": 1942.78,
+          "cajas": 306,
+          "kgs": 305.9
+        }
+      }
+    },
+    {
+      "id_cliente": "8309",
+      "cliente": "QUICKMART, C.A.",
+      "vendedor": "JOSE G. GONZALEZ",
+      "monto": 1661.4,
+      "cajas": 256,
+      "kgs": 255.6,
+      "months": {
+        "OCTUBRE": {
+          "monto": 1661.4,
+          "cajas": 256,
+          "kgs": 255.6
+        }
+      }
+    },
+    {
+      "id_cliente": "5629",
+      "cliente": "MINIMERCADO A QUE DARIO, C.A",
+      "vendedor": "JOSE G. GONZALEZ",
+      "monto": 1454.7,
+      "cajas": 224,
+      "kgs": 223.8,
+      "months": {
+        "OCTUBRE": {
+          "monto": 1454.7,
+          "cajas": 224,
+          "kgs": 223.8
+        }
+      }
+    },
+    {
+      "id_cliente": "7695",
+      "cliente": "CESAR ANDRES MOISES ACERO",
+      "vendedor": "HERNAN PAZ",
+      "monto": 1405,
+      "cajas": 208,
+      "kgs": 208,
+      "months": {
+        "OCTUBRE": {
+          "monto": 1405,
+          "cajas": 208,
+          "kgs": 208
+        }
+      }
+    },
+    {
+      "id_cliente": "6975",
+      "cliente": "INVERSIONES Y COMERCIALIZADORA EL GORDO COMPAÑIA, C.A",
+      "vendedor": "EDUARDO PIÑA",
+      "monto": 1400.62,
+      "cajas": 223,
+      "kgs": 222.5,
+      "months": {
+        "OCTUBRE": {
+          "monto": 1400.62,
+          "cajas": 223,
+          "kgs": 222.5
+        }
+      }
+    },
+    {
+      "id_cliente": "5177",
+      "cliente": "SUPER TIENDA CAPRICORNIO, C.A.",
+      "vendedor": "SARAH REYES",
+      "monto": 1339,
+      "cajas": 206,
+      "kgs": 206,
+      "months": {
+        "OCTUBRE": {
+          "monto": 1339,
+          "cajas": 206,
+          "kgs": 206
+        }
+      }
+    },
+    {
+      "id_cliente": "2019",
+      "cliente": "FARMACIA FARMAEXPRESS 24 SAN FRANCISCO, C.A",
+      "vendedor": "SARAH REYES",
+      "monto": 1276.6,
+      "cajas": 196,
+      "kgs": 196.4,
+      "months": {
+        "OCTUBRE": {
+          "monto": 1276.6,
+          "cajas": 196,
+          "kgs": 196.4
+        }
+      }
+    },
+    {
+      "id_cliente": "2085",
+      "cliente": "DISTRIBUIDORA Y COMERCIALIZADORA SANTA BARBARA,C.A",
+      "vendedor": "J PABLO ARAUJO",
+      "monto": 1254.5,
+      "cajas": 193,
+      "kgs": 193,
+      "months": {
+        "OCTUBRE": {
+          "monto": 1254.5,
+          "cajas": 193,
+          "kgs": 193
+        }
+      }
+    },
+    {
+      "id_cliente": "7174",
+      "cliente": "MARIO ALIMENTOS, C.A",
+      "vendedor": "CARLOS FUENMAYOR",
+      "monto": 1083.76,
+      "cajas": 173,
+      "kgs": 174.8,
+      "months": {
+        "OCTUBRE": {
+          "monto": 1083.76,
+          "cajas": 173,
+          "kgs": 174.8
+        }
+      }
+    },
+    {
+      "id_cliente": "8095",
+      "cliente": "SUPERMARKET FIORELLA EXPRESS, C.A.",
+      "vendedor": "CUENTAS CLAVE 1 - MC",
+      "monto": 1052.22,
+      "cajas": 184,
+      "kgs": 184.6,
+      "months": {
+        "OCTUBRE": {
+          "monto": 1052.22,
+          "cajas": 184,
+          "kgs": 184.6
+        }
+      }
+    },
+    {
+      "id_cliente": "6751",
+      "cliente": "LURISMAR JOSE PIÑA PEÑA",
+      "vendedor": "JOSE G. GONZALEZ",
+      "monto": 988,
+      "cajas": 152,
+      "kgs": 152,
+      "months": {
+        "OCTUBRE": {
+          "monto": 988,
+          "cajas": 152,
+          "kgs": 152
+        }
+      }
+    },
+    {
+      "id_cliente": "275",
+      "cliente": "SUPER OFERTON, C.A",
+      "vendedor": "J PABLO ARAUJO - CAB/OJE",
+      "monto": 935.22,
+      "cajas": 147,
+      "kgs": 146.7,
+      "months": {
+        "OCTUBRE": {
+          "monto": 935.22,
+          "cajas": 147,
+          "kgs": 146.7
+        }
+      }
+    },
+    {
+      "id_cliente": "1613",
+      "cliente": "MARKET & INVERSIONES TERI, C.A",
+      "vendedor": "J PABLO ARAUJO",
+      "monto": 929.5,
+      "cajas": 143,
+      "kgs": 143,
+      "months": {
+        "OCTUBRE": {
+          "monto": 929.5,
+          "cajas": 143,
+          "kgs": 143
+        }
+      }
+    },
+    {
+      "id_cliente": "4777",
+      "cliente": "BORIS JESUS RINCON FERNANDEZ",
+      "vendedor": "ANGELICA MORENO",
+      "monto": 907.4,
+      "cajas": 140,
+      "kgs": 139.6,
+      "months": {
+        "OCTUBRE": {
+          "monto": 907.4,
+          "cajas": 140,
+          "kgs": 139.6
+        }
+      }
+    },
+    {
+      "id_cliente": "1595",
+      "cliente": "CHARLAVIPAN, C.A",
+      "vendedor": "MARIA BRICEÑO",
+      "monto": 873.54,
+      "cajas": 137,
+      "kgs": 137.4,
+      "months": {
+        "OCTUBRE": {
+          "monto": 873.54,
+          "cajas": 137,
+          "kgs": 137.4
+        }
+      }
+    },
+    {
+      "id_cliente": "7594",
+      "cliente": "INVERSIONES GA & SC ,C.A",
+      "vendedor": "JOSE G. GONZALEZ",
+      "monto": 830.62,
+      "cajas": 130,
+      "kgs": 130.1,
+      "months": {
+        "OCTUBRE": {
+          "monto": 830.62,
+          "cajas": 130,
+          "kgs": 130.1
+        }
+      }
+    },
+    {
+      "id_cliente": "8115",
+      "cliente": "MIGUEL ANGEL FERNANDEZ LEON",
+      "vendedor": "MARIA BRICEÑO",
+      "monto": 797.84,
+      "cajas": 126,
+      "kgs": 126.1,
+      "months": {
+        "OCTUBRE": {
+          "monto": 797.84,
+          "cajas": 126,
+          "kgs": 126.1
+        }
+      }
+    },
+    {
+      "id_cliente": "7635",
+      "cliente": "DISTRIBUIDORA Y COMERCIALIZADORA CHIRINOS,CA",
+      "vendedor": "J PABLO ARAUJO",
+      "monto": 776.75,
+      "cajas": 119,
+      "kgs": 119.5,
+      "months": {
+        "OCTUBRE": {
+          "monto": 776.75,
+          "cajas": 119,
+          "kgs": 119.5
+        }
+      }
+    },
+    {
+      "id_cliente": "7511",
+      "cliente": "5TA AVENIDA RESTAURANT & INVERSIONES,C.A",
+      "vendedor": "JOSE G. GONZALEZ",
+      "monto": 764.65,
+      "cajas": 121,
+      "kgs": 120.5,
+      "months": {
+        "OCTUBRE": {
+          "monto": 764.65,
+          "cajas": 121,
+          "kgs": 120.5
+        }
+      }
+    },
+    {
+      "id_cliente": "5413",
+      "cliente": "INVERSIONES Y DISTRIBUCIONES LA FORTALEZA, C.A.",
+      "vendedor": "JOSE G. GONZALEZ",
+      "monto": 721.52,
+      "cajas": 124,
+      "kgs": 124.4,
+      "months": {
+        "OCTUBRE": {
+          "monto": 721.52,
+          "cajas": 124,
+          "kgs": 124.4
+        }
+      }
+    },
+    {
+      "id_cliente": "6816",
+      "cliente": "LA UNION INVERSIONES, C.A",
+      "vendedor": "ANGELICA MORENO",
+      "monto": 659.1,
+      "cajas": 101,
+      "kgs": 101.4,
+      "months": {
+        "OCTUBRE": {
+          "monto": 659.1,
+          "cajas": 101,
+          "kgs": 101.4
+        }
+      }
+    },
+    {
+      "id_cliente": "7574",
+      "cliente": "ALKOSTO DONDE COMPRAR ES GANAR, C.A.",
+      "vendedor": "JOSE G. GONZALEZ",
+      "monto": 656.5,
+      "cajas": 101,
+      "kgs": 101,
+      "months": {
+        "OCTUBRE": {
+          "monto": 656.5,
+          "cajas": 101,
+          "kgs": 101
+        }
+      }
+    },
+    {
+      "id_cliente": "903",
+      "cliente": "ITALCARNE, C.A.",
+      "vendedor": "ANGELICA MORENO",
+      "monto": 648.7,
+      "cajas": 100,
+      "kgs": 99.8,
+      "months": {
+        "OCTUBRE": {
+          "monto": 648.7,
+          "cajas": 100,
+          "kgs": 99.8
+        }
+      }
+    },
+    {
+      "id_cliente": "8021",
+      "cliente": "KARIN ELENA MELEAN ARAUJO",
+      "vendedor": "MARIA BRICEÑO",
+      "monto": 630,
+      "cajas": 99,
+      "kgs": 99,
+      "months": {
+        "OCTUBRE": {
+          "monto": 630,
+          "cajas": 99,
+          "kgs": 99
+        }
+      }
+    },
+    {
+      "id_cliente": "6339",
+      "cliente": "DISTRIBUIDORA ALIANS, C..A",
+      "vendedor": "JUAN HERNANDEZ",
+      "monto": 612.56,
+      "cajas": 99,
+      "kgs": 98.8,
+      "months": {
+        "OCTUBRE": {
+          "monto": 612.56,
+          "cajas": 99,
+          "kgs": 98.8
+        }
+      }
+    },
+    {
+      "id_cliente": "6828",
+      "cliente": "SABORES DEL TRIGO, C.A",
+      "vendedor": "SARAH REYES",
+      "monto": 608.4,
+      "cajas": 94,
+      "kgs": 93.6,
+      "months": {
+        "OCTUBRE": {
+          "monto": 608.4,
+          "cajas": 94,
+          "kgs": 93.6
+        }
+      }
+    },
+    {
+      "id_cliente": "334",
+      "cliente": "CARNICERIA LA ENSENADA, COMPAÑIA ANONIMA",
+      "vendedor": "MARIA BRICEÑO",
+      "monto": 576.8,
+      "cajas": 90,
+      "kgs": 90.4,
+      "months": {
+        "OCTUBRE": {
+          "monto": 576.8,
+          "cajas": 90,
+          "kgs": 90.4
+        }
+      }
+    },
+    {
+      "id_cliente": "4865",
+      "cliente": "INVERSIONES HERMANOS PARRA RODRIGUEZ, C.A",
+      "vendedor": "ELISA SOLER",
+      "monto": 555.1,
+      "cajas": 85,
+      "kgs": 85.4,
+      "months": {
+        "OCTUBRE": {
+          "monto": 555.1,
+          "cajas": 85,
+          "kgs": 85.4
+        }
+      }
+    },
+    {
+      "id_cliente": "2764",
+      "cliente": "INVERSIONES FERRER MEDINA, C.A",
+      "vendedor": "ELISA SOLER",
+      "monto": 552.5,
+      "cajas": 85,
+      "kgs": 85,
+      "months": {
+        "OCTUBRE": {
+          "monto": 552.5,
+          "cajas": 85,
+          "kgs": 85
+        }
+      }
+    },
+    {
+      "id_cliente": "3767",
+      "cliente": "PERIJANERO DE TURISMO, C.A",
+      "vendedor": "MIKELANGELO DIAZ - VILLA DEL ROS",
+      "monto": 546.65,
+      "cajas": 85,
+      "kgs": 84.1,
+      "months": {
+        "OCTUBRE": {
+          "monto": 546.65,
+          "cajas": 85,
+          "kgs": 84.1
+        }
+      }
+    },
+    {
+      "id_cliente": "357",
+      "cliente": "AGROPECUARIA SAN BENITO DE I.F, C.A.",
+      "vendedor": "MARIA BRICEÑO",
+      "monto": 538.66,
+      "cajas": 86,
+      "kgs": 85.4,
+      "months": {
+        "OCTUBRE": {
+          "monto": 538.66,
+          "cajas": 86,
+          "kgs": 85.4
+        }
+      }
+    },
+    {
+      "id_cliente": "8182",
+      "cliente": "LA TERRAZA 2026, C.A",
+      "vendedor": "CARLOS FUENMAYOR",
+      "monto": 527.8,
+      "cajas": 81,
+      "kgs": 81.2,
+      "months": {
+        "OCTUBRE": {
+          "monto": 527.8,
+          "cajas": 81,
+          "kgs": 81.2
+        }
+      }
+    },
+    {
+      "id_cliente": "8048",
+      "cliente": "NORMA COROMOTO CARREÑO DE VENEGAS( COMERCIALIZADORA VENCAR DE NORMA CARREÑO)",
+      "vendedor": "J PABLO ARAUJO",
+      "monto": 513.5,
+      "cajas": 79,
+      "kgs": 79,
+      "months": {
+        "OCTUBRE": {
+          "monto": 513.5,
+          "cajas": 79,
+          "kgs": 79
+        }
+      }
+    },
+    {
+      "id_cliente": "7609",
+      "cliente": "MULTITIENDAS FARMAPLUS LOS HATICOS, C.A",
+      "vendedor": "J PABLO ARAUJO - CAB/OJE",
+      "monto": 513.5,
+      "cajas": 79,
+      "kgs": 79,
+      "months": {
+        "OCTUBRE": {
+          "monto": 513.5,
+          "cajas": 79,
+          "kgs": 79
+        }
+      }
+    },
+    {
+      "id_cliente": "735",
+      "cliente": "INVERSIONES VENZUCARNE, C.A.",
+      "vendedor": "JUAN HERNANDEZ",
+      "monto": 497.25,
+      "cajas": 76,
+      "kgs": 76.5,
+      "months": {
+        "OCTUBRE": {
+          "monto": 497.25,
+          "cajas": 76,
+          "kgs": 76.5
+        }
+      }
+    },
+    {
+      "id_cliente": "356",
+      "cliente": "INVERSIONES BOSCAN, C.A.",
+      "vendedor": "MARIA BRICEÑO",
+      "monto": 495.18,
+      "cajas": 78,
+      "kgs": 77.4,
+      "months": {
+        "OCTUBRE": {
+          "monto": 495.18,
+          "cajas": 78,
+          "kgs": 77.4
+        }
+      }
+    },
+    {
+      "id_cliente": "4783",
+      "cliente": "ELVIN JESUS URDANETA VILLAR  ( COMERCIALIZADORA MOVIL NOVILLO GRIL )",
+      "vendedor": "JOSE G. GONZALEZ",
+      "monto": 493.52,
+      "cajas": 80,
+      "kgs": 79.6,
+      "months": {
+        "OCTUBRE": {
+          "monto": 493.52,
+          "cajas": 80,
+          "kgs": 79.6
+        }
+      }
+    },
+    {
+      "id_cliente": "4092",
+      "cliente": "INVERSIONES BRIAGUI, C.A",
+      "vendedor": "ANGELICA MORENO",
+      "monto": 478.4,
+      "cajas": 75,
+      "kgs": 73.6,
+      "months": {
+        "OCTUBRE": {
+          "monto": 478.4,
+          "cajas": 75,
+          "kgs": 73.6
+        }
+      }
+    },
+    {
+      "id_cliente": "8179",
+      "cliente": "INVERSIONES JOHEMARKET, C.A.",
+      "vendedor": "CARLOS FUENMAYOR",
+      "monto": 476.78,
+      "cajas": 77,
+      "kgs": 76.9,
+      "months": {
+        "OCTUBRE": {
+          "monto": 476.78,
+          "cajas": 77,
+          "kgs": 76.9
+        }
+      }
+    },
+    {
+      "id_cliente": "353",
+      "cliente": "DISTRIBUIDORA DE POLLOS LA UNICA, COMPAÑIA ANONIMA",
+      "vendedor": "MARIA BRICEÑO",
+      "monto": 472.74,
+      "cajas": 75,
+      "kgs": 75,
+      "months": {
+        "OCTUBRE": {
+          "monto": 472.74,
+          "cajas": 75,
+          "kgs": 75
+        }
+      }
+    },
+    {
+      "id_cliente": "7514",
+      "cliente": "ALKOSTO DONDE COMPRAR ES GANAR, C.A.",
+      "vendedor": "JUAN HERNANDEZ",
+      "monto": 448.8,
+      "cajas": 66,
+      "kgs": 66,
+      "months": {
+        "OCTUBRE": {
+          "monto": 448.8,
+          "cajas": 66,
+          "kgs": 66
+        }
+      }
+    },
+    {
+      "id_cliente": "5963",
+      "cliente": "INVERSIONES JOINGMAR , C.A",
+      "vendedor": "EDUARDO PIÑA",
+      "monto": 448.5,
+      "cajas": 69,
+      "kgs": 69,
+      "months": {
+        "OCTUBRE": {
+          "monto": 448.5,
+          "cajas": 69,
+          "kgs": 69
+        }
+      }
+    },
+    {
+      "id_cliente": "7296",
+      "cliente": "INVERSIONES Y COMERCIALIZADORA LA \"Y\" DE YUSMAIRA VASQUEZ F.P",
+      "vendedor": "ANGELICA MORENO",
+      "monto": 425.1,
+      "cajas": 65,
+      "kgs": 65.4,
+      "months": {
+        "OCTUBRE": {
+          "monto": 425.1,
+          "cajas": 65,
+          "kgs": 65.4
+        }
+      }
+    },
+    {
+      "id_cliente": "6166",
+      "cliente": "TEKESITOS PASAPALOS, C.A",
+      "vendedor": "SARAH REYES",
+      "monto": 421.2,
+      "cajas": 65,
+      "kgs": 64.8,
+      "months": {
+        "OCTUBRE": {
+          "monto": 421.2,
+          "cajas": 65,
+          "kgs": 64.8
+        }
+      }
+    },
+    {
+      "id_cliente": "7391",
+      "cliente": "GERALEX, C.A",
+      "vendedor": "YOLEIDA LUGO",
+      "monto": 405.6,
+      "cajas": 62,
+      "kgs": 62.4,
+      "months": {
+        "OCTUBRE": {
+          "monto": 405.6,
+          "cajas": 62,
+          "kgs": 62.4
+        }
+      }
+    },
+    {
+      "id_cliente": "6808",
+      "cliente": "PANADERIA Y PASTELERIA EL ARCA, C.A",
+      "vendedor": "JOSE G. GONZALEZ",
+      "monto": 403,
+      "cajas": 62,
+      "kgs": 62,
+      "months": {
+        "OCTUBRE": {
+          "monto": 403,
+          "cajas": 62,
+          "kgs": 62
+        }
+      }
+    },
+    {
+      "id_cliente": "6140",
+      "cliente": "PANADERIA DON MIGUEL, C.A",
+      "vendedor": "HERNAN PAZ",
+      "monto": 397.42,
+      "cajas": 64,
+      "kgs": 64.1,
+      "months": {
+        "OCTUBRE": {
+          "monto": 397.42,
+          "cajas": 64,
+          "kgs": 64.1
+        }
+      }
+    },
+    {
+      "id_cliente": "4223",
+      "cliente": "ANDREINA PAOLA PRIETO SILVA",
+      "vendedor": "ANGELICA MORENO",
+      "monto": 390,
+      "cajas": 60,
+      "kgs": 60,
+      "months": {
+        "OCTUBRE": {
+          "monto": 390,
+          "cajas": 60,
+          "kgs": 60
+        }
+      }
+    },
+    {
+      "id_cliente": "3234",
+      "cliente": "INVERSIONES VARGAS J & A, C.A",
+      "vendedor": "J PABLO ARAUJO",
+      "monto": 388.05,
+      "cajas": 60,
+      "kgs": 59.7,
+      "months": {
+        "OCTUBRE": {
+          "monto": 388.05,
+          "cajas": 60,
+          "kgs": 59.7
+        }
+      }
+    },
+    {
+      "id_cliente": "5580",
+      "cliente": "IGNACIO CONSEPCION  FUGUET CASTRO",
+      "vendedor": "ELISA SOLER",
+      "monto": 381.55,
+      "cajas": 59,
+      "kgs": 58.7,
+      "months": {
+        "OCTUBRE": {
+          "monto": 381.55,
+          "cajas": 59,
+          "kgs": 58.7
+        }
+      }
+    },
+    {
+      "id_cliente": "8005",
+      "cliente": "MULTITIENDAS VIRGEN DE COROMOTO, C.A.",
+      "vendedor": "MARIA BRICEÑO",
+      "monto": 379.88,
+      "cajas": 61,
+      "kgs": 60.4,
+      "months": {
+        "OCTUBRE": {
+          "monto": 379.88,
+          "cajas": 61,
+          "kgs": 60.4
+        }
+      }
+    },
+    {
+      "id_cliente": "7798",
+      "cliente": "EDIXON JAVIER SANCHEZ RINCON",
+      "vendedor": "MARIA BRICEÑO",
+      "monto": 375.9,
+      "cajas": 60,
+      "kgs": 59.1,
+      "months": {
+        "OCTUBRE": {
+          "monto": 375.9,
+          "cajas": 60,
+          "kgs": 59.1
+        }
+      }
+    },
+    {
+      "id_cliente": "5044",
+      "cliente": "L BESHA RESTAURAN, C.A",
+      "vendedor": "EDUARDO PIÑA",
+      "monto": 371.8,
+      "cajas": 57,
+      "kgs": 57.2,
+      "months": {
+        "OCTUBRE": {
+          "monto": 371.8,
+          "cajas": 57,
+          "kgs": 57.2
+        }
+      }
+    },
+    {
+      "id_cliente": "8370",
+      "cliente": "CLIENTE 8370",
+      "vendedor": "J PABLO ARAUJO - CAB/OJE",
+      "monto": 359.8,
+      "cajas": 51,
+      "kgs": 51.4,
+      "months": {
+        "OCTUBRE": {
+          "monto": 359.8,
+          "cajas": 51,
+          "kgs": 51.4
+        }
+      }
+    },
+    {
+      "id_cliente": "7990",
+      "cliente": "INVERSORA Y COMERCIALIZADORA P¨SOILA, C. A.",
+      "vendedor": "YOLEIDA LUGO",
+      "monto": 358.8,
+      "cajas": 55,
+      "kgs": 55.2,
+      "months": {
+        "OCTUBRE": {
+          "monto": 358.8,
+          "cajas": 55,
+          "kgs": 55.2
+        }
+      }
+    },
+    {
+      "id_cliente": "524",
+      "cliente": "LACTEOS Y CHARCUTERIA EL RINCON DEL QUESO, C.A.",
+      "vendedor": "SARAH REYES",
+      "monto": 342.55,
+      "cajas": 52,
+      "kgs": 52.7,
+      "months": {
+        "OCTUBRE": {
+          "monto": 342.55,
+          "cajas": 52,
+          "kgs": 52.7
+        }
+      }
+    },
+    {
+      "id_cliente": "2853",
+      "cliente": "INVERSIONES ABIMAEL, C.A",
+      "vendedor": "MIKELANGELO DIAZ",
+      "monto": 339.3,
+      "cajas": 52,
+      "kgs": 52.2,
+      "months": {
+        "OCTUBRE": {
+          "monto": 339.3,
+          "cajas": 52,
+          "kgs": 52.2
+        }
+      }
+    },
+    {
+      "id_cliente": "4305",
+      "cliente": "MINIMARKET LA BENDICION M & N , C.A",
+      "vendedor": "MARIA BRICEÑO",
+      "monto": 330.2,
+      "cajas": 51,
+      "kgs": 50.8,
+      "months": {
+        "OCTUBRE": {
+          "monto": 330.2,
+          "cajas": 51,
+          "kgs": 50.8
+        }
+      }
+    },
+    {
+      "id_cliente": "4897",
+      "cliente": "INVERSIONES Y ACCESORIOS KELY, C.A",
+      "vendedor": "MARYERY GARCIA",
+      "monto": 328.14,
+      "cajas": 51,
+      "kgs": 51.6,
+      "months": {
+        "OCTUBRE": {
+          "monto": 328.14,
+          "cajas": 51,
+          "kgs": 51.6
+        }
+      }
+    },
+    {
+      "id_cliente": "3383",
+      "cliente": "INVERSIONES ABUELO TOCO C.A",
+      "vendedor": "LEONARDO RIOS",
+      "monto": 325,
+      "cajas": 50,
+      "kgs": 50,
+      "months": {
+        "OCTUBRE": {
+          "monto": 325,
+          "cajas": 50,
+          "kgs": 50
+        }
+      }
+    },
+    {
+      "id_cliente": "8030",
+      "cliente": "MULTITIENDAS VIRGEN DE COROMOTO, C.A.",
+      "vendedor": "LEONARDO RIOS",
+      "monto": 322.4,
+      "cajas": 50,
+      "kgs": 49.6,
+      "months": {
+        "OCTUBRE": {
+          "monto": 322.4,
+          "cajas": 50,
+          "kgs": 49.6
+        }
+      }
+    },
+    {
+      "id_cliente": "8235",
+      "cliente": "ENDER EDIXON GARCIA SUAREZ",
+      "vendedor": "JOSE G. GONZALEZ",
+      "monto": 318.5,
+      "cajas": 49,
+      "kgs": 49,
+      "months": {
+        "OCTUBRE": {
+          "monto": 318.5,
+          "cajas": 49,
+          "kgs": 49
+        }
+      }
+    },
+    {
+      "id_cliente": "8231",
+      "cliente": "INVERSIONES MARIACENTER2025, C.A.",
+      "vendedor": "J PABLO ARAUJO",
+      "monto": 314.6,
+      "cajas": 48,
+      "kgs": 48.4,
+      "months": {
+        "OCTUBRE": {
+          "monto": 314.6,
+          "cajas": 48,
+          "kgs": 48.4
+        }
+      }
+    },
+    {
+      "id_cliente": "3152",
+      "cliente": "INVERSIONES LA MURALLA, C.A.",
+      "vendedor": "J PABLO ARAUJO",
+      "monto": 312,
+      "cajas": 48,
+      "kgs": 48,
+      "months": {
+        "OCTUBRE": {
+          "monto": 312,
+          "cajas": 48,
+          "kgs": 48
+        }
+      }
+    },
+    {
+      "id_cliente": "7064",
+      "cliente": "SHU ZHEN ME LIANG",
+      "vendedor": "JOSE G. GONZALEZ",
+      "monto": 310,
+      "cajas": 50,
+      "kgs": 50,
+      "months": {
+        "OCTUBRE": {
+          "monto": 310,
+          "cajas": 50,
+          "kgs": 50
+        }
+      }
+    },
+    {
+      "id_cliente": "6744",
+      "cliente": "ROXENY DEL CARMEN CHOURIO BOSCAN",
+      "vendedor": "MARIA BRICEÑO",
+      "monto": 309.16,
+      "cajas": 49,
+      "kgs": 48.8,
+      "months": {
+        "OCTUBRE": {
+          "monto": 309.16,
+          "cajas": 49,
+          "kgs": 48.8
+        }
+      }
+    },
+    {
+      "id_cliente": "2275",
+      "cliente": "VIVERES NUEVA VICTORIA , C.A",
+      "vendedor": "MARIA BRICEÑO",
+      "monto": 308.1,
+      "cajas": 47,
+      "kgs": 47.4,
+      "months": {
+        "OCTUBRE": {
+          "monto": 308.1,
+          "cajas": 47,
+          "kgs": 47.4
+        }
+      }
+    },
+    {
+      "id_cliente": "8134",
+      "cliente": "MULTITIENDAS EL MANA, CA",
+      "vendedor": "ELISA SOLER",
+      "monto": 304.2,
+      "cajas": 47,
+      "kgs": 46.8,
+      "months": {
+        "OCTUBRE": {
+          "monto": 304.2,
+          "cajas": 47,
+          "kgs": 46.8
+        }
+      }
+    },
+    {
+      "id_cliente": "8327",
+      "cliente": "MEDINA ROJAS OCTAVIO ANTONIO",
+      "vendedor": "CARLOS FUENMAYOR",
+      "monto": 300.08,
+      "cajas": 49,
+      "kgs": 48.4,
+      "months": {
+        "OCTUBRE": {
+          "monto": 300.08,
+          "cajas": 49,
+          "kgs": 48.4
+        }
+      }
+    },
+    {
+      "id_cliente": "7834",
+      "cliente": "COMERCIAL EL CORDERO COMPAÑIA ANONIMA",
+      "vendedor": "ELISA SOLER",
+      "monto": 297.7,
+      "cajas": 45,
+      "kgs": 45.8,
+      "months": {
+        "OCTUBRE": {
+          "monto": 297.7,
+          "cajas": 45,
+          "kgs": 45.8
+        }
+      }
+    },
+    {
+      "id_cliente": "6548",
+      "cliente": "MINIMARKET ISANGELI 2024, C,A",
+      "vendedor": "MIKELANGELO DIAZ",
+      "monto": 274.57,
+      "cajas": 42,
+      "kgs": 43.1,
+      "months": {
+        "OCTUBRE": {
+          "monto": 274.57,
+          "cajas": 42,
+          "kgs": 43.1
+        }
+      }
+    },
+    {
+      "id_cliente": "38",
+      "cliente": "ABASTOS URDANETA, C.A",
+      "vendedor": "ANGELICA MORENO",
+      "monto": 258.94,
+      "cajas": 40,
+      "kgs": 39.84,
+      "months": {
+        "OCTUBRE": {
+          "monto": 258.94,
+          "cajas": 40,
+          "kgs": 39.84
+        }
+      }
+    },
+    {
+      "id_cliente": "8043",
+      "cliente": "MULTITIENDAS VIRGEN DE COROMOTO, C.A.",
+      "vendedor": "J PABLO ARAUJO - CAB/OJE",
+      "monto": 257.4,
+      "cajas": 40,
+      "kgs": 39.6,
+      "months": {
+        "OCTUBRE": {
+          "monto": 257.4,
+          "cajas": 40,
+          "kgs": 39.6
+        }
+      }
+    },
+    {
+      "id_cliente": "4427",
+      "cliente": "INVERSIONES VERGEL PARRA, C.A",
+      "vendedor": "MARIA BRICEÑO",
+      "monto": 256.06,
+      "cajas": 41,
+      "kgs": 41.3,
+      "months": {
+        "OCTUBRE": {
+          "monto": 256.06,
+          "cajas": 41,
+          "kgs": 41.3
+        }
+      }
+    },
+    {
+      "id_cliente": "7996",
+      "cliente": "YASMIL COROMOTO SANCHEZ CUEVAS",
+      "vendedor": "MARIANGEL GONZALEZ",
+      "monto": 253.5,
+      "cajas": 39,
+      "kgs": 39,
+      "months": {
+        "OCTUBRE": {
+          "monto": 253.5,
+          "cajas": 39,
+          "kgs": 39
+        }
+      }
+    },
+    {
+      "id_cliente": "6010",
+      "cliente": "SUPER BIG MARKET, C.A",
+      "vendedor": "ADEL JARABA",
+      "monto": 250.9,
+      "cajas": 39,
+      "kgs": 38.6,
+      "months": {
+        "OCTUBRE": {
+          "monto": 250.9,
+          "cajas": 39,
+          "kgs": 38.6
+        }
+      }
+    },
+    {
+      "id_cliente": "7364",
+      "cliente": "JUNIOR SALVADOR VILLASMIL LEDEZMA",
+      "vendedor": "MARIA BRICEÑO",
+      "monto": 250.5,
+      "cajas": 39,
+      "kgs": 39,
+      "months": {
+        "OCTUBRE": {
+          "monto": 250.5,
+          "cajas": 39,
+          "kgs": 39
+        }
+      }
+    },
+    {
+      "id_cliente": "4960",
+      "cliente": "INVERSIONES VIVERES Y CHARCUTERIA M&M, C.A",
+      "vendedor": "MARYERY GARCIA",
+      "monto": 246.76,
+      "cajas": 40,
+      "kgs": 39.8,
+      "months": {
+        "OCTUBRE": {
+          "monto": 246.76,
+          "cajas": 40,
+          "kgs": 39.8
+        }
+      }
+    },
+    {
+      "id_cliente": "6269",
+      "cliente": "ASTRID CAROLINA MELENDEZ COLINA",
+      "vendedor": "J PABLO ARAUJO",
+      "monto": 246.61,
+      "cajas": 38,
+      "kgs": 37.94,
+      "months": {
+        "OCTUBRE": {
+          "monto": 246.61,
+          "cajas": 38,
+          "kgs": 37.94
+        }
+      }
+    },
+    {
+      "id_cliente": "7861",
+      "cliente": "CRIS ALEXANDRA MARIN DE ISEA",
+      "vendedor": "MARIANGEL GONZALEZ",
+      "monto": 244.4,
+      "cajas": 38,
+      "kgs": 37.6,
+      "months": {
+        "OCTUBRE": {
+          "monto": 244.4,
+          "cajas": 38,
+          "kgs": 37.6
+        }
+      }
+    },
+    {
+      "id_cliente": "2758",
+      "cliente": "INVERSIONES DOS FRATELLOS L & G, C.A",
+      "vendedor": "ELISA SOLER",
+      "monto": 241.34,
+      "cajas": 37,
+      "kgs": 37.13,
+      "months": {
+        "OCTUBRE": {
+          "monto": 241.34,
+          "cajas": 37,
+          "kgs": 37.13
+        }
+      }
+    },
+    {
+      "id_cliente": "6977",
+      "cliente": "QUESTEFANIPAOLA,C.A",
+      "vendedor": "ELISA SOLER",
+      "monto": 239.2,
+      "cajas": 37,
+      "kgs": 36.8,
+      "months": {
+        "OCTUBRE": {
+          "monto": 239.2,
+          "cajas": 37,
+          "kgs": 36.8
+        }
+      }
+    },
+    {
+      "id_cliente": "6589",
+      "cliente": "MERCADO MAYORISTA 77 PARAGUANA C,A",
+      "vendedor": "MARIA BRICEÑO",
+      "monto": 236.6,
+      "cajas": 36,
+      "kgs": 36.4,
+      "months": {
+        "OCTUBRE": {
+          "monto": 236.6,
+          "cajas": 36,
+          "kgs": 36.4
+        }
+      }
+    },
+    {
+      "id_cliente": "6229",
+      "cliente": "NUEVO SUPERMERCADO FAMILIA, CA",
+      "vendedor": "MARYERY GARCIA",
+      "monto": 232.7,
+      "cajas": 36,
+      "kgs": 35.8,
+      "months": {
+        "OCTUBRE": {
+          "monto": 232.7,
+          "cajas": 36,
+          "kgs": 35.8
+        }
+      }
+    },
+    {
+      "id_cliente": "8252",
+      "cliente": "ASOCIACION COOPERATIVA DON LUCHO R.S",
+      "vendedor": "JOSE G. GONZALEZ",
+      "monto": 228.8,
+      "cajas": 35,
+      "kgs": 35.2,
+      "months": {
+        "OCTUBRE": {
+          "monto": 228.8,
+          "cajas": 35,
+          "kgs": 35.2
+        }
+      }
+    },
+    {
+      "id_cliente": "8244",
+      "cliente": "EMPRENDIMIENTO YANALY CHURIO",
+      "vendedor": "JOSE G. GONZALEZ",
+      "monto": 226.92,
+      "cajas": 37,
+      "kgs": 36.6,
+      "months": {
+        "OCTUBRE": {
+          "monto": 226.92,
+          "cajas": 37,
+          "kgs": 36.6
+        }
+      }
+    },
+    {
+      "id_cliente": "5587",
+      "cliente": "MARIALEJANDRA CAROLINA GONZALEZ NUÑEZ",
+      "vendedor": "MARYERY GARCIA",
+      "monto": 226.2,
+      "cajas": 35,
+      "kgs": 34.8,
+      "months": {
+        "OCTUBRE": {
+          "monto": 226.2,
+          "cajas": 35,
+          "kgs": 34.8
+        }
+      }
+    },
+    {
+      "id_cliente": "7109",
+      "cliente": "PANADERIA LA DULCE ESPERANZA",
+      "vendedor": "J PABLO ARAUJO",
+      "monto": 223.6,
+      "cajas": 34,
+      "kgs": 34.4,
+      "months": {
+        "OCTUBRE": {
+          "monto": 223.6,
+          "cajas": 34,
+          "kgs": 34.4
+        }
+      }
+    },
+    {
+      "id_cliente": "7650",
+      "cliente": "INVERSIONES & COMERCIALIZADORA P&C,CA",
+      "vendedor": "J PABLO ARAUJO",
+      "monto": 221,
+      "cajas": 34,
+      "kgs": 34,
+      "months": {
+        "OCTUBRE": {
+          "monto": 221,
+          "cajas": 34,
+          "kgs": 34
+        }
+      }
+    },
+    {
+      "id_cliente": "6626",
+      "cliente": "COMERCIALIZADORA WENDYS, C.A",
+      "vendedor": "J PABLO ARAUJO - CAB/OJE",
+      "monto": 219.9,
+      "cajas": 35,
+      "kgs": 34.5,
+      "months": {
+        "OCTUBRE": {
+          "monto": 219.9,
+          "cajas": 35,
+          "kgs": 34.5
+        }
+      }
+    },
+    {
+      "id_cliente": "6719",
+      "cliente": "INVERSIONES ALAMMAR, C.A",
+      "vendedor": "MARYERY GARCIA",
+      "monto": 209.56,
+      "cajas": 34,
+      "kgs": 33.8,
+      "months": {
+        "OCTUBRE": {
+          "monto": 209.56,
+          "cajas": 34,
+          "kgs": 33.8
+        }
+      }
+    },
+    {
+      "id_cliente": "4378",
+      "cliente": "ALEXANDER ANTONIO PACHANO HERRERA",
+      "vendedor": "LUIS GUANIPA",
+      "monto": 206.7,
+      "cajas": 32,
+      "kgs": 31.8,
+      "months": {
+        "OCTUBRE": {
+          "monto": 206.7,
+          "cajas": 32,
+          "kgs": 31.8
+        }
+      }
+    },
+    {
+      "id_cliente": "8107",
+      "cliente": "VERONICA CAROLINA RODRIGUEZ MOSQUERA",
+      "vendedor": "MARYERY GARCIA",
+      "monto": 205.4,
+      "cajas": 32,
+      "kgs": 31.6,
+      "months": {
+        "OCTUBRE": {
+          "monto": 205.4,
+          "cajas": 32,
+          "kgs": 31.6
+        }
+      }
+    },
+    {
+      "id_cliente": "2968",
+      "cliente": "V&G CARNICERIA, C.A",
+      "vendedor": "MIKELANGELO DIAZ - VILLA DEL ROS",
+      "monto": 202.8,
+      "cajas": 31,
+      "kgs": 31.2,
+      "months": {
+        "OCTUBRE": {
+          "monto": 202.8,
+          "cajas": 31,
+          "kgs": 31.2
+        }
+      }
+    },
+    {
+      "id_cliente": "5988",
+      "cliente": "RAFAEL FELIPE BRAVO YANEZ",
+      "vendedor": "ELISA SOLER",
+      "monto": 201.5,
+      "cajas": 31,
+      "kgs": 31,
+      "months": {
+        "OCTUBRE": {
+          "monto": 201.5,
+          "cajas": 31,
+          "kgs": 31
+        }
+      }
+    },
+    {
+      "id_cliente": "8220",
+      "cliente": "DISTRIBUIDORAY PROCESADORA HG (DISPROHG), C.A",
+      "vendedor": "ANGEL NAVARRO",
+      "monto": 201.5,
+      "cajas": 31,
+      "kgs": 31,
+      "months": {
+        "OCTUBRE": {
+          "monto": 201.5,
+          "cajas": 31,
+          "kgs": 31
+        }
+      }
+    },
+    {
+      "id_cliente": "6540",
+      "cliente": "DISTRIBUIDORA EL SOL DE BEIRUT, C.A.",
+      "vendedor": "LEONARDO RIOS",
+      "monto": 198.9,
+      "cajas": 30,
+      "kgs": 30.6,
+      "months": {
+        "OCTUBRE": {
+          "monto": 198.9,
+          "cajas": 30,
+          "kgs": 30.6
+        }
+      }
+    },
+    {
+      "id_cliente": "1141",
+      "cliente": "DELI MARKET GARIBALDI, C.A.",
+      "vendedor": "ADEL JARABA",
+      "monto": 198.25,
+      "cajas": 30,
+      "kgs": 30.5,
+      "months": {
+        "OCTUBRE": {
+          "monto": 198.25,
+          "cajas": 30,
+          "kgs": 30.5
+        }
+      }
+    },
+    {
+      "id_cliente": "1937",
+      "cliente": "INVERSIONES LUIS SANTIAGO 2014, C.A",
+      "vendedor": "ANGELICA MORENO",
+      "monto": 197.6,
+      "cajas": 31,
+      "kgs": 30.4,
+      "months": {
+        "OCTUBRE": {
+          "monto": 197.6,
+          "cajas": 31,
+          "kgs": 30.4
+        }
+      }
+    },
+    {
+      "id_cliente": "7088",
+      "cliente": "SILVIA LEONOR NAVA TREMOT",
+      "vendedor": "YOLEIDA LUGO",
+      "monto": 197.6,
+      "cajas": 30,
+      "kgs": 30.4,
+      "months": {
+        "OCTUBRE": {
+          "monto": 197.6,
+          "cajas": 30,
+          "kgs": 30.4
+        }
+      }
+    },
+    {
+      "id_cliente": "7931",
+      "cliente": "ALICIA LEAL ROMERO",
+      "vendedor": "ELISA SOLER",
+      "monto": 195,
+      "cajas": 30,
+      "kgs": 30,
+      "months": {
+        "OCTUBRE": {
+          "monto": 195,
+          "cajas": 30,
+          "kgs": 30
+        }
+      }
+    },
+    {
+      "id_cliente": "6855",
+      "cliente": "SUMINISTROS MARQUES, C.A",
+      "vendedor": "EDUARDO PIÑA",
+      "monto": 192.2,
+      "cajas": 31,
+      "kgs": 31,
+      "months": {
+        "OCTUBRE": {
+          "monto": 192.2,
+          "cajas": 31,
+          "kgs": 31
+        }
+      }
+    },
+    {
+      "id_cliente": "3318",
+      "cliente": "INVERSIONES ROMERO 2017, C.A",
+      "vendedor": "LEONARDO RIOS",
+      "monto": 191.1,
+      "cajas": 29,
+      "kgs": 29.4,
+      "months": {
+        "OCTUBRE": {
+          "monto": 191.1,
+          "cajas": 29,
+          "kgs": 29.4
+        }
+      }
+    },
+    {
+      "id_cliente": "7065",
+      "cliente": "JESUS SALVADOR ALDANA VASQUEZ",
+      "vendedor": "JOSE G. GONZALEZ",
+      "monto": 190.34,
+      "cajas": 31,
+      "kgs": 30.7,
+      "months": {
+        "OCTUBRE": {
+          "monto": 190.34,
+          "cajas": 31,
+          "kgs": 30.7
+        }
+      }
+    },
+    {
+      "id_cliente": "2667",
+      "cliente": "INVERSIONES Y MINIMERCADO MI TORITO, C.A",
+      "vendedor": "ELISA SOLER",
+      "monto": 188.5,
+      "cajas": 29,
+      "kgs": 29,
+      "months": {
+        "OCTUBRE": {
+          "monto": 188.5,
+          "cajas": 29,
+          "kgs": 29
+        }
+      }
+    },
+    {
+      "id_cliente": "3386",
+      "cliente": "INVERSIONES ABUELO TOCO C.A",
+      "vendedor": "YOLEIDA LUGO",
+      "monto": 188.5,
+      "cajas": 29,
+      "kgs": 29,
+      "months": {
+        "OCTUBRE": {
+          "monto": 188.5,
+          "cajas": 29,
+          "kgs": 29
+        }
+      }
+    },
+    {
+      "id_cliente": "3892",
+      "cliente": "DIVENCA,C.A",
+      "vendedor": "EDUARDO PIÑA",
+      "monto": 187.2,
+      "cajas": 29,
+      "kgs": 28.8,
+      "months": {
+        "OCTUBRE": {
+          "monto": 187.2,
+          "cajas": 29,
+          "kgs": 28.8
+        }
+      }
+    },
+    {
+      "id_cliente": "3940",
+      "cliente": "JOSE GREGORIO FLORES PIMENTEL",
+      "vendedor": "MARIANGEL GONZALEZ",
+      "monto": 185.9,
+      "cajas": 29,
+      "kgs": 28.6,
+      "months": {
+        "OCTUBRE": {
+          "monto": 185.9,
+          "cajas": 29,
+          "kgs": 28.6
+        }
+      }
+    },
+    {
+      "id_cliente": "5149",
+      "cliente": "ANDREINA DEL CARMEN ARENAS MONTERO",
+      "vendedor": "J PABLO ARAUJO",
+      "monto": 183.3,
+      "cajas": 28,
+      "kgs": 28.2,
+      "months": {
+        "OCTUBRE": {
+          "monto": 183.3,
+          "cajas": 28,
+          "kgs": 28.2
+        }
+      }
+    },
+    {
+      "id_cliente": "7569",
+      "cliente": "ANUAR ANTONIO HAMDAN CASTILLO (AUTO MERCADO EL POPULAR\"\" DE ANUAR ANTONIO HADAM CASTILLO)",
+      "vendedor": "MARYERY GARCIA",
+      "monto": 182,
+      "cajas": 28,
+      "kgs": 28,
+      "months": {
+        "OCTUBRE": {
+          "monto": 182,
+          "cajas": 28,
+          "kgs": 28
+        }
+      }
+    },
+    {
+      "id_cliente": "1953",
+      "cliente": "ABASTO EL NANO, C.A",
+      "vendedor": "MARIA BRICEÑO",
+      "monto": 180.8,
+      "cajas": 29,
+      "kgs": 28.3,
+      "months": {
+        "OCTUBRE": {
+          "monto": 180.8,
+          "cajas": 29,
+          "kgs": 28.3
+        }
+      }
+    },
+    {
+      "id_cliente": "7784",
+      "cliente": "COMERCIAL EL CORDERO COMPAÑIA ANONIMA",
+      "vendedor": "EDUARDO PIÑA",
+      "monto": 179.8,
+      "cajas": 29,
+      "kgs": 29,
+      "months": {
+        "OCTUBRE": {
+          "monto": 179.8,
+          "cajas": 29,
+          "kgs": 29
+        }
+      }
+    },
+    {
+      "id_cliente": "7346",
+      "cliente": "EMILIO GREGORIO SANCHEZ HERNANDEZ",
+      "vendedor": "YOLEIDA LUGO",
+      "monto": 175.5,
+      "cajas": 27,
+      "kgs": 27,
+      "months": {
+        "OCTUBRE": {
+          "monto": 175.5,
+          "cajas": 27,
+          "kgs": 27
+        }
+      }
+    },
+    {
+      "id_cliente": "2735",
+      "cliente": "INVERSIONES LA IDEAL DE JACOBO OLAVES, C.A",
+      "vendedor": "EDUARDO PIÑA",
+      "monto": 174.84,
+      "cajas": 28,
+      "kgs": 28.2,
+      "months": {
+        "OCTUBRE": {
+          "monto": 174.84,
+          "cajas": 28,
+          "kgs": 28.2
+        }
+      }
+    },
+    {
+      "id_cliente": "3935",
+      "cliente": "INVERSIONES RODRILARA, C.A",
+      "vendedor": "MARYERY GARCIA",
+      "monto": 174.84,
+      "cajas": 28,
+      "kgs": 28.2,
+      "months": {
+        "OCTUBRE": {
+          "monto": 174.84,
+          "cajas": 28,
+          "kgs": 28.2
+        }
+      }
+    },
+    {
+      "id_cliente": "7061",
+      "cliente": "COMERCIAL MANA DEL CIELO, C.A",
+      "vendedor": "ELISA SOLER",
+      "monto": 171.6,
+      "cajas": 26,
+      "kgs": 26.4,
+      "months": {
+        "OCTUBRE": {
+          "monto": 171.6,
+          "cajas": 26,
+          "kgs": 26.4
+        }
+      }
+    },
+    {
+      "id_cliente": "4323",
+      "cliente": "GRUPO MACHADO & P, C.A",
+      "vendedor": "MARYERY GARCIA",
+      "monto": 169,
+      "cajas": 26,
+      "kgs": 26,
+      "months": {
+        "OCTUBRE": {
+          "monto": 169,
+          "cajas": 26,
+          "kgs": 26
+        }
+      }
+    },
+    {
+      "id_cliente": "5011",
+      "cliente": "GABRIEL JOSE ROJAS ARTEGA",
+      "vendedor": "EDUARDO PIÑA",
+      "monto": 163.8,
+      "cajas": 25,
+      "kgs": 25.2,
+      "months": {
+        "OCTUBRE": {
+          "monto": 163.8,
+          "cajas": 25,
+          "kgs": 25.2
+        }
+      }
+    },
+    {
+      "id_cliente": "2959",
+      "cliente": "RAMONA CHIQUINQUIRA VASQUEZ GUANIPA",
+      "vendedor": "SARAH REYES",
+      "monto": 156,
+      "cajas": 24,
+      "kgs": 24,
+      "months": {
+        "OCTUBRE": {
+          "monto": 156,
+          "cajas": 24,
+          "kgs": 24
+        }
+      }
+    },
+    {
+      "id_cliente": "1273",
+      "cliente": "OPENCOR, C.A.",
+      "vendedor": "LEONARDO RIOS",
+      "monto": 155.64,
+      "cajas": 24,
+      "kgs": 23.95,
+      "months": {
+        "OCTUBRE": {
+          "monto": 155.64,
+          "cajas": 24,
+          "kgs": 23.95
+        }
+      }
+    },
+    {
+      "id_cliente": "7832",
+      "cliente": "YADENY COROMOTO YORES",
+      "vendedor": "LEONARDO RIOS",
+      "monto": 150.8,
+      "cajas": 23,
+      "kgs": 23.2,
+      "months": {
+        "OCTUBRE": {
+          "monto": 150.8,
+          "cajas": 23,
+          "kgs": 23.2
+        }
+      }
+    },
+    {
+      "id_cliente": "4507",
+      "cliente": "INVERSIONES Y SERVICIOS SATELITES MACHIQUES, C.A",
+      "vendedor": "J PABLO ARAUJO",
+      "monto": 139.1,
+      "cajas": 21,
+      "kgs": 21.4,
+      "months": {
+        "OCTUBRE": {
+          "monto": 139.1,
+          "cajas": 21,
+          "kgs": 21.4
+        }
+      }
+    },
+    {
+      "id_cliente": "7045",
+      "cliente": "ANTHONY JOSE SALAZAR PRIETO",
+      "vendedor": "EDUARDO PIÑA",
+      "monto": 137.8,
+      "cajas": 21,
+      "kgs": 21.2,
+      "months": {
+        "OCTUBRE": {
+          "monto": 137.8,
+          "cajas": 21,
+          "kgs": 21.2
+        }
+      }
+    },
+    {
+      "id_cliente": "4745",
+      "cliente": "LA BENDICION AL GRILL, C.A",
+      "vendedor": "SARAH REYES",
+      "monto": 136.5,
+      "cajas": 21,
+      "kgs": 21,
+      "months": {
+        "OCTUBRE": {
+          "monto": 136.5,
+          "cajas": 21,
+          "kgs": 21
+        }
+      }
+    },
+    {
+      "id_cliente": "931",
+      "cliente": "COMERCIAL JY, C.A.",
+      "vendedor": "YOLEIDA LUGO",
+      "monto": 136.5,
+      "cajas": 21,
+      "kgs": 21,
+      "months": {
+        "OCTUBRE": {
+          "monto": 136.5,
+          "cajas": 21,
+          "kgs": 21
+        }
+      }
+    },
+    {
+      "id_cliente": "5092",
+      "cliente": "CARLOS EDUARDO PEÑA MOGOLLON ( INVERSIONES CARLOS PEÑA )",
+      "vendedor": "YOLEIDA LUGO",
+      "monto": 136.5,
+      "cajas": 21,
+      "kgs": 21,
+      "months": {
+        "OCTUBRE": {
+          "monto": 136.5,
+          "cajas": 21,
+          "kgs": 21
+        }
+      }
+    },
+    {
+      "id_cliente": "6771",
+      "cliente": "INVERSIONES JEHOVA ADONAI, C.A",
+      "vendedor": "ELISA SOLER",
+      "monto": 136.5,
+      "cajas": 21,
+      "kgs": 21,
+      "months": {
+        "OCTUBRE": {
+          "monto": 136.5,
+          "cajas": 21,
+          "kgs": 21
+        }
+      }
+    },
+    {
+      "id_cliente": "8259",
+      "cliente": "PETTO MULTISABORES, C.A.",
+      "vendedor": "ELISA SOLER",
+      "monto": 136.5,
+      "cajas": 21,
+      "kgs": 21,
+      "months": {
+        "OCTUBRE": {
+          "monto": 136.5,
+          "cajas": 21,
+          "kgs": 21
+        }
+      }
+    },
+    {
+      "id_cliente": "3270",
+      "cliente": "ABASTO Y LICORES DOÑA ELENA 2014, C.A",
+      "vendedor": "OSCAR ORTIZ- CORO",
+      "monto": 134,
+      "cajas": 20,
+      "kgs": 20,
+      "months": {
+        "OCTUBRE": {
+          "monto": 134,
+          "cajas": 20,
+          "kgs": 20
+        }
+      }
+    },
+    {
+      "id_cliente": "8277",
+      "cliente": "CARLOS ALFREDO RODRIGUEZ RODRIGUEZ",
+      "vendedor": "ADEL JARABA",
+      "monto": 133.25,
+      "cajas": 20,
+      "kgs": 20.5,
+      "months": {
+        "OCTUBRE": {
+          "monto": 133.25,
+          "cajas": 20,
+          "kgs": 20.5
+        }
+      }
+    },
+    {
+      "id_cliente": "73",
+      "cliente": "COMERCIALIZADORA Y DISTRIBUIDORA JESUCRISTO ES ELSEÑOR, C.A",
+      "vendedor": "ADEL JARABA",
+      "monto": 132.99,
+      "cajas": 20,
+      "kgs": 20.46,
+      "months": {
+        "OCTUBRE": {
+          "monto": 132.99,
+          "cajas": 20,
+          "kgs": 20.46
+        }
+      }
+    },
+    {
+      "id_cliente": "725",
+      "cliente": "CAFE Y PASAPALOS LOS FRAILEGONES, C.A",
+      "vendedor": "YOLEIDA LUGO",
+      "monto": 130,
+      "cajas": 20,
+      "kgs": 20,
+      "months": {
+        "OCTUBRE": {
+          "monto": 130,
+          "cajas": 20,
+          "kgs": 20
+        }
+      }
+    },
+    {
+      "id_cliente": "2258",
+      "cliente": "MULTITIENDA FARMAEXPRESS DELICIAS, C.A.",
+      "vendedor": "ELISA SOLER",
+      "monto": 130,
+      "cajas": 20,
+      "kgs": 20,
+      "months": {
+        "OCTUBRE": {
+          "monto": 130,
+          "cajas": 20,
+          "kgs": 20
+        }
+      }
+    },
+    {
+      "id_cliente": "7732",
+      "cliente": "JULIA LIZ PRIETO FERRER",
+      "vendedor": "J PABLO ARAUJO",
+      "monto": 128.7,
+      "cajas": 20,
+      "kgs": 19.8,
+      "months": {
+        "OCTUBRE": {
+          "monto": 128.7,
+          "cajas": 20,
+          "kgs": 19.8
+        }
+      }
+    },
+    {
+      "id_cliente": "4098",
+      "cliente": "DISTRIBUIDORA ANTON HNOS, C.A",
+      "vendedor": "VICTOR CAMPOS",
+      "monto": 128.7,
+      "cajas": 20,
+      "kgs": 19.8,
+      "months": {
+        "OCTUBRE": {
+          "monto": 128.7,
+          "cajas": 20,
+          "kgs": 19.8
+        }
+      }
+    },
+    {
+      "id_cliente": "6023",
+      "cliente": "INVERSIONES YUSMELI 2024, C.A",
+      "vendedor": "OSCAR ORTIZ- CORO",
+      "monto": 128.64,
+      "cajas": 19,
+      "kgs": 19.2,
+      "months": {
+        "OCTUBRE": {
+          "monto": 128.64,
+          "cajas": 19,
+          "kgs": 19.2
+        }
+      }
+    },
+    {
+      "id_cliente": "7224",
+      "cliente": "MARBELYS YURUBIS MORAN",
+      "vendedor": "JUAN HERNANDEZ",
+      "monto": 127.4,
+      "cajas": 20,
+      "kgs": 19.6,
+      "months": {
+        "OCTUBRE": {
+          "monto": 127.4,
+          "cajas": 20,
+          "kgs": 19.6
+        }
+      }
+    },
+    {
+      "id_cliente": "6268",
+      "cliente": "RUTH DEL VALLE DIAZ DE PERNIA",
+      "vendedor": "ANGEL NAVARRO",
+      "monto": 126.1,
+      "cajas": 19,
+      "kgs": 19.4,
+      "months": {
+        "OCTUBRE": {
+          "monto": 126.1,
+          "cajas": 19,
+          "kgs": 19.4
+        }
+      }
+    },
+    {
+      "id_cliente": "3484",
+      "cliente": "EDITH DIAZ DOMINGUEZ (CAFE Y DELICATESSES EL BOMBON)",
+      "vendedor": "MARYERY GARCIA",
+      "monto": 125.86,
+      "cajas": 20,
+      "kgs": 20.3,
+      "months": {
+        "OCTUBRE": {
+          "monto": 125.86,
+          "cajas": 20,
+          "kgs": 20.3
+        }
+      }
+    },
+    {
+      "id_cliente": "1686",
+      "cliente": "CENTRO SOL, C.A",
+      "vendedor": "J PABLO ARAUJO",
+      "monto": 125.77,
+      "cajas": 19,
+      "kgs": 19.35,
+      "months": {
+        "OCTUBRE": {
+          "monto": 125.77,
+          "cajas": 19,
+          "kgs": 19.35
+        }
+      }
+    },
+    {
+      "id_cliente": "1832",
+      "cliente": "DISTRIBUIDORA DE CARNES Y POLLOS BASTIDAS, C.A",
+      "vendedor": "MARYERY GARCIA",
+      "monto": 125.24,
+      "cajas": 20,
+      "kgs": 20.2,
+      "months": {
+        "OCTUBRE": {
+          "monto": 125.24,
+          "cajas": 20,
+          "kgs": 20.2
+        }
+      }
+    },
+    {
+      "id_cliente": "7159",
+      "cliente": "SHU ZHEN ME LIANG",
+      "vendedor": "FOOD SERVICE SENIOR - JUAN HERNANDEZ",
+      "monto": 124.8,
+      "cajas": 19,
+      "kgs": 19.2,
+      "months": {
+        "OCTUBRE": {
+          "monto": 124.8,
+          "cajas": 19,
+          "kgs": 19.2
+        }
+      }
+    },
+    {
+      "id_cliente": "5822",
+      "cliente": "COMERCIALIZADORA E INVERSIONES  LUZMER MMXXL, C.A",
+      "vendedor": "MARIA BRICEÑO",
+      "monto": 123.58,
+      "cajas": 19,
+      "kgs": 19.4,
+      "months": {
+        "OCTUBRE": {
+          "monto": 123.58,
+          "cajas": 19,
+          "kgs": 19.4
+        }
+      }
+    },
+    {
+      "id_cliente": "3638",
+      "cliente": "NEGOCIOS INVERSIONES REALES (N.I.R), C.A.",
+      "vendedor": "VICTOR CAMPOS",
+      "monto": 123.5,
+      "cajas": 19,
+      "kgs": 19,
+      "months": {
+        "OCTUBRE": {
+          "monto": 123.5,
+          "cajas": 19,
+          "kgs": 19
+        }
+      }
+    },
+    {
+      "id_cliente": "6736",
+      "cliente": "INVERSIONES PARRA W&E 2024, C.A",
+      "vendedor": "JOSE G. GONZALEZ",
+      "monto": 123.5,
+      "cajas": 19,
+      "kgs": 19,
+      "months": {
+        "OCTUBRE": {
+          "monto": 123.5,
+          "cajas": 19,
+          "kgs": 19
+        }
+      }
+    },
+    {
+      "id_cliente": "1296",
+      "cliente": "INVERSIONES LOS ANGELES A-1, C.A.",
+      "vendedor": "YOLEIDA LUGO",
+      "monto": 123.5,
+      "cajas": 19,
+      "kgs": 19,
+      "months": {
+        "OCTUBRE": {
+          "monto": 123.5,
+          "cajas": 19,
+          "kgs": 19
+        }
+      }
+    },
+    {
+      "id_cliente": "3908",
+      "cliente": "HORTICARNES EL MARQUEZ, C.A",
+      "vendedor": "YOLEIDA LUGO",
+      "monto": 123.5,
+      "cajas": 19,
+      "kgs": 19,
+      "months": {
+        "OCTUBRE": {
+          "monto": 123.5,
+          "cajas": 19,
+          "kgs": 19
+        }
+      }
+    },
+    {
+      "id_cliente": "4536",
+      "cliente": "INVERSIONES LOS COMPADRES A&R, C.A",
+      "vendedor": "YOLEIDA LUGO",
+      "monto": 123.5,
+      "cajas": 19,
+      "kgs": 19,
+      "months": {
+        "OCTUBRE": {
+          "monto": 123.5,
+          "cajas": 19,
+          "kgs": 19
+        }
+      }
+    },
+    {
+      "id_cliente": "5318",
+      "cliente": "SIRIA SPORT, C.A",
+      "vendedor": "YOLEIDA LUGO",
+      "monto": 123.5,
+      "cajas": 19,
+      "kgs": 19,
+      "months": {
+        "OCTUBRE": {
+          "monto": 123.5,
+          "cajas": 19,
+          "kgs": 19
+        }
+      }
+    },
+    {
+      "id_cliente": "1027",
+      "cliente": "INVERSIONES SANCHEZ & DELGADO, C.A.",
+      "vendedor": "ADEL JARABA",
+      "monto": 123.5,
+      "cajas": 19,
+      "kgs": 19,
+      "months": {
+        "OCTUBRE": {
+          "monto": 123.5,
+          "cajas": 19,
+          "kgs": 19
+        }
+      }
+    },
+    {
+      "id_cliente": "2136",
+      "cliente": "SUPER MERCADO Y PANADERIA SANTO DOMINGO, C.A",
+      "vendedor": "CARLOS FUENMAYOR",
+      "monto": 123.5,
+      "cajas": 19,
+      "kgs": 19,
+      "months": {
+        "OCTUBRE": {
+          "monto": 123.5,
+          "cajas": 19,
+          "kgs": 19
+        }
+      }
+    },
+    {
+      "id_cliente": "5586",
+      "cliente": "TORETE CARNICERIA, C.A",
+      "vendedor": "MARYERY GARCIA",
+      "monto": 123.5,
+      "cajas": 19,
+      "kgs": 19,
+      "months": {
+        "OCTUBRE": {
+          "monto": 123.5,
+          "cajas": 19,
+          "kgs": 19
+        }
+      }
+    },
+    {
+      "id_cliente": "6753",
+      "cliente": "YOLANDA DEL VALLE CRISCI MANCILLA",
+      "vendedor": "JOSE G. GONZALEZ",
+      "monto": 123.07,
+      "cajas": 20,
+      "kgs": 19.85,
+      "months": {
+        "OCTUBRE": {
+          "monto": 123.07,
+          "cajas": 20,
+          "kgs": 19.85
+        }
+      }
+    },
+    {
+      "id_cliente": "3956",
+      "cliente": "INVERSIONES ROMERO & URDANETA, C.A",
+      "vendedor": "SARAH REYES",
+      "monto": 122.2,
+      "cajas": 19,
+      "kgs": 18.8,
+      "months": {
+        "OCTUBRE": {
+          "monto": 122.2,
+          "cajas": 19,
+          "kgs": 18.8
+        }
+      }
+    },
+    {
+      "id_cliente": "6330",
+      "cliente": "INVERSIONES Y COMERCIALIZADORA J&S 2023, C.A",
+      "vendedor": "MARIA BRICEÑO",
+      "monto": 121.66,
+      "cajas": 20,
+      "kgs": 19.1,
+      "months": {
+        "OCTUBRE": {
+          "monto": 121.66,
+          "cajas": 20,
+          "kgs": 19.1
+        }
+      }
+    },
+    {
+      "id_cliente": "3750",
+      "cliente": "CARLOS EDUARDO LOPEZ BARROSO",
+      "vendedor": "OSCAR ORTIZ- CORO",
+      "monto": 121.27,
+      "cajas": 18,
+      "kgs": 18.1,
+      "months": {
+        "OCTUBRE": {
+          "monto": 121.27,
+          "cajas": 18,
+          "kgs": 18.1
+        }
+      }
+    },
+    {
+      "id_cliente": "5530",
+      "cliente": "SILVIA PATRICIA HERNANDEZ LEONES \"\"INVERSIONES TROPIGOLLO DE SILVIA HERNANDEZ F. P",
+      "vendedor": "MARIANGEL GONZALEZ",
+      "monto": 120.9,
+      "cajas": 19,
+      "kgs": 18.6,
+      "months": {
+        "OCTUBRE": {
+          "monto": 120.9,
+          "cajas": 19,
+          "kgs": 18.6
+        }
+      }
+    },
+    {
+      "id_cliente": "5834",
+      "cliente": "INVERSIONES MI PEQUEÑA GRISBERT, C.A",
+      "vendedor": "MIKELANGELO DIAZ - VILLA DEL ROS",
+      "monto": 119.6,
+      "cajas": 19,
+      "kgs": 18.4,
+      "months": {
+        "OCTUBRE": {
+          "monto": 119.6,
+          "cajas": 19,
+          "kgs": 18.4
+        }
+      }
+    },
+    {
+      "id_cliente": "2308",
+      "cliente": "CHARCUTERIA Y CARNICERIA AQUI ME QUEDO, C.A",
+      "vendedor": "ANGELICA MORENO",
+      "monto": 119.6,
+      "cajas": 18,
+      "kgs": 18.4,
+      "months": {
+        "OCTUBRE": {
+          "monto": 119.6,
+          "cajas": 18,
+          "kgs": 18.4
+        }
+      }
+    },
+    {
+      "id_cliente": "6720",
+      "cliente": "ANNY MARGARITA RINCON HERNANDEZ",
+      "vendedor": "MARIA BRICEÑO",
+      "monto": 119.04,
+      "cajas": 19,
+      "kgs": 19.2,
+      "months": {
+        "OCTUBRE": {
+          "monto": 119.04,
+          "cajas": 19,
+          "kgs": 19.2
+        }
+      }
+    },
+    {
+      "id_cliente": "5782",
+      "cliente": "JOSE GREGORIO JORDAN JORDAN",
+      "vendedor": "EDUARDO PIÑA",
+      "monto": 118.55,
+      "cajas": 18,
+      "kgs": 18.7,
+      "months": {
+        "OCTUBRE": {
+          "monto": 118.55,
+          "cajas": 18,
+          "kgs": 18.7
+        }
+      }
+    },
+    {
+      "id_cliente": "5844",
+      "cliente": "CARNICERIA Y CHARCUTERIA LA LUCITANA, C.A",
+      "vendedor": "PEDRO ABREU",
+      "monto": 117.8,
+      "cajas": 19,
+      "kgs": 19,
+      "months": {
+        "OCTUBRE": {
+          "monto": 117.8,
+          "cajas": 19,
+          "kgs": 19
+        }
+      }
+    },
+    {
+      "id_cliente": "3976",
+      "cliente": "INVERSIONES ROIGEN, C.A",
+      "vendedor": "VICTOR CAMPOS",
+      "monto": 117,
+      "cajas": 18,
+      "kgs": 18,
+      "months": {
+        "OCTUBRE": {
+          "monto": 117,
+          "cajas": 18,
+          "kgs": 18
+        }
+      }
+    },
+    {
+      "id_cliente": "6348",
+      "cliente": "PANADERIA, PASTELERIA Y CHARCUTERIA TIO CONCORDIA, C,A",
+      "vendedor": "EDUARDO PIÑA",
+      "monto": 115.6,
+      "cajas": 18,
+      "kgs": 18.2,
+      "months": {
+        "OCTUBRE": {
+          "monto": 115.6,
+          "cajas": 18,
+          "kgs": 18.2
+        }
+      }
+    },
+    {
+      "id_cliente": "7817",
+      "cliente": "ALBERT DAVID MOSQUERA LOPEZ",
+      "vendedor": "ELISA SOLER",
+      "monto": 114.4,
+      "cajas": 18,
+      "kgs": 17.6,
+      "months": {
+        "OCTUBRE": {
+          "monto": 114.4,
+          "cajas": 18,
+          "kgs": 17.6
+        }
+      }
+    },
+    {
+      "id_cliente": "1810",
+      "cliente": "PROCESADORA MARINA DE LA COSTA ORIENTAL DEL LAGO, C.A",
+      "vendedor": "YOLEIDA LUGO",
+      "monto": 113.1,
+      "cajas": 17,
+      "kgs": 17.4,
+      "months": {
+        "OCTUBRE": {
+          "monto": 113.1,
+          "cajas": 17,
+          "kgs": 17.4
+        }
+      }
+    },
+    {
+      "id_cliente": "6509",
+      "cliente": "JAIRO JOSE CARRASQUERO URDANETA.",
+      "vendedor": "MARYERY GARCIA",
+      "monto": 112.22,
+      "cajas": 18,
+      "kgs": 18.1,
+      "months": {
+        "OCTUBRE": {
+          "monto": 112.22,
+          "cajas": 18,
+          "kgs": 18.1
+        }
+      }
+    },
+    {
+      "id_cliente": "6291",
+      "cliente": "SUPERMARKET EXCEL, C.A.",
+      "vendedor": "J PABLO ARAUJO",
+      "monto": 111.15,
+      "cajas": 17,
+      "kgs": 17.1,
+      "months": {
+        "OCTUBRE": {
+          "monto": 111.15,
+          "cajas": 17,
+          "kgs": 17.1
+        }
+      }
+    },
+    {
+      "id_cliente": "1831",
+      "cliente": "CREACIONES NATYCRIS",
+      "vendedor": "J PABLO ARAUJO",
+      "monto": 110.5,
+      "cajas": 17,
+      "kgs": 17,
+      "months": {
+        "OCTUBRE": {
+          "monto": 110.5,
+          "cajas": 17,
+          "kgs": 17
+        }
+      }
+    },
+    {
+      "id_cliente": "6954",
+      "cliente": "EDUARDO EMIRO GOMEZ MORAN",
+      "vendedor": "J PABLO ARAUJO",
+      "monto": 109.2,
+      "cajas": 16,
+      "kgs": 16.8,
+      "months": {
+        "OCTUBRE": {
+          "monto": 109.2,
+          "cajas": 16,
+          "kgs": 16.8
+        }
+      }
+    },
+    {
+      "id_cliente": "7926",
+      "cliente": "INVERSIONES Y DISTRIBUIDORA LAUREMAR, C.A.",
+      "vendedor": "YOLEIDA LUGO",
+      "monto": 109.2,
+      "cajas": 17,
+      "kgs": 16.8,
+      "months": {
+        "OCTUBRE": {
+          "monto": 109.2,
+          "cajas": 17,
+          "kgs": 16.8
+        }
+      }
+    },
+    {
+      "id_cliente": "6669",
+      "cliente": "INVERSIONES PARRA W&E 2024, C.A",
+      "vendedor": "MARYERY GARCIA",
+      "monto": 104,
+      "cajas": 16,
+      "kgs": 16,
+      "months": {
+        "OCTUBRE": {
+          "monto": 104,
+          "cajas": 16,
+          "kgs": 16
+        }
+      }
+    },
+    {
+      "id_cliente": "5682",
+      "cliente": "HAZEM BALLAN",
+      "vendedor": "MARYERY GARCIA",
+      "monto": 102.88,
+      "cajas": 16,
+      "kgs": 16.1,
+      "months": {
+        "OCTUBRE": {
+          "monto": 102.88,
+          "cajas": 16,
+          "kgs": 16.1
+        }
+      }
+    },
+    {
+      "id_cliente": "8181",
+      "cliente": "SUPER TIENDAS STEVEN S, C. A.",
+      "vendedor": "SARAH REYES",
+      "monto": 101.4,
+      "cajas": 16,
+      "kgs": 15.6,
+      "months": {
+        "OCTUBRE": {
+          "monto": 101.4,
+          "cajas": 16,
+          "kgs": 15.6
+        }
+      }
+    },
+    {
+      "id_cliente": "6238",
+      "cliente": "CARLOS ALBERTO VENTURA",
+      "vendedor": "MARIANGEL GONZALEZ",
+      "monto": 77.35,
+      "cajas": 12,
+      "kgs": 11.9,
+      "months": {
+        "OCTUBRE": {
+          "monto": 77.35,
+          "cajas": 12,
+          "kgs": 11.9
+        }
+      }
+    },
+    {
+      "id_cliente": "4162",
+      "cliente": "MAGGIOLA LEJANDRA ALVAREZ MELENDEZ  ( INVERSIONES M&A DE MAGGIOLA ALVAREZ FP)",
+      "vendedor": "EDUARDO PIÑA",
+      "monto": 73.45,
+      "cajas": 12,
+      "kgs": 11.3,
+      "months": {
+        "OCTUBRE": {
+          "monto": 73.45,
+          "cajas": 12,
+          "kgs": 11.3
+        }
+      }
+    },
+    {
+      "id_cliente": "3404",
+      "cliente": "INVERSIONES CORDERO,C.A",
+      "vendedor": "ADEL JARABA",
+      "monto": 72.8,
+      "cajas": 11,
+      "kgs": 11.2,
+      "months": {
+        "OCTUBRE": {
+          "monto": 72.8,
+          "cajas": 11,
+          "kgs": 11.2
+        }
+      }
+    },
+    {
+      "id_cliente": "8165",
+      "cliente": "KATERINE LISMARLLY BASTIDAS BRACHO",
+      "vendedor": "PEDRO ABREU",
+      "monto": 72.54,
+      "cajas": 12,
+      "kgs": 11.7,
+      "months": {
+        "OCTUBRE": {
+          "monto": 72.54,
+          "cajas": 12,
+          "kgs": 11.7
+        }
+      }
+    },
+    {
+      "id_cliente": "6336",
+      "cliente": "DEIVIS JOSE REYES FUENMAYOR",
+      "vendedor": "ANGELICA MORENO",
+      "monto": 71.5,
+      "cajas": 11,
+      "kgs": 11,
+      "months": {
+        "OCTUBRE": {
+          "monto": 71.5,
+          "cajas": 11,
+          "kgs": 11
+        }
+      }
+    },
+    {
+      "id_cliente": "3806",
+      "cliente": "INVERSIONES, PANIFICADORA Y PANADERIA LA GUADALUPE, C.A.",
+      "vendedor": "ANGEL NAVARRO",
+      "monto": 71.5,
+      "cajas": 11,
+      "kgs": 11,
+      "months": {
+        "OCTUBRE": {
+          "monto": 71.5,
+          "cajas": 11,
+          "kgs": 11
+        }
+      }
+    },
+    {
+      "id_cliente": "3939",
+      "cliente": "GABYROS MARKET, C.A",
+      "vendedor": "MARIANGEL GONZALEZ",
+      "monto": 71.5,
+      "cajas": 11,
+      "kgs": 11,
+      "months": {
+        "OCTUBRE": {
+          "monto": 71.5,
+          "cajas": 11,
+          "kgs": 11
+        }
+      }
+    },
+    {
+      "id_cliente": "7833",
+      "cliente": "EMPRENDIMIENTO MARIANGEL ARROYO 2",
+      "vendedor": "ANGEL NAVARRO",
+      "monto": 70.2,
+      "cajas": 11,
+      "kgs": 10.8,
+      "months": {
+        "OCTUBRE": {
+          "monto": 70.2,
+          "cajas": 11,
+          "kgs": 10.8
+        }
+      }
+    },
+    {
+      "id_cliente": "7451",
+      "cliente": "ROSANA CAROLINA ALARCON MATHEUS (INVERSIONES ROSS DE ROSANA ALARCON)",
+      "vendedor": "PEDRO ABREU",
+      "monto": 70.06,
+      "cajas": 12,
+      "kgs": 11.3,
+      "months": {
+        "OCTUBRE": {
+          "monto": 70.06,
+          "cajas": 12,
+          "kgs": 11.3
+        }
+      }
+    },
+    {
+      "id_cliente": "6170",
+      "cliente": "YALITZA DEL VALLE CUMARE CUMARE",
+      "vendedor": "EDUARDO PIÑA",
+      "monto": 68.9,
+      "cajas": 11,
+      "kgs": 10.6,
+      "months": {
+        "OCTUBRE": {
+          "monto": 68.9,
+          "cajas": 11,
+          "kgs": 10.6
+        }
+      }
+    },
+    {
+      "id_cliente": "7825",
+      "cliente": "SUGAR CAKER COFFEE, C.A.",
+      "vendedor": "ELISA SOLER",
+      "monto": 68.9,
+      "cajas": 11,
+      "kgs": 10.6,
+      "months": {
+        "OCTUBRE": {
+          "monto": 68.9,
+          "cajas": 11,
+          "kgs": 10.6
+        }
+      }
+    },
+    {
+      "id_cliente": "6431",
+      "cliente": "INVERSIONES Y COMERCIALIZADORA SANTA RITA DE CASIA 2020, C.A",
+      "vendedor": "MARIA BRICEÑO",
+      "monto": 68.77,
+      "cajas": 11,
+      "kgs": 11.09,
+      "months": {
+        "OCTUBRE": {
+          "monto": 68.77,
+          "cajas": 11,
+          "kgs": 11.09
+        }
+      }
+    },
+    {
+      "id_cliente": "1309",
+      "cliente": "MINIMARKET URUMACO PLAZA, C.A.",
+      "vendedor": "ELISA SOLER",
+      "monto": 68.25,
+      "cajas": 10,
+      "kgs": 10.5,
+      "months": {
+        "OCTUBRE": {
+          "monto": 68.25,
+          "cajas": 10,
+          "kgs": 10.5
+        }
+      }
+    },
+    {
+      "id_cliente": "2538",
+      "cliente": "MARIA JOSE GONZALEZ JIMENEZ",
+      "vendedor": "EDUARDO PIÑA",
+      "monto": 68.2,
+      "cajas": 11,
+      "kgs": 11,
+      "months": {
+        "OCTUBRE": {
+          "monto": 68.2,
+          "cajas": 11,
+          "kgs": 11
+        }
+      }
+    },
+    {
+      "id_cliente": "7517",
+      "cliente": "ANDREA CAROLINA CONTRERAS MEDINA",
+      "vendedor": "EDUARDO PIÑA",
+      "monto": 68.2,
+      "cajas": 11,
+      "kgs": 11,
+      "months": {
+        "OCTUBRE": {
+          "monto": 68.2,
+          "cajas": 11,
+          "kgs": 11
+        }
+      }
+    },
+    {
+      "id_cliente": "7894",
+      "cliente": "JAIRO ANTONIO LOZANO ESCORCIA \"JAIRO LOZANO, F.P\"",
+      "vendedor": "ELISA SOLER",
+      "monto": 67.6,
+      "cajas": 10,
+      "kgs": 10.4,
+      "months": {
+        "OCTUBRE": {
+          "monto": 67.6,
+          "cajas": 10,
+          "kgs": 10.4
+        }
+      }
+    },
+    {
+      "id_cliente": "7008",
+      "cliente": "VIVERES LA VICTORIA 2017, C.A",
+      "vendedor": "MARIA BRICEÑO",
+      "monto": 67.27,
+      "cajas": 11,
+      "kgs": 10.85,
+      "months": {
+        "OCTUBRE": {
+          "monto": 67.27,
+          "cajas": 11,
+          "kgs": 10.85
+        }
+      }
+    },
+    {
+      "id_cliente": "5816",
+      "cliente": "MUNDO PASTEL, C.A",
+      "vendedor": "ADEL JARABA",
+      "monto": 66.3,
+      "cajas": 10,
+      "kgs": 10.2,
+      "months": {
+        "OCTUBRE": {
+          "monto": 66.3,
+          "cajas": 10,
+          "kgs": 10.2
+        }
+      }
+    },
+    {
+      "id_cliente": "1463",
+      "cliente": "FRIGORIFICO LA GANADERA, C.A",
+      "vendedor": "J PABLO ARAUJO",
+      "monto": 66.3,
+      "cajas": 10,
+      "kgs": 10.2,
+      "months": {
+        "OCTUBRE": {
+          "monto": 66.3,
+          "cajas": 10,
+          "kgs": 10.2
+        }
+      }
+    },
+    {
+      "id_cliente": "6250",
+      "cliente": "LIKE MARKET, C.A",
+      "vendedor": "MARYERY GARCIA",
+      "monto": 66.3,
+      "cajas": 10,
+      "kgs": 10.2,
+      "months": {
+        "OCTUBRE": {
+          "monto": 66.3,
+          "cajas": 10,
+          "kgs": 10.2
+        }
+      }
+    },
+    {
+      "id_cliente": "4419",
+      "cliente": "INVERSIONES A Y F 2015, C.A",
+      "vendedor": "J PABLO ARAUJO",
+      "monto": 66.3,
+      "cajas": 10,
+      "kgs": 10.2,
+      "months": {
+        "OCTUBRE": {
+          "monto": 66.3,
+          "cajas": 10,
+          "kgs": 10.2
+        }
+      }
+    },
+    {
+      "id_cliente": "6951",
+      "cliente": "NEIMARLY DEL VALLE ACOSTA SMITH",
+      "vendedor": "MARIANGEL GONZALEZ",
+      "monto": 66.3,
+      "cajas": 10,
+      "kgs": 10.2,
+      "months": {
+        "OCTUBRE": {
+          "monto": 66.3,
+          "cajas": 10,
+          "kgs": 10.2
+        }
+      }
+    },
+    {
+      "id_cliente": "7295",
+      "cliente": "JOSUE JOSE FERNANDEZ OCAMPO (INVERSIONES LA OFERTA DE JOSUE FERNANDEZ F.P)",
+      "vendedor": "JOSE G. GONZALEZ",
+      "monto": 66.09,
+      "cajas": 10,
+      "kgs": 10.66,
+      "months": {
+        "OCTUBRE": {
+          "monto": 66.09,
+          "cajas": 10,
+          "kgs": 10.66
+        }
+      }
+    },
+    {
+      "id_cliente": "5003",
+      "cliente": "DISTRIBUIDORA SUPER OFERTAS, C.A.",
+      "vendedor": "MARYERY GARCIA",
+      "monto": 65,
+      "cajas": 10,
+      "kgs": 10,
+      "months": {
+        "OCTUBRE": {
+          "monto": 65,
+          "cajas": 10,
+          "kgs": 10
+        }
+      }
+    },
+    {
+      "id_cliente": "5832",
+      "cliente": "CAFETERIA LUNA NUEVA 2023, C.A",
+      "vendedor": "MIKELANGELO DIAZ - VILLA DEL ROS",
+      "monto": 65,
+      "cajas": 10,
+      "kgs": 10,
+      "months": {
+        "OCTUBRE": {
+          "monto": 65,
+          "cajas": 10,
+          "kgs": 10
+        }
+      }
+    },
+    {
+      "id_cliente": "3293",
+      "cliente": "DISTRIBUIDORA DISLAPENZO, C.A.",
+      "vendedor": "J PABLO ARAUJO",
+      "monto": 65,
+      "cajas": 10,
+      "kgs": 10,
+      "months": {
+        "OCTUBRE": {
+          "monto": 65,
+          "cajas": 10,
+          "kgs": 10
+        }
+      }
+    },
+    {
+      "id_cliente": "6612",
+      "cliente": "ROSA MARIA AVILA VILLALOBOS",
+      "vendedor": "YOLEIDA LUGO",
+      "monto": 65,
+      "cajas": 10,
+      "kgs": 10,
+      "months": {
+        "OCTUBRE": {
+          "monto": 65,
+          "cajas": 10,
+          "kgs": 10
+        }
+      }
+    },
+    {
+      "id_cliente": "6137",
+      "cliente": "LEOVANNYS JOSE BAPTISTA GARCIA",
+      "vendedor": "ELISA SOLER",
+      "monto": 65,
+      "cajas": 10,
+      "kgs": 10,
+      "months": {
+        "OCTUBRE": {
+          "monto": 65,
+          "cajas": 10,
+          "kgs": 10
+        }
+      }
+    },
+    {
+      "id_cliente": "5443",
+      "cliente": "LA NUEVA POSADA DEL LAGO, C,A",
+      "vendedor": "LUIS GUANIPA",
+      "monto": 64.35,
+      "cajas": 10,
+      "kgs": 9.9,
+      "months": {
+        "OCTUBRE": {
+          "monto": 64.35,
+          "cajas": 10,
+          "kgs": 9.9
+        }
+      }
+    },
+    {
+      "id_cliente": "7210",
+      "cliente": "EMPRENDIMIENTO YULIANA OVALLE",
+      "vendedor": "MARYERY GARCIA",
+      "monto": 63.7,
+      "cajas": 10,
+      "kgs": 9.8,
+      "months": {
+        "OCTUBRE": {
+          "monto": 63.7,
+          "cajas": 10,
+          "kgs": 9.8
+        }
+      }
+    },
+    {
+      "id_cliente": "7909",
+      "cliente": "JOSE GREGORIO ARIAS JIMENEZ",
+      "vendedor": "EDUARDO PIÑA",
+      "monto": 63.7,
+      "cajas": 10,
+      "kgs": 9.8,
+      "months": {
+        "OCTUBRE": {
+          "monto": 63.7,
+          "cajas": 10,
+          "kgs": 9.8
+        }
+      }
+    },
+    {
+      "id_cliente": "8187",
+      "cliente": "ROSWIN JOSE DELGADO ANCIANIS",
+      "vendedor": "CARLOS FUENMAYOR",
+      "monto": 63.7,
+      "cajas": 10,
+      "kgs": 9.8,
+      "months": {
+        "OCTUBRE": {
+          "monto": 63.7,
+          "cajas": 10,
+          "kgs": 9.8
+        }
+      }
+    },
+    {
+      "id_cliente": "5126",
+      "cliente": "PANADERIA Y CHARCUTERIA NUMBER ONE-1, C.A",
+      "vendedor": "MARIANGEL GONZALEZ",
+      "monto": 63.7,
+      "cajas": 10,
+      "kgs": 9.8,
+      "months": {
+        "OCTUBRE": {
+          "monto": 63.7,
+          "cajas": 10,
+          "kgs": 9.8
+        }
+      }
+    },
+    {
+      "id_cliente": "7036",
+      "cliente": "EDGAR JOSUE QUERO ROSSELL (COMERCIALIZADORA D JOS DE EDGAR JOSUE QUERO ROSSELL)",
+      "vendedor": "ELISA SOLER",
+      "monto": 63.37,
+      "cajas": 9,
+      "kgs": 9.75,
+      "months": {
+        "OCTUBRE": {
+          "monto": 63.37,
+          "cajas": 9,
+          "kgs": 9.75
+        }
+      }
+    },
+    {
+      "id_cliente": "7135",
+      "cliente": "INVERSIONES SUPER AHORRO L&E, C.A",
+      "vendedor": "ADEL JARABA",
+      "monto": 63.05,
+      "cajas": 10,
+      "kgs": 9.7,
+      "months": {
+        "OCTUBRE": {
+          "monto": 63.05,
+          "cajas": 10,
+          "kgs": 9.7
+        }
+      }
+    },
+    {
+      "id_cliente": "7728",
+      "cliente": "SUPERMERCADO MEGA ECONOMICO, C.A",
+      "vendedor": "EDUARDO PIÑA",
+      "monto": 62.4,
+      "cajas": 10,
+      "kgs": 9.6,
+      "months": {
+        "OCTUBRE": {
+          "monto": 62.4,
+          "cajas": 10,
+          "kgs": 9.6
+        }
+      }
+    },
+    {
+      "id_cliente": "1761",
+      "cliente": "DISTRIBUIDORA MONTOYA, C.A",
+      "vendedor": "EDUARDO PIÑA",
+      "monto": 62,
+      "cajas": 10,
+      "kgs": 10,
+      "months": {
+        "OCTUBRE": {
+          "monto": 62,
+          "cajas": 10,
+          "kgs": 10
+        }
+      }
+    },
+    {
+      "id_cliente": "4859",
+      "cliente": "INVERSIONES & CONSTRUCCIONES JAIDELCA, C.A.",
+      "vendedor": "EDUARDO PIÑA",
+      "monto": 62,
+      "cajas": 10,
+      "kgs": 10,
+      "months": {
+        "OCTUBRE": {
+          "monto": 62,
+          "cajas": 10,
+          "kgs": 10
+        }
+      }
+    },
+    {
+      "id_cliente": "7428",
+      "cliente": "MERCEDES DEL CARMEN DABOIN ARAUJO  ( COMERCIALIZADORA DABOIN F.P)",
+      "vendedor": "JOSE G. GONZALEZ",
+      "monto": 62,
+      "cajas": 10,
+      "kgs": 10,
+      "months": {
+        "OCTUBRE": {
+          "monto": 62,
+          "cajas": 10,
+          "kgs": 10
+        }
+      }
+    },
+    {
+      "id_cliente": "7767",
+      "cliente": "EMPRENDIMIENTO NOE ESTRADA",
+      "vendedor": "MARYERY GARCIA",
+      "monto": 62,
+      "cajas": 10,
+      "kgs": 10,
+      "months": {
+        "OCTUBRE": {
+          "monto": 62,
+          "cajas": 10,
+          "kgs": 10
+        }
+      }
+    },
+    {
+      "id_cliente": "8283",
+      "cliente": "JUANA SANCHEZ DE ROJAS (PASTELES JUANITA DE JUANA SANCHEZ DE ROJAS)",
+      "vendedor": "PEDRO ABREU",
+      "monto": 62,
+      "cajas": 10,
+      "kgs": 10,
+      "months": {
+        "OCTUBRE": {
+          "monto": 62,
+          "cajas": 10,
+          "kgs": 10
+        }
+      }
+    },
+    {
+      "id_cliente": "3758",
+      "cliente": "SUPERMARKETS GUT - LAC, C.A.",
+      "vendedor": "CARLOS FUENMAYOR",
+      "monto": 61.75,
+      "cajas": 9,
+      "kgs": 9.5,
+      "months": {
+        "OCTUBRE": {
+          "monto": 61.75,
+          "cajas": 9,
+          "kgs": 9.5
+        }
+      }
+    },
+    {
+      "id_cliente": "4224",
+      "cliente": "MINIMARKET LA BENDICION M & N , C.A",
+      "vendedor": "EDUARDO PIÑA",
+      "monto": 61.1,
+      "cajas": 9,
+      "kgs": 9.4,
+      "months": {
+        "OCTUBRE": {
+          "monto": 61.1,
+          "cajas": 9,
+          "kgs": 9.4
+        }
+      }
+    },
+    {
+      "id_cliente": "4584",
+      "cliente": "ALFREDO JOSE AÑEZ CHOURIO",
+      "vendedor": "ANGELICA MORENO",
+      "monto": 61.1,
+      "cajas": 9,
+      "kgs": 9.4,
+      "months": {
+        "OCTUBRE": {
+          "monto": 61.1,
+          "cajas": 9,
+          "kgs": 9.4
+        }
+      }
+    },
+    {
+      "id_cliente": "7299",
+      "cliente": "ANDREINA YARELYS ALVAREZ SANCHEZ (ABASTO E INVERSIONES JOHANDRE DE ANDREINA YARELIS ALVAREZ SANCHEZ, F.P)",
+      "vendedor": "MARYERY GARCIA",
+      "monto": 60.45,
+      "cajas": 10,
+      "kgs": 9.3,
+      "months": {
+        "OCTUBRE": {
+          "monto": 60.45,
+          "cajas": 10,
+          "kgs": 9.3
+        }
+      }
+    },
+    {
+      "id_cliente": "2244",
+      "cliente": "INVERSIONES KORMARELIAS 27, C.A",
+      "vendedor": "ELISA SOLER",
+      "monto": 60.45,
+      "cajas": 9,
+      "kgs": 9.3,
+      "months": {
+        "OCTUBRE": {
+          "monto": 60.45,
+          "cajas": 9,
+          "kgs": 9.3
+        }
+      }
+    },
+    {
+      "id_cliente": "6249",
+      "cliente": "INVERSIONES MERCADITO SHOP, C.A",
+      "vendedor": "MARYERY GARCIA",
+      "monto": 60.14,
+      "cajas": 10,
+      "kgs": 9.7,
+      "months": {
+        "OCTUBRE": {
+          "monto": 60.14,
+          "cajas": 10,
+          "kgs": 9.7
+        }
+      }
+    },
+    {
+      "id_cliente": "6264",
+      "cliente": "MARIA JOSE MONTES RODRIGUEZ",
+      "vendedor": "ANGELICA MORENO",
+      "monto": 59.8,
+      "cajas": 9,
+      "kgs": 9.2,
+      "months": {
+        "OCTUBRE": {
+          "monto": 59.8,
+          "cajas": 9,
+          "kgs": 9.2
+        }
+      }
+    },
+    {
+      "id_cliente": "8230",
+      "cliente": "ABASTOS DONDE EL GOCHO Y SU FAMILIA ,C.A",
+      "vendedor": "JOSE G. GONZALEZ",
+      "monto": 59.8,
+      "cajas": 9,
+      "kgs": 9.2,
+      "months": {
+        "OCTUBRE": {
+          "monto": 59.8,
+          "cajas": 9,
+          "kgs": 9.2
+        }
+      }
+    },
+    {
+      "id_cliente": "7388",
+      "cliente": "PANADERIA EKA, C.A.",
+      "vendedor": "YOLEIDA LUGO",
+      "monto": 59.8,
+      "cajas": 9,
+      "kgs": 9.2,
+      "months": {
+        "OCTUBRE": {
+          "monto": 59.8,
+          "cajas": 9,
+          "kgs": 9.2
+        }
+      }
+    },
+    {
+      "id_cliente": "6020",
+      "cliente": "LISANDRO JOSE URDANETA BOSCAN",
+      "vendedor": "MARYERY GARCIA",
+      "monto": 59.02,
+      "cajas": 9,
+      "kgs": 9.52,
+      "months": {
+        "OCTUBRE": {
+          "monto": 59.02,
+          "cajas": 9,
+          "kgs": 9.52
+        }
+      }
+    },
+    {
+      "id_cliente": "3661",
+      "cliente": "INVERSIONES EL MANSO TORO, C.A",
+      "vendedor": "ANGEL NAVARRO",
+      "monto": 58.5,
+      "cajas": 9,
+      "kgs": 9,
+      "months": {
+        "OCTUBRE": {
+          "monto": 58.5,
+          "cajas": 9,
+          "kgs": 9
+        }
+      }
+    },
+    {
+      "id_cliente": "4197",
+      "cliente": "COMERCIALIZADORA LA FINCA, C.A",
+      "vendedor": "J PABLO ARAUJO",
+      "monto": 58.5,
+      "cajas": 9,
+      "kgs": 9,
+      "months": {
+        "OCTUBRE": {
+          "monto": 58.5,
+          "cajas": 9,
+          "kgs": 9
+        }
+      }
+    },
+    {
+      "id_cliente": "8061",
+      "cliente": "SUPERMARKET FIORELLA EXPRESS, C.A.",
+      "vendedor": "J PABLO ARAUJO",
+      "monto": 58.5,
+      "cajas": 9,
+      "kgs": 9,
+      "months": {
+        "OCTUBRE": {
+          "monto": 58.5,
+          "cajas": 9,
+          "kgs": 9
+        }
+      }
+    },
+    {
+      "id_cliente": "7433",
+      "cliente": "JORGE ENRIQUE PRIETO BERMUDEZ",
+      "vendedor": "YOLEIDA LUGO",
+      "monto": 58.5,
+      "cajas": 9,
+      "kgs": 9,
+      "months": {
+        "OCTUBRE": {
+          "monto": 58.5,
+          "cajas": 9,
+          "kgs": 9
+        }
+      }
+    },
+    {
+      "id_cliente": "7968",
+      "cliente": "MARKET GIVALCA, C.A.",
+      "vendedor": "SARAH REYES",
+      "monto": 58.5,
+      "cajas": 9,
+      "kgs": 9,
+      "months": {
+        "OCTUBRE": {
+          "monto": 58.5,
+          "cajas": 9,
+          "kgs": 9
+        }
+      }
+    },
+    {
+      "id_cliente": "6931",
+      "cliente": "MARISOL JOSEFINA PRIETO",
+      "vendedor": "ELISA SOLER",
+      "monto": 58.5,
+      "cajas": 9,
+      "kgs": 9,
+      "months": {
+        "OCTUBRE": {
+          "monto": 58.5,
+          "cajas": 9,
+          "kgs": 9
+        }
+      }
+    },
+    {
+      "id_cliente": "5665",
+      "cliente": "ISSAM AL KAFIRI",
+      "vendedor": "OSCAR ORTIZ- CORO",
+      "monto": 57.62,
+      "cajas": 9,
+      "kgs": 8.6,
+      "months": {
+        "OCTUBRE": {
+          "monto": 57.62,
+          "cajas": 9,
+          "kgs": 8.6
+        }
+      }
+    },
+    {
+      "id_cliente": "3746",
+      "cliente": "INVERSIONES DE TODO Y MAS 2012, C.A",
+      "vendedor": "ELISA SOLER",
+      "monto": 57.2,
+      "cajas": 9,
+      "kgs": 8.8,
+      "months": {
+        "OCTUBRE": {
+          "monto": 57.2,
+          "cajas": 9,
+          "kgs": 8.8
+        }
+      }
+    },
+    {
+      "id_cliente": "6934",
+      "cliente": "ANDRIC ALEJANDRO AGUIRRE MORA (INVERSIONES KIMAND)",
+      "vendedor": "LUIS GUANIPA",
+      "monto": 57.2,
+      "cajas": 9,
+      "kgs": 8.8,
+      "months": {
+        "OCTUBRE": {
+          "monto": 57.2,
+          "cajas": 9,
+          "kgs": 8.8
+        }
+      }
+    },
+    {
+      "id_cliente": "7675",
+      "cliente": "SOL Y SAZON, C.A.",
+      "vendedor": "FOOD SERVICE SUR",
+      "monto": 57.2,
+      "cajas": 9,
+      "kgs": 8.8,
+      "months": {
+        "OCTUBRE": {
+          "monto": 57.2,
+          "cajas": 9,
+          "kgs": 8.8
+        }
+      }
+    },
+    {
+      "id_cliente": "5326",
+      "cliente": "ELIZABETH MARIA IRAUSQUIN URBINA",
+      "vendedor": "MARIANGEL GONZALEZ",
+      "monto": 57.2,
+      "cajas": 9,
+      "kgs": 8.8,
+      "months": {
+        "OCTUBRE": {
+          "monto": 57.2,
+          "cajas": 9,
+          "kgs": 8.8
+        }
+      }
+    },
+    {
+      "id_cliente": "7031",
+      "cliente": "FARMACIA GENESIS, C.A",
+      "vendedor": "ELISA SOLER",
+      "monto": 57.2,
+      "cajas": 9,
+      "kgs": 8.8,
+      "months": {
+        "OCTUBRE": {
+          "monto": 57.2,
+          "cajas": 9,
+          "kgs": 8.8
+        }
+      }
+    },
+    {
+      "id_cliente": "7102",
+      "cliente": "OSDUAL YARKIS SANCHEZ MAVARES",
+      "vendedor": "ELISA SOLER",
+      "monto": 57.2,
+      "cajas": 9,
+      "kgs": 8.8,
+      "months": {
+        "OCTUBRE": {
+          "monto": 57.2,
+          "cajas": 9,
+          "kgs": 8.8
+        }
+      }
+    },
+    {
+      "id_cliente": "7838",
+      "cliente": "COMERCIALIZADORA NICOBAS,C.A",
+      "vendedor": "JOSE G. GONZALEZ",
+      "monto": 57.04,
+      "cajas": 9,
+      "kgs": 9.2,
+      "months": {
+        "OCTUBRE": {
+          "monto": 57.04,
+          "cajas": 9,
+          "kgs": 9.2
+        }
+      }
+    },
+    {
+      "id_cliente": "7424",
+      "cliente": "ESPECIALIDADES EN CARNES BARUC,C.A",
+      "vendedor": "ELISA SOLER",
+      "monto": 56.55,
+      "cajas": 9,
+      "kgs": 8.7,
+      "months": {
+        "OCTUBRE": {
+          "monto": 56.55,
+          "cajas": 9,
+          "kgs": 8.7
+        }
+      }
+    },
+    {
+      "id_cliente": "3087",
+      "cliente": "NAIROBY TIBISAY BRACHO CONTRERAS",
+      "vendedor": "EDUARDO PIÑA",
+      "monto": 55.9,
+      "cajas": 9,
+      "kgs": 8.6,
+      "months": {
+        "OCTUBRE": {
+          "monto": 55.9,
+          "cajas": 9,
+          "kgs": 8.6
+        }
+      }
+    },
+    {
+      "id_cliente": "6989",
+      "cliente": "CARNICERIA EL TRUEQUE DYD C.A",
+      "vendedor": "ELISA SOLER",
+      "monto": 55.9,
+      "cajas": 9,
+      "kgs": 8.6,
+      "months": {
+        "OCTUBRE": {
+          "monto": 55.9,
+          "cajas": 9,
+          "kgs": 8.6
+        }
+      }
+    },
+    {
+      "id_cliente": "4529",
+      "cliente": "INVERSIONES EDUGEN, C.A",
+      "vendedor": "ELISA SOLER",
+      "monto": 54.6,
+      "cajas": 8,
+      "kgs": 8.4,
+      "months": {
+        "OCTUBRE": {
+          "monto": 54.6,
+          "cajas": 8,
+          "kgs": 8.4
+        }
+      }
+    },
+    {
+      "id_cliente": "1685",
+      "cliente": "CARMEN EUSEBIA GONZALEZ ABREU",
+      "vendedor": "J PABLO ARAUJO",
+      "monto": 54.6,
+      "cajas": 8,
+      "kgs": 8.4,
+      "months": {
+        "OCTUBRE": {
+          "monto": 54.6,
+          "cajas": 8,
+          "kgs": 8.4
+        }
+      }
+    },
+    {
+      "id_cliente": "6279",
+      "cliente": "INVERSIONES MI FORTALEZA, C.A",
+      "vendedor": "MARYERY GARCIA",
+      "monto": 54.6,
+      "cajas": 8,
+      "kgs": 8.4,
+      "months": {
+        "OCTUBRE": {
+          "monto": 54.6,
+          "cajas": 8,
+          "kgs": 8.4
+        }
+      }
+    },
+    {
+      "id_cliente": "7658",
+      "cliente": "DEIBIS GREGORIO ROMERO \"ABASTO SAN RAFAEL N1 DEIBIS ROMERO,F.P\"",
+      "vendedor": "EDUARDO PIÑA",
+      "monto": 54.6,
+      "cajas": 8,
+      "kgs": 8.4,
+      "months": {
+        "OCTUBRE": {
+          "monto": 54.6,
+          "cajas": 8,
+          "kgs": 8.4
+        }
+      }
+    },
+    {
+      "id_cliente": "7385",
+      "cliente": "DIVINA PASTORA INVERSIONES, COMPAÑIA ANONIMA",
+      "vendedor": "YOLEIDA LUGO",
+      "monto": 54.6,
+      "cajas": 8,
+      "kgs": 8.4,
+      "months": {
+        "OCTUBRE": {
+          "monto": 54.6,
+          "cajas": 8,
+          "kgs": 8.4
+        }
+      }
+    },
+    {
+      "id_cliente": "7344",
+      "cliente": "ABASTO DULCE ENCUENTRO, C.A.",
+      "vendedor": "MARYERY GARCIA",
+      "monto": 53.3,
+      "cajas": 8,
+      "kgs": 8.2,
+      "months": {
+        "OCTUBRE": {
+          "monto": 53.3,
+          "cajas": 8,
+          "kgs": 8.2
+        }
+      }
+    },
+    {
+      "id_cliente": "8008",
+      "cliente": "ELISA CHANG LUO",
+      "vendedor": "YOLEIDA LUGO",
+      "monto": 53.3,
+      "cajas": 8,
+      "kgs": 8.2,
+      "months": {
+        "OCTUBRE": {
+          "monto": 53.3,
+          "cajas": 8,
+          "kgs": 8.2
+        }
+      }
+    },
+    {
+      "id_cliente": "6922",
+      "cliente": "PEDRO ANTONIO FRAMCO RANGEL",
+      "vendedor": "JOSE G. GONZALEZ",
+      "monto": 52.08,
+      "cajas": 8,
+      "kgs": 8.4,
+      "months": {
+        "OCTUBRE": {
+          "monto": 52.08,
+          "cajas": 8,
+          "kgs": 8.4
+        }
+      }
+    },
+    {
+      "id_cliente": "6980",
+      "cliente": "QUESTEFANIPAOLA,C.A",
+      "vendedor": "ELISA SOLER",
+      "monto": 49.4,
+      "cajas": 7,
+      "kgs": 7.6,
+      "months": {
+        "OCTUBRE": {
+          "monto": 49.4,
+          "cajas": 7,
+          "kgs": 7.6
+        }
+      }
+    },
+    {
+      "id_cliente": "6794",
+      "cliente": "INVERSIONES JGH 2014, C.A.",
+      "vendedor": "OSCAR ORTIZ- LA COSTA",
+      "monto": 48.88,
+      "cajas": 9,
+      "kgs": 9.4,
+      "months": {
+        "OCTUBRE": {
+          "monto": 48.88,
+          "cajas": 9,
+          "kgs": 9.4
+        }
+      }
+    },
+    {
+      "id_cliente": "7874",
+      "cliente": "JESSICA ELIZABETH HURTADO ROJAS",
+      "vendedor": "ELISA SOLER",
+      "monto": 48.1,
+      "cajas": 7,
+      "kgs": 7.4,
+      "months": {
+        "OCTUBRE": {
+          "monto": 48.1,
+          "cajas": 7,
+          "kgs": 7.4
+        }
+      }
+    },
+    {
+      "id_cliente": "5979",
+      "cliente": "PI 3, 14 COFFE & LOUNG, C.A",
+      "vendedor": "EDUARDO PIÑA",
+      "monto": 48.1,
+      "cajas": 7,
+      "kgs": 7.4,
+      "months": {
+        "OCTUBRE": {
+          "monto": 48.1,
+          "cajas": 7,
+          "kgs": 7.4
+        }
+      }
+    },
+    {
+      "id_cliente": "6668",
+      "cliente": "ERNESTO STEEVIE PARRA LOPEZ",
+      "vendedor": "MARIA BRICEÑO",
+      "monto": 44.95,
+      "cajas": 7,
+      "kgs": 7.25,
+      "months": {
+        "OCTUBRE": {
+          "monto": 44.95,
+          "cajas": 7,
+          "kgs": 7.25
+        }
+      }
+    },
+    {
+      "id_cliente": "7890",
+      "cliente": "JHENRY JOSE QUIÑONEZ",
+      "vendedor": "ELISA SOLER",
+      "monto": 42.9,
+      "cajas": 7,
+      "kgs": 6.6,
+      "months": {
+        "OCTUBRE": {
+          "monto": 42.9,
+          "cajas": 7,
+          "kgs": 6.6
+        }
+      }
+    },
+    {
+      "id_cliente": "5338",
+      "cliente": "ALEJANDRO JAVIER VALERA PERDOMO",
+      "vendedor": "JOSE G. GONZALEZ",
+      "monto": 40.92,
+      "cajas": 7,
+      "kgs": 6.6,
+      "months": {
+        "OCTUBRE": {
+          "monto": 40.92,
+          "cajas": 7,
+          "kgs": 6.6
+        }
+      }
+    },
+    {
+      "id_cliente": "3844",
+      "cliente": "ALEXIS ANTONI DIAZ PEÑA (COMERCIAL LUCIA)",
+      "vendedor": "MARYERY GARCIA",
+      "monto": 0,
+      "cajas": 0,
+      "kgs": 0,
+      "months": {
+        "OCTUBRE": {
+          "monto": 0,
+          "cajas": 0,
+          "kgs": 0
+        }
+      }
+    },
+    {
+      "id_cliente": "4957",
+      "cliente": "COMERCIALIZADORA EL NENE, C.A",
+      "vendedor": "MARIA BRICEÑO",
+      "monto": 0,
+      "cajas": 0,
+      "kgs": 0,
+      "months": {
+        "OCTUBRE": {
+          "monto": 0,
+          "cajas": 0,
+          "kgs": 0
+        }
+      }
+    },
+    {
+      "id_cliente": "6830",
+      "cliente": "DISTRIBUIDORA DE VIVERES REY DE GLORIA, C.A",
+      "vendedor": "EDUARDO PIÑA",
+      "monto": 0,
+      "cajas": 0,
+      "kgs": 0,
+      "months": {
+        "OCTUBRE": {
+          "monto": 0,
+          "cajas": 0,
+          "kgs": 0
+        }
+      }
+    },
+    {
+      "id_cliente": "8335",
+      "cliente": "ANA MARIA ALDANA MATERAN",
+      "vendedor": "JOSE G. GONZALEZ",
+      "monto": 0,
+      "cajas": 0,
+      "kgs": 0,
+      "months": {
+        "OCTUBRE": {
+          "monto": 0,
+          "cajas": 0,
+          "kgs": 0
+        }
+      }
+    },
+    {
+      "id_cliente": "179",
+      "cliente": "MINIMARKET INVERSIONES EL PAPA Y LA GOCHA, C.A.",
+      "vendedor": "ANGELICA MORENO",
+      "monto": 0,
+      "cajas": 0,
+      "kgs": 0,
+      "months": {
+        "OCTUBRE": {
+          "monto": 0,
+          "cajas": 0,
+          "kgs": 0
+        }
+      }
+    },
+    {
+      "id_cliente": "8202",
+      "cliente": "FIORELLA SUPER MARKET. C.A.",
+      "vendedor": "CUENTAS CLAVE 1 - MC",
+      "monto": 0,
+      "cajas": 0,
+      "kgs": 0,
+      "months": {
+        "OCTUBRE": {
+          "monto": 0,
+          "cajas": 0,
+          "kgs": 0
+        }
+      }
+    },
+    {
+      "id_cliente": "1477",
+      "cliente": "SUPERMERCADO PRIMERO, C.A",
+      "vendedor": "J PABLO ARAUJO",
+      "monto": 0,
+      "cajas": 0,
+      "kgs": 0,
+      "months": {
+        "OCTUBRE": {
+          "monto": 0,
+          "cajas": 0,
+          "kgs": 0
+        }
+      }
+    },
+    {
+      "id_cliente": "1696",
+      "cliente": "LA ROMANA COMERCIALIZADORA Y DISTRIBUIDORA, C.A",
+      "vendedor": "JOSE G. GONZALEZ",
+      "monto": 0,
+      "cajas": 0,
+      "kgs": 0,
+      "months": {
+        "OCTUBRE": {
+          "monto": 0,
+          "cajas": 0,
+          "kgs": 0
+        }
+      }
+    },
+    {
+      "id_cliente": "4835",
+      "cliente": "ELVIN JESUS URDANETA VILLAR  ( COMERCIALIZADORA MOVIL NOVILLO GRIL )",
+      "vendedor": "JOSE G. GONZALEZ",
+      "monto": 0,
+      "cajas": 0,
+      "kgs": 0,
+      "months": {
+        "OCTUBRE": {
+          "monto": 0,
+          "cajas": 0,
+          "kgs": 0
+        }
+      }
+    },
+    {
+      "id_cliente": "896",
+      "cliente": "JESUS JAVIER LARREAL BRIÑEZ (INVERSIONES JESUS JAVIER LARREAL, F.P.)",
+      "vendedor": "ANGELICA MORENO",
+      "monto": 0,
+      "cajas": 0,
+      "kgs": 0,
+      "months": {
+        "OCTUBRE": {
+          "monto": 0,
+          "cajas": 0,
+          "kgs": 0
+        }
+      }
+    },
+    {
+      "id_cliente": "2111",
+      "cliente": "JOEL JOSE MATOS CALLEJA",
+      "vendedor": "ELISA SOLER",
+      "monto": 0,
+      "cajas": 0,
+      "kgs": 0,
+      "months": {
+        "OCTUBRE": {
+          "monto": 0,
+          "cajas": 0,
+          "kgs": 0
+        }
+      }
+    }
+  ]
+}

@@ -40,11 +40,11 @@ export const PRODUCT_CATALOG_BY_SKU: Record<string, string> = {
   "184": "NECTAR DE DURAZNO EL TUNAL 1X12LTRS",
   "185": "TE CON LIMON EL TUNAL 1X12LTRS",
   "186": "TE CON DURAZNO EL TUNAL 1X12LTRS",
-  "187": "MANTEQUILLA CON SAL PURISIMA BARRA 18X200GR",
+  "187": "FILET DE PECHUGA PL POR KG",
   "241": "ESPAL. AHUM T/VISKING ALIMEX 6X3.2",
   "242": "LECHE DESLACTOSADA PURISIMA1X12LT",
   "270": "NUGGETS CORRAL 12X0.460GR",
-  "272": "POLLO VENCAMPO POR KG",
+  "272": "FILET DE PECHUGA LIDER POLLO X KG",
   "300": "CREMA DE LECHE PURISIMA 24X250GRS",
   "301": "CREMA DE LECHE PURISIMA12X500GR",
   "302": "MANTEQUILLA CON SAL PURISIMA BARRA 18X200GR",
@@ -135,8 +135,8 @@ export const PRODUCT_CATALOG_BY_SKU: Record<string, string> = {
   "1106": "CHULETA AHUMADA IBERICO POR KG",
   "1127": "GALLINA LIDER POLLO POR KG",
   "1130": "LECHE EN POLVO SUR DEL LAGO 12X500GR",
-  "1142": "POLLO VENCAMPO POR KG",
-  "1143": "MORT. ESPECIAL COCIDA ASTURIAS X KG",
+  "1142": "MORT. SALCH MILANO ALPINO X KG",
+  "1143": "CHORIZO T/ESPAÑOL VELA ALPINO 1X 900GR",
   "1161": "PATAS DE CERDO X KG",
   "1167": "QUESO BLANCO PURISIMA 3UND X 3KG",
   "1170": "CORAZON DE POLLO POR KG",
@@ -183,7 +183,7 @@ export const PRODUCT_CATALOG_BY_SKU: Record<string, string> = {
   "1326": "MOLLEJAS LOS LLANOS POR KG",
   "1332": "MORT. NAVIDEÑA SELVA NEGRA X KG",
   "1334": "HIGADO (GRANEL) LOS LLANOS",
-  "1339": "TOCINO FRESCO ASTURIAS X KG",
+  "1339": "TOCINETA AHUMADA SALPICAO X KG",
   "1340": "MORT. ESTANDAR SELVA NEGRA X KG",
   "1342": "ARROZ GLORIA PREMIUM 24X900GR",
   "1343": "POLLO ESPECIAL DE 1RA LOS LLANOS (E)",
@@ -325,18 +325,27 @@ export const PRODUCT_CATALOG_BY_SKU: Record<string, string> = {
   "1614": "FILET DE PECHUGA A GRANEL TROPICAL POR KG",
   "1615": "MUSLO (CDM) POR KG",
   "1622": "LECHE EN POLVO VENCAMPO 24X125GR",
-  "1623": "ACEITE VENCAMPO 12X900ML",
-  "1624": "ACEITE VENCAMPO 12X900ML",
-  "1625": "AZUCAR BLANCA VENCAMPO 1X20ND",
-  "1642": "TOCINO FRESCO ASTURIAS X KG",
-  "1643": "AZUCAR BLANCA VENCAMPO 1X20ND",
-  "1644": "ACEITE VENCAMPO 12X900ML"
+  "1623": "MINI TOCINO ASTURIAS X POR KG",
+  "1624": "MORTADELA ESP D/POLLO ASTURIAS 20UNDX500GR",
+  "1625": "MORTADELA ESP D/POLLO SALPICAO 20UNDX500GR",
+  "1642": "ARVEJAS VENCAMPO 25 UND X 400GR",
+  "1643": "LOMO DE CERDO AHUMADO SALPICAO POR KG",
+  "1644": "CARAOTAS NEGRAS VENCAMPO 25 UND X 400GR"
 };
 
 export const isGenericProductLabel = (name?: string | null): boolean => {
   const clean = String(name || '').trim();
   if (!clean) return true;
   return /^(Prod\s+\S+|Producto\s+#?\s*\S+|Product\s+\S+|ART[IÍ]CULO\s*#?\s*\S+|C[oó]digo\s+\S+|SIN-SKU)$/i.test(clean);
+};
+
+export const normalizeProductIdentityKey = (name?: string | null): string => {
+  return String(name || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase()
+    .replace(/\s+/g, ' ')
+    .trim();
 };
 
 export const resolveCatalogProductName = (
@@ -348,10 +357,7 @@ export const resolveCatalogProductName = (
   const cleanSku = sku.replace(/^0+/, '') || sku;
   const candidate = String(rawName ?? '').replace(/^["']|["']$/g, '').trim();
 
-  if (candidate && !isGenericProductLabel(candidate)) {
-    return candidate;
-  }
-  if (extraMap) {
+  if (extraMap && (sku || cleanSku)) {
     const fromExtra = extraMap instanceof Map
       ? (extraMap.get(sku) || extraMap.get(cleanSku))
       : (extraMap[sku] || extraMap[cleanSku]);
@@ -360,8 +366,11 @@ export const resolveCatalogProductName = (
     }
   }
   const fromCatalog = PRODUCT_CATALOG_BY_SKU[sku] || PRODUCT_CATALOG_BY_SKU[cleanSku];
-  if (fromCatalog) {
+  if (fromCatalog && !isGenericProductLabel(fromCatalog)) {
     return fromCatalog;
+  }
+  if (candidate && !isGenericProductLabel(candidate)) {
+    return candidate;
   }
   return candidate || (cleanSku ? `Producto #${cleanSku}` : 'Producto General');
 };
