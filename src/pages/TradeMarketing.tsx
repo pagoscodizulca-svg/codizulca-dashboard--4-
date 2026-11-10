@@ -750,7 +750,12 @@ export const TradeMarketing: React.FC = () => {
       const mappedAttendances: AttendanceItem[] = records.map((rec) => {
         const staffMatch = resolvePromoterIdentity(rec.promoter);
         const timeFormatted = rec.date && rec.date.includes('T')
-          ? new Date(rec.date).toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit' })
+          ? new Date(rec.date).toLocaleTimeString('es-VE', {
+              hour: '2-digit',
+              minute: '2-digit',
+              hour12: true,
+              timeZone: 'America/Caracas'
+            })
           : '08:30 AM';
         return {
           id: rec.id,
@@ -844,7 +849,12 @@ export const TradeMarketing: React.FC = () => {
         checkinList.map((rec) => {
           const staffMatch = resolvePromoterIdentity(rec.promoter);
           const timeFormatted = rec.date && rec.date.includes('T')
-            ? new Date(rec.date).toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit' })
+            ? new Date(rec.date).toLocaleTimeString('es-VE', {
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: true,
+                timeZone: 'America/Caracas'
+              })
             : '08:30 AM';
           return {
             id: rec.id,
@@ -2149,14 +2159,24 @@ export const TradeMarketing: React.FC = () => {
         entry.primaryLocation = item.location;
       }
 
+      const itemTimeMs = new Date(item.date).getTime();
+
       if (item.type === 'Ingreso') {
-        entry.ingreso = item;
+        if (!entry.ingreso || itemTimeMs <= new Date(entry.ingreso.date).getTime()) {
+          entry.ingreso = item;
+        }
       } else if (item.type === 'Salida a almorzar') {
-        entry.salidaAlmorzar = item;
+        if (!entry.salidaAlmorzar || itemTimeMs <= new Date(entry.salidaAlmorzar.date).getTime()) {
+          entry.salidaAlmorzar = item;
+        }
       } else if (item.type === 'Vuelta a almorzar') {
-        entry.llegadaAlmorzar = item;
+        if (!entry.llegadaAlmorzar || itemTimeMs >= new Date(entry.llegadaAlmorzar.date).getTime()) {
+          entry.llegadaAlmorzar = item;
+        }
       } else if (item.type === 'Salida') {
-        entry.salida = item;
+        if (!entry.salida || itemTimeMs >= new Date(entry.salida.date).getTime()) {
+          entry.salida = item;
+        }
       }
     }
 
@@ -5280,7 +5300,7 @@ export const TradeMarketing: React.FC = () => {
                     <div className="p-3 rounded-xl bg-zinc-900 border border-white/5 text-xs text-zinc-300 space-y-1">
                       <p><strong>Promotora:</strong> {deleteConfirmCheckIn.promoter}</p>
                       <p><strong>Punto de Venta:</strong> {deleteConfirmCheckIn.store}</p>
-                      <p><strong>Marcaje:</strong> {deleteConfirmCheckIn.type} • {new Date(deleteConfirmCheckIn.date).toLocaleTimeString('es-VE')}</p>
+                      <p><strong>Marcaje:</strong> {deleteConfirmCheckIn.type} • {new Date(deleteConfirmCheckIn.date).toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'America/Caracas' })}</p>
                     </div>
 
                     <div className="flex items-center justify-end gap-3 pt-2">
@@ -5351,10 +5371,10 @@ export const TradeMarketing: React.FC = () => {
                         <div className="p-3.5 rounded-2xl bg-zinc-900 border border-white/5 space-y-2">
                           <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider block">Marca de Tiempo Oficial</span>
                           <p className="font-mono text-emerald-400 font-bold text-sm">
-                            {new Date(inspectCheckIn.date).toLocaleDateString('es-VE', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })}
+                            {new Date(inspectCheckIn.date).toLocaleDateString('es-VE', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric', timeZone: 'America/Caracas' })}
                           </p>
                           <p className="font-mono text-zinc-300 text-xs">
-                            Hora exacta: {new Date(inspectCheckIn.date).toLocaleTimeString('es-VE', { hour12: true })}
+                            Hora exacta: {new Date(inspectCheckIn.date).toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true, timeZone: 'America/Caracas' })}
                           </p>
                         </div>
 

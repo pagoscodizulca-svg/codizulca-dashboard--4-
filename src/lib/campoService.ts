@@ -488,15 +488,20 @@ export function isSyntheticPriceOrInventoryRow(row: any): boolean {
 }
 
 export function resolvePromoterNameFromRaw(rawPromoter?: string, creatorId?: string): string {
-  const cleanRaw = String(rawPromoter || '').trim();
+  const cleanRaw = String(rawPromoter || '').trim().replace(/\s+/g, ' ');
   const cleanCreator = String(creatorId || '').trim().toLowerCase();
+  const stripAccents = (str: string) => str.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 
   if (cleanRaw && !cleanRaw.includes('@')) {
-    const byCreator = PROMOTER_CREATOR_MAP[cleanRaw.toLowerCase()];
+    const rawLower = cleanRaw.toLowerCase();
+    const rawNoAccentsLower = stripAccents(rawLower);
+    const byCreator = PROMOTER_CREATOR_MAP[rawLower] || PROMOTER_CREATOR_MAP[rawNoAccentsLower];
     if (byCreator) return byCreator;
-    const matchedInList = PROMOTERS_LIST.find(
-      (p) => p.name.trim().toLowerCase() === cleanRaw.toLowerCase()
-    );
+
+    const matchedInList = PROMOTERS_LIST.find((p) => {
+      const pLower = p.name.trim().toLowerCase();
+      return pLower === rawLower || stripAccents(pLower) === rawNoAccentsLower;
+    });
     if (matchedInList) return matchedInList.name;
     return cleanRaw;
   }
@@ -840,9 +845,125 @@ export interface SyncQueueItem {
   timestamp: string;
 }
 
+export const COMMERCIAL_HOURS = {
+  startHour: 7, // 7:00 AM
+  endHour: 20,  // 8:00 PM
+  label: '7:00 AM a 8:00 PM',
+} as const;
+
+export const PROMOTER_ENTRY_SCHEDULE = {
+  openHour: 7,            // Apertura recepción de marcaje: 7:00 AM
+  targetStartHour: 8,     // Meta inicio ingreso PDV: 8:00 AM
+  targetStartMinute: 0,
+  targetEndHour: 8,       // Meta óptima ingreso PDV: 8:30 AM
+  targetEndMinute: 35,
+  toleranceLimitHour: 9,  // Límite de tolerancia sin retardo: 9:15 AM
+  toleranceLimitMinute: 15,
+  targetWindowLabel: '8:00 AM – 8:30 AM',
+  toleranceLabel: 'Tolerancia hasta las 9:15 AM',
+} as const;
+
+export type EntryPunctualityStatus = 'puntual' | 'tolerancia' | 'retardo';
+
+export interface EntryPunctualityEvaluation {
+  status: EntryPunctualityStatus;
+  label: string;
+  shortLabel: string;
+  formattedTime: string;
+  hour: number;
+  minute: number;
+  minutesAfterTolerance: number;
+}
+
+export function getCaracasTimeParts(dateInput?: Date | string): {
+  hour: number;
+  minute: number;
+  second: number;
+  formattedTime: string;
+} {
+  const d = dateInput instanceof Date ? dateInput : dateInput ? new Date(dateInput) : new Date();
+  if (Number.isNaN(d.getTime())) {
+    return { hour: 8, minute: 30, second: 0, formattedTime: '08:30 a. m.' };
+  }
+  try {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/Caracas',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+    }).formatToParts(d);
+    const rawHour = Number(parts.find((p) => p.type === 'hour')?.value ?? d.getHours());
+    const hour = rawHour === 24 ? 0 : rawHour;
+    const minute = Number(parts.find((p) => p.type === 'minute')?.value ?? d.getMinutes());
+    const second = Number(parts.find((p) => p.type === 'second')?.value ?? d.getSeconds());
+    const formattedTime = d.toLocaleTimeString('es-VE', {
+      timeZone: 'America/Caracas',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    });
+    return { hour, minute, second, formattedTime };
+  } catch {
+    const hour = d.getHours();
+    const minute = d.getMinutes();
+    const second = d.getSeconds();
+    return {
+      hour,
+      minute,
+      second,
+      formattedTime: d.toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit', hour12: true }),
+    };
+  }
+}
+
+export function evaluateEntryPunctuality(dateInput?: Date | string): EntryPunctualityEvaluation {
+  const { hour, minute, formattedTime } = getCaracasTimeParts(dateInput);
+  const totalMinutes = hour * 60 + minute;
+  const targetEndMinutes =
+    PROMOTER_ENTRY_SCHEDULE.targetEndHour * 60 + PROMOTER_ENTRY_SCHEDULE.targetEndMinute; // 08:35 = 515
+  const toleranceLimitMinutes =
+    PROMOTER_ENTRY_SCHEDULE.toleranceLimitHour * 60 + PROMOTER_ENTRY_SCHEDULE.toleranceLimitMinute; // 09:15 = 555
+
+  if (totalMinutes <= targetEndMinutes) {
+    return {
+      status: 'puntual',
+      label: 'Ingreso Puntual (En Horario)',
+      shortLabel: 'Puntual',
+      formattedTime,
+      hour,
+      minute,
+      minutesAfterTolerance: 0,
+    };
+  }
+
+  if (totalMinutes <= toleranceLimitMinutes) {
+    return {
+      status: 'tolerancia',
+      label: 'Dentro de Tolerancia',
+      shortLabel: 'En Horario',
+      formattedTime,
+      hour,
+      minute,
+      minutesAfterTolerance: 0,
+    };
+  }
+
+  const minutesAfterTolerance = Math.max(1, totalMinutes - toleranceLimitMinutes);
+  return {
+    status: 'retardo',
+    label: `Retardo (+${minutesAfterTolerance} min)`,
+    shortLabel: `+${minutesAfterTolerance}m`,
+    formattedTime,
+    hour,
+    minute,
+    minutesAfterTolerance,
+  };
+}
+
 export const campoService = {
   // Control de Horario Comercial (7:00 AM a 8:00 PM)
-  isWithinCommercialHours(): boolean {
+  isWithinCommercialHours(now?: Date): boolean {
     if (localStorage.getItem(BYPASS_HOURS_KEY) === 'true') {
       return true;
     }
@@ -854,8 +975,59 @@ export const campoService = {
     } catch {
       // ignore
     }
-    const currentHour = new Date().getHours();
-    return currentHour >= 7 && currentHour < 20;
+    const refDate = now instanceof Date ? now : new Date();
+    const currentHour = refDate.getHours();
+    return currentHour >= COMMERCIAL_HOURS.startHour && currentHour < COMMERCIAL_HOURS.endHour;
+  },
+
+  getCommercialScheduleStatus(now?: Date): {
+    isOpen: boolean;
+    currentHour: number;
+    currentMinute: number;
+    formattedTime: string;
+    minutesUntilOpen: number;
+    minutesUntilClose: number;
+    countdownLabel: string;
+  } {
+    const refDate = now instanceof Date ? now : new Date();
+    const isOpen = this.isWithinCommercialHours(refDate);
+    const { hour, minute, formattedTime } = getCaracasTimeParts(refDate);
+    const currentTotalMinutes = hour * 60 + minute;
+    const openMinutes = COMMERCIAL_HOURS.startHour * 60; // 420 (7:00 AM)
+    const closeMinutes = COMMERCIAL_HOURS.endHour * 60;  // 1200 (8:00 PM)
+
+    let minutesUntilOpen = 0;
+    let minutesUntilClose = 0;
+    let countdownLabel = 'Jornada Activa (7:00 AM – 8:00 PM)';
+
+    if (isOpen) {
+      minutesUntilClose = Math.max(0, closeMinutes - currentTotalMinutes);
+      const hrs = Math.floor(minutesUntilClose / 60);
+      const mins = minutesUntilClose % 60;
+      countdownLabel = hrs > 0 ? `Cierre de jornada en ${hrs}h ${mins}m` : `Cierre de jornada en ${mins}m`;
+    } else {
+      if (currentTotalMinutes < openMinutes) {
+        minutesUntilOpen = openMinutes - currentTotalMinutes;
+      } else {
+        minutesUntilOpen = 24 * 60 - currentTotalMinutes + openMinutes;
+      }
+      const hrs = Math.floor(minutesUntilOpen / 60);
+      const mins = minutesUntilOpen % 60;
+      countdownLabel =
+        hrs > 0
+          ? `Apertura automática en ${hrs}h ${mins}m (7:00 AM)`
+          : `Apertura automática en ${mins} min (7:00 AM)`;
+    }
+
+    return {
+      isOpen,
+      currentHour: hour,
+      currentMinute: minute,
+      formattedTime,
+      minutesUntilOpen,
+      minutesUntilClose,
+      countdownLabel,
+    };
   },
 
   setBypassHours(bypass: boolean) {

@@ -3,7 +3,12 @@
  * Servicio de datos, persistencia híbrida (Supabase + LocalStorage) y sincronización offline
  */
 import { supabase } from './supabase';
-import { resolvePromoterNameFromRaw } from './campoService';
+import {
+  resolvePromoterNameFromRaw,
+  getCaracasTimeParts,
+  evaluateEntryPunctuality,
+  EntryPunctualityEvaluation,
+} from './campoService';
 
 export type CheckInType = 'Ingreso' | 'Salida a almorzar' | 'Vuelta a almorzar' | 'Salida';
 
@@ -66,9 +71,36 @@ export function getCaracasDayKey(isoDate: string): string {
   }
 }
 
-export function normalizeCheckInType(rawType?: string): CheckInType | null {
+export function getCaracasHourFloat(isoDate: string): number {
+  try {
+    const d = new Date(isoDate);
+    if (Number.isNaN(d.getTime())) return 8.5;
+    const caracasMs = d.getTime() - 4 * 60 * 60 * 1000;
+    const cd = new Date(caracasMs);
+    return cd.getUTCHours() + cd.getUTCMinutes() / 60;
+  } catch {
+    return 8.5;
+  }
+}
+
+export function formatCheckInTimeCaracas(isoDate: string): string {
+  return getCaracasTimeParts(isoDate).formattedTime;
+}
+
+export function getCheckInEntryScheduleBadge(isoDate: string): EntryPunctualityEvaluation {
+  return evaluateEntryPunctuality(isoDate);
+}
+
+export function normalizeCheckInType(rawType?: string, fallbackDateIso?: string): CheckInType | null {
   const clean = String(rawType || '').trim().toLowerCase();
-  if (!clean) return null;
+  if (!clean) {
+    if (!fallbackDateIso) return null;
+    const hr = getCaracasHourFloat(fallbackDateIso);
+    if (hr < 12) return 'Ingreso';
+    if (hr < 14) return 'Salida a almorzar';
+    if (hr < 16) return 'Vuelta a almorzar';
+    return 'Salida';
+  }
   if (clean === 'ingreso' || clean.includes('entrada')) return 'Ingreso';
   if (clean.includes('salida a almorzar') || clean.includes('salida almorzar') || clean.includes('salida almuerzo')) {
     return 'Salida a almorzar';
@@ -221,13 +253,13 @@ export function normalizeAndDeduplicateCheckIns(records: CheckInRecord[]): Check
     const rawPromoterLower = String(c.promoter || '').trim().toLowerCase();
     if (SYNTHETIC_CHECKIN_PROMOTERS.has(rawPromoterLower)) continue;
 
-    const normalizedType = normalizeCheckInType(c.type);
+    const dateIso = c.date || c.created_at || new Date().toISOString();
+    const normalizedType = normalizeCheckInType(c.type, dateIso);
     if (!normalizedType) continue;
 
     const canonicalPromoter = resolvePromoterNameFromRaw(c.promoter, c.creatorId);
     if (!canonicalPromoter || SYNTHETIC_CHECKIN_PROMOTERS.has(canonicalPromoter.toLowerCase())) continue;
 
-    const dateIso = c.date || c.created_at || new Date().toISOString();
     const photo =
       c.photoBase64 && String(c.photoBase64).trim() !== ''
         ? c.photoBase64
@@ -255,6 +287,68 @@ export function normalizeAndDeduplicateCheckIns(records: CheckInRecord[]): Check
       photoBase64: photo,
       location: normLocation,
     });
+  }
+
+  // Reconciliación Inteligente de Secuencia Diaria para promotoras fijas/eventuales (no mercaderistas de ruta):
+  // Si una promotora ya tiene un Ingreso matutino y volvió a dejar el selector en 'Ingreso' al regresar de almuerzo
+  // o al cerrar turno, o marcó 'Salida' al mediodía en lugar de 'Salida a almorzar', normalizamos su secuencia cronológica.
+  const byPromoterDay = new Map<string, CheckInRecord[]>();
+  for (const rec of validNormalized) {
+    if (isMerchandisingRoutePromoter(rec.promoter, rec.creatorId)) continue;
+    const dayKey = getCaracasDayKey(rec.date);
+    const pKey = `${dayKey}|${rec.promoter.trim().toUpperCase()}`;
+    const list = byPromoterDay.get(pKey);
+    if (list) {
+      list.push(rec);
+    } else {
+      byPromoterDay.set(pKey, [rec]);
+    }
+  }
+
+  for (const [, dayList] of byPromoterDay.entries()) {
+    if (dayList.length <= 1) continue;
+    dayList.sort(
+      (a, b) => new Date(a.date || a.created_at || 0).getTime() - new Date(b.date || b.created_at || 0).getTime()
+    );
+
+    // 1. Si marcó 'Salida' al mediodía (11:30 AM - 3:30 PM) pero hay registros posteriores y falta 'Salida a almorzar'
+    for (let i = 0; i < dayList.length; i++) {
+      const item = dayList[i];
+      const hr = getCaracasHourFloat(item.date);
+      if (item.type === 'Salida' && hr >= 11.5 && hr <= 15.5) {
+        const hasLaterActivity = dayList.slice(i + 1).some((x) => getCaracasHourFloat(x.date) > hr + 0.25);
+        const hasSalidaAlmuerzo = dayList.some((x) => x.type === 'Salida a almorzar');
+        if (hasLaterActivity && !hasSalidaAlmuerzo) {
+          item.type = 'Salida a almorzar';
+        }
+      }
+    }
+
+    // 2. Si ya tiene un 'Ingreso' temprano y marcó un segundo 'Ingreso' horas después (almuerzo o salida)
+    const firstIngreso = dayList.find((x) => x.type === 'Ingreso');
+    if (firstIngreso) {
+      const firstHr = getCaracasHourFloat(firstIngreso.date);
+      for (const item of dayList) {
+        if (item === firstIngreso || item.type !== 'Ingreso') continue;
+        const hr = getCaracasHourFloat(item.date);
+        // Ignorar dobles toques inmediatos (< 25 min de diferencia) para que se dedupliquen como el mismo Ingreso
+        if (hr - firstHr < 0.42) continue;
+
+        const hasSalidaAlmuerzo = dayList.some((x) => x.type === 'Salida a almorzar');
+        const hasVueltaAlmuerzo = dayList.some((x) => x.type === 'Vuelta a almorzar');
+        const hasSalida = dayList.some((x) => x.type === 'Salida');
+
+        if (hr >= 17.0 && !hasSalida) {
+          item.type = 'Salida';
+        } else if (hr >= 11.5 && hr < 14.5 && !hasSalidaAlmuerzo && hasVueltaAlmuerzo) {
+          item.type = 'Salida a almorzar';
+        } else if (hr >= 12.5 && hr < 17.25 && !hasVueltaAlmuerzo) {
+          item.type = 'Vuelta a almorzar';
+        } else if (hr >= 15.5 && hasVueltaAlmuerzo && !hasSalida) {
+          item.type = 'Salida';
+        }
+      }
+    }
   }
 
   // Deduplicar por (Día en Caracas | Promotora Canónica | Tipo de Marcaje [| PDV para mercaderistas de ruta])

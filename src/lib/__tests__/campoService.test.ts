@@ -9,8 +9,12 @@ import {
   OFFICIAL_BCV_RATE,
   getCurrentBcvRate,
   mapSupabasePriceRowToPayload,
-  toSortableTimestamp
+  toSortableTimestamp,
+  evaluateEntryPunctuality,
+  PROMOTER_ENTRY_SCHEDULE,
+  COMMERCIAL_HOURS
 } from '../campoService';
+import { normalizeAndDeduplicateCheckIns, CheckInRecord } from '../checkinsService';
 
 describe('campoService - Offline-First & Sync Test Suite', () => {
   const QUEUE_STORAGE_KEY = 'portal_sync_queue';
@@ -445,6 +449,86 @@ describe('campoService - Offline-First & Sync Test Suite', () => {
       expect(mapped.bcvRate).toBe(887.30);
       expect(mapped.ownPriceBs).toBe(5137.47);
       expect(mapped.competitors[0].priceBs).toBe(5279.43);
+    });
+
+    it('evalúa con precisión el horario de ingreso de promotoras (Puntual, Tolerancia y Retardo) en hora de Venezuela (UTC-4)', () => {
+      expect(COMMERCIAL_HOURS.startHour).toBe(7);
+      expect(COMMERCIAL_HOURS.endHour).toBe(20);
+      expect(PROMOTER_ENTRY_SCHEDULE.targetStartHour).toBe(8);
+
+      // 08:20 AM Caracas = 12:20 UTC -> Puntual
+      const puntual = evaluateEntryPunctuality('2026-10-17T12:20:00.000Z');
+      expect(puntual.status).toBe('puntual');
+      expect(puntual.shortLabel).toBe('Puntual');
+      expect(puntual.minutesAfterTolerance).toBe(0);
+
+      // 09:05 AM Caracas = 13:05 UTC -> Dentro de Tolerancia (<= 9:15 AM)
+      const tolerancia = evaluateEntryPunctuality('2026-10-17T13:05:00.000Z');
+      expect(tolerancia.status).toBe('tolerancia');
+      expect(tolerancia.shortLabel).toBe('En Horario');
+
+      // 09:35 AM Caracas = 13:35 UTC -> Retardo (+20m sobre 9:15 AM)
+      const retardo = evaluateEntryPunctuality('2026-10-17T13:35:00.000Z');
+      expect(retardo.status).toBe('retardo');
+      expect(retardo.minutesAfterTolerance).toBe(20);
+      expect(retardo.shortLabel).toBe('+20m');
+    });
+
+    it('reconcilia la secuencia diaria cuando una promotora marca Ingreso en la tarde o Salida al mediodía', () => {
+      // Caso real: Claudia Alvarez el 17/10/2026 marcó Ingreso (10:24 AM), Salida (12:56 PM), Ingreso (04:19 PM) y Salida (06:31 PM)
+      const rawDay: CheckInRecord[] = [
+        {
+          id: 'c1',
+          date: '2026-10-17T14:24:06.169Z', // 10:24 AM VET
+          type: 'Ingreso',
+          store: 'El oferton de Dios',
+          photoBase64: 'data:image/jpeg;base64,a',
+          location: { lat: 10.65, lng: -71.63, accuracy: 8 },
+          promoter: 'CLAUDIA ALVAREZ',
+          creatorId: 'clausofidaza@gmail.com',
+          created_at: '2026-10-17T14:24:06.169Z'
+        },
+        {
+          id: 'c2',
+          date: '2026-10-17T16:56:35.966Z', // 12:56 PM VET (Salida mediodía -> Salida a almorzar)
+          type: 'Salida',
+          store: 'El oferton de Dios',
+          photoBase64: 'data:image/jpeg;base64,b',
+          location: { lat: 10.65, lng: -71.63, accuracy: 8 },
+          promoter: 'CLAUDIA ALVAREZ',
+          creatorId: 'clausofidaza@gmail.com',
+          created_at: '2026-10-17T16:56:35.966Z'
+        },
+        {
+          id: 'c3',
+          date: '2026-10-17T20:19:25.767Z', // 04:19 PM VET (Ingreso tarde -> Vuelta a almorzar)
+          type: 'Ingreso',
+          store: 'Vecinos la coromoto',
+          photoBase64: 'data:image/jpeg;base64,c',
+          location: { lat: 10.58, lng: -71.62, accuracy: 9 },
+          promoter: 'CLAUDIA ALVAREZ',
+          creatorId: 'clausofidaza@gmail.com',
+          created_at: '2026-10-17T20:19:25.767Z'
+        },
+        {
+          id: 'c4',
+          date: '2026-10-17T22:31:30.116Z', // 06:31 PM VET (Salida cierre)
+          type: 'Salida',
+          store: 'Vecinos la coromoto',
+          photoBase64: 'data:image/jpeg;base64,d',
+          location: { lat: 10.58, lng: -71.62, accuracy: 9 },
+          promoter: 'CLAUDIA ALVAREZ',
+          creatorId: 'clausofidaza@gmail.com',
+          created_at: '2026-10-17T22:31:30.116Z'
+        }
+      ];
+
+      const reconciled = normalizeAndDeduplicateCheckIns(rawDay);
+      expect(reconciled).toHaveLength(4);
+      const types = reconciled.map((r) => r.type).sort();
+      expect(types).toEqual(['Ingreso', 'Salida', 'Salida a almorzar', 'Vuelta a almorzar']);
+      const ingreso = reconciled.find((r) => r.type === 'Ingreso');
+      expect(ingreso?.id).toBe('c1');
     });
   });
 });

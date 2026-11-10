@@ -17,12 +17,16 @@ import {
   CheckinPayload,
   FREQUENT_STORES,
   campoService,
-  resolvePromoterNameFromRaw
+  resolvePromoterNameFromRaw,
+  PROMOTER_ENTRY_SCHEDULE,
+  evaluateEntryPunctuality,
+  getCaracasTimeParts,
 } from '../../lib/campoService';
 import {
   checkinsService,
   CheckInRecord,
   getCaracasDayKey,
+  getCaracasHourFloat,
   STORAGE_KEY_ACTIVE_STORE,
   isMerchandisingRoutePromoter,
   resolveStoreByGpsIfGenericDefault,
@@ -63,6 +67,14 @@ export const CampoAsistencia: React.FC<{ activePromoterName?: string }> = ({
   const [isOfflineSaved, setIsOfflineSaved] = useState<boolean>(false);
   const [todayCheckIns, setTodayCheckIns] = useState<CheckInRecord[]>([]);
   const [isSyncingToday, setIsSyncingToday] = useState<boolean>(false);
+  const [caracasClock, setCaracasClock] = useState(() => getCaracasTimeParts());
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setCaracasClock(getCaracasTimeParts());
+    }, 15000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -80,10 +92,16 @@ export const CampoAsistencia: React.FC<{ activePromoterName?: string }> = ({
         activeProfile.email || activeProfile.id
       ).toUpperCase();
       const todayKey = getCaracasDayKey(new Date().toISOString());
-      const mineToday = all.filter((c) => {
-        const cPromoter = resolvePromoterNameFromRaw(c.promoter, c.creatorId).toUpperCase();
-        return getCaracasDayKey(c.date) === todayKey && cPromoter === canonicalMe;
-      });
+      const mineToday = all
+        .filter((c) => {
+          const cPromoter = resolvePromoterNameFromRaw(c.promoter, c.creatorId).toUpperCase();
+          return getCaracasDayKey(c.date) === todayKey && cPromoter === canonicalMe;
+        })
+        .sort(
+          (a, b) =>
+            new Date(a.date || a.created_at || 0).getTime() -
+            new Date(b.date || b.created_at || 0).getTime()
+        );
       const isRouteMerch = isMerchandisingRoutePromoter(canonicalMe, activeProfile.role || activeProfile.email);
       setTodayCheckIns(mineToday);
       if (!isRouteMerch) {
@@ -273,7 +291,10 @@ export const CampoAsistencia: React.FC<{ activePromoterName?: string }> = ({
           ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
           const now = new Date();
-          const dateStr = now.toLocaleDateString('es-VE') + ' • ' + now.toLocaleTimeString('es-VE', { hour12: true });
+          const dateStr =
+            now.toLocaleDateString('es-VE', { timeZone: 'America/Caracas' }) +
+            ' • ' +
+            now.toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'America/Caracas' });
           const gpsStr = gpsLocation
             ? `GPS: ${gpsLocation.lat}, ${gpsLocation.lng} (±${gpsLocation.accuracy || 10}m)`
             : 'GPS: PENDIENTE DE SATÉLITE';
@@ -409,12 +430,37 @@ export const CampoAsistencia: React.FC<{ activePromoterName?: string }> = ({
         localStorage.setItem(STORAGE_KEY_ACTIVE_STORE, finalStoreName);
       } catch {}
 
+      const isRouteMerch = isMerchandisingRoutePromoter(promoterName, activeProfile?.role || creatorIdentifier);
+      let effectiveType = checkInType;
+
+      // Protección inteligente de horario: si la promotora fija/eventual ya registró su Ingreso hoy
+      // y dejó el selector en 'Ingreso' por error en la tarde, asignamos el siguiente hito pendiente.
+      if (!isRouteMerch && effectiveType === 'Ingreso' && todayCheckIns.some((c) => c.type === 'Ingreso')) {
+        const currentHr = getCaracasHourFloat(nowIso);
+        const hasSalidaAlmuerzo = todayCheckIns.some((c) => c.type === 'Salida a almorzar');
+        const hasVueltaAlmuerzo = todayCheckIns.some((c) => c.type === 'Vuelta a almorzar');
+        const hasSalida = todayCheckIns.some((c) => c.type === 'Salida');
+
+        if (currentHr >= 16.5 && !hasSalida) {
+          effectiveType = 'Salida';
+        } else if (!hasSalidaAlmuerzo && currentHr >= 11.25 && currentHr < 14.5) {
+          effectiveType = 'Salida a almorzar';
+        } else if (!hasVueltaAlmuerzo && currentHr >= 12.5 && currentHr < 17.0) {
+          effectiveType = 'Vuelta a almorzar';
+        } else if (!hasSalida && currentHr >= 15.0) {
+          effectiveType = 'Salida';
+        }
+        if (effectiveType !== checkInType) {
+          setCheckInType(effectiveType);
+        }
+      }
+
       // Guardar en checkinsService (con UUID válido, sincronización directa a Supabase + Backend y cola offline)
       const checkinResult = await checkinsService.createCheckIn({
         date: nowIso,
         promoter: promoterName,
         store: finalStoreName,
-        type: checkInType,
+        type: effectiveType,
         photoBase64: selfieDataUrl,
         location: {
           lat: gpsLocation.lat,
@@ -424,7 +470,7 @@ export const CampoAsistencia: React.FC<{ activePromoterName?: string }> = ({
         creatorId: creatorIdentifier
       });
 
-      if (isMerchandisingRoutePromoter(promoterName, activeProfile?.role || creatorIdentifier)) {
+      if (isRouteMerch) {
         window.dispatchEvent(new Event('codizulca_merchandising_changed'));
       }
 
@@ -432,7 +478,7 @@ export const CampoAsistencia: React.FC<{ activePromoterName?: string }> = ({
         id: checkinResult.record.id,
         date: nowIso,
         store: finalStoreName,
-        type: checkInType,
+        type: effectiveType,
         photoBase64: selfieDataUrl,
         location: gpsLocation,
         promoter: promoterName,
@@ -592,6 +638,46 @@ export const CampoAsistencia: React.FC<{ activePromoterName?: string }> = ({
         </div>
       ) : (
         <>
+          {/* CONTROL DE HORARIO DE INGRESO Y PUNTUALIDAD EN PDV */}
+          {(() => {
+            const firstIngresoToday = todayCheckIns.find((c) => c.type === 'Ingreso');
+            const ingresoEval = firstIngresoToday
+              ? evaluateEntryPunctuality(firstIngresoToday.date)
+              : evaluateEntryPunctuality();
+            const badgeStyle =
+              ingresoEval.status === 'puntual'
+                ? 'bg-emerald-950/70 border-emerald-500/40 text-emerald-300'
+                : ingresoEval.status === 'tolerancia'
+                ? 'bg-sky-950/70 border-sky-500/40 text-sky-300'
+                : 'bg-amber-950/70 border-amber-500/40 text-amber-300';
+
+            return (
+              <div className="bg-[#0d0d0d] border border-neutral-800 rounded-2xl p-3.5 space-y-2 shadow-xl">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-1.5">
+                    <Clock className="w-3.5 h-3.5 text-red-400 shrink-0" />
+                    <span className="text-[10px] font-black uppercase tracking-wider text-white">
+                      Horario Oficial de Ingreso PDV
+                    </span>
+                  </div>
+                  <span className={`px-2 py-0.5 rounded-full border text-[9px] font-black font-mono ${badgeStyle}`}>
+                    {firstIngresoToday ? `Ingreso: ${ingresoEval.formattedTime} (${ingresoEval.shortLabel})` : `Hora VE: ${caracasClock.formattedTime}`}
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-2 pt-1 text-[10px] font-mono">
+                  <div className="bg-[#151515] border border-neutral-800/80 rounded-xl px-2.5 py-1.5">
+                    <span className="text-neutral-400 block text-[9px]">Entrada Estándar:</span>
+                    <strong className="text-emerald-400">{PROMOTER_ENTRY_SCHEDULE.targetWindowLabel}</strong>
+                  </div>
+                  <div className="bg-[#151515] border border-neutral-800/80 rounded-xl px-2.5 py-1.5">
+                    <span className="text-neutral-400 block text-[9px]">Límite Tolerancia:</span>
+                    <strong className="text-sky-400">Hasta las 9:15 AM</strong>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+
           {/* ESTADO DE MI ASISTENCIA DE HOY (4 HITOS CRONOLÓGICOS) */}
           <div className="bg-[#0d0d0d] border border-neutral-800 rounded-2xl p-3.5 space-y-2.5 shadow-xl">
             <div className="flex items-center justify-between">
@@ -618,7 +704,11 @@ export const CampoAsistencia: React.FC<{ activePromoterName?: string }> = ({
                   { step: '4', type: 'Salida' as const, label: 'Salida' }
                 ]
               ).map((slot) => {
-                const found = todayCheckIns.find((c) => c.type === slot.type);
+                const matching = todayCheckIns.filter((c) => c.type === slot.type);
+                const found =
+                  slot.type === 'Ingreso' || slot.type === 'Salida a almorzar'
+                    ? matching[0]
+                    : matching[matching.length - 1];
                 const timeStr = found
                   ? new Date(found.date).toLocaleTimeString('es-VE', {
                       hour: '2-digit',

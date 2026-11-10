@@ -355,12 +355,14 @@ export const CheckIn: React.FC = () => {
     const timestampStr = now.toLocaleDateString('es-VE', {
       day: '2-digit',
       month: '2-digit',
-      year: 'numeric'
+      year: 'numeric',
+      timeZone: 'America/Caracas'
     }) + ' ' + now.toLocaleTimeString('es-VE', {
       hour: '2-digit',
       minute: '2-digit',
       second: '2-digit',
-      hour12: true
+      hour12: true,
+      timeZone: 'America/Caracas'
     });
 
     // Franja inferior semi-transparente para alta legibilidad
@@ -435,7 +437,10 @@ export const CheckIn: React.FC = () => {
 
         // Estampado
         const now = new Date();
-        const timestampStr = now.toLocaleDateString('es-VE') + ' ' + now.toLocaleTimeString('es-VE', { hour12: true });
+        const timestampStr =
+          now.toLocaleDateString('es-VE', { timeZone: 'America/Caracas' }) +
+          ' ' +
+          now.toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'America/Caracas' });
         const bannerHeight = 84;
         ctx.fillStyle = 'rgba(10, 12, 16, 0.85)';
         ctx.fillRect(0, height - bannerHeight, width, bannerHeight);

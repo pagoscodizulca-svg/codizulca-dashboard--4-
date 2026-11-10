@@ -203,20 +203,35 @@ export const CampoLayout: React.FC = () => {
       setIsWithinHours(campoService.isWithinCommercialHours());
     };
 
+    const handleVisibilityOrFocus = () => {
+      if (document.visibilityState === 'visible') {
+        setIsWithinHours(campoService.isWithinCommercialHours());
+      }
+    };
+
+    const hoursCheckInterval = window.setInterval(() => {
+      setIsWithinHours(campoService.isWithinCommercialHours());
+    }, 15000);
+
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
     window.addEventListener('codizulca_sync_queue_updated', handleQueueUpdated);
     window.addEventListener('codizulca_promoter_changed', handlePromoterChanged);
     window.addEventListener('codizulca_promoter_logout', handleLogout);
     window.addEventListener('codizulca_hours_changed', handleHoursChanged);
+    window.addEventListener('focus', handleVisibilityOrFocus);
+    document.addEventListener('visibilitychange', handleVisibilityOrFocus);
 
     return () => {
+      window.clearInterval(hoursCheckInterval);
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
       window.removeEventListener('codizulca_sync_queue_updated', handleQueueUpdated);
       window.removeEventListener('codizulca_promoter_changed', handlePromoterChanged);
       window.removeEventListener('codizulca_promoter_logout', handleLogout);
       window.removeEventListener('codizulca_hours_changed', handleHoursChanged);
+      window.removeEventListener('focus', handleVisibilityOrFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
     };
   }, [navigate]);
 
