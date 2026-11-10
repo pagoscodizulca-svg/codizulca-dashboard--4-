@@ -12,6 +12,7 @@ import {
   mapSupabaseMerchRowToReport,
   reconcileMerchandisingCheckIns,
   isSameMerchandisingStore,
+  canUploadFromGallery,
   MerchandisingReport,
 } from '../lib/merchandisingService';
 import {
@@ -445,6 +446,125 @@ describe('Visitas de Zioreli Grangger (Lunes 26/10 a Miércoles 28/10) y Sincron
       expect(foundScan?.promoter).toBe('ZIORELI GRANGGER');
       expect(foundScan?.metrics?.shareOfShelfPercent).toBe(57);
       expect(matchPromoterName(foundScan!.promoter, 'Zioreli Grangger')).toBe(true);
+    });
+  });
+
+  describe('4. Control de Acceso (RBAC) para Galería Exclusivo de Zioreli y José en Merchandising (1 a 6 fotos)', () => {
+    it('habilita canUploadFromGallery(user) EXCLUSIVAMENTE para Zioreli y José en el rol de Merchandising', () => {
+      // Usuarios autorizados (Zioreli y José en Merchandising, con variantes de tildes y mayúsculas)
+      expect(
+        canUploadFromGallery({
+          id: 'STF-027',
+          name: 'ZIORELI GRANGGER',
+          role: 'Promotor Merchandising',
+          tag: 'Merchandising',
+          email: 'Ziorelis.grangger@codizulca.com',
+        })
+      ).toBe(true);
+      expect(canUploadFromGallery({ name: 'zioreli grangger', role: 'Mercaderista' })).toBe(true);
+      expect(canUploadFromGallery({ name: 'Zioreli', role: 'Promotor Merchandising' })).toBe(true);
+      expect(
+        canUploadFromGallery({
+          id: 'STF-026',
+          name: 'JOSE BARROSO',
+          role: 'Promotor Merchandising',
+          tag: 'Merchandising',
+          email: 'joseabraham.barroso@gmail.com',
+        })
+      ).toBe(true);
+      expect(canUploadFromGallery({ name: 'José Barroso', role: 'Promotor Merchandising' })).toBe(true);
+      expect(canUploadFromGallery({ name: 'jose', role: 'Merchandising' })).toBe(true);
+      expect(canUploadFromGallery('Zioreli Grangger')).toBe(true);
+      expect(canUploadFromGallery('José Barroso')).toBe(true);
+      expect(canUploadFromGallery('STF-027')).toBe(true);
+      expect(canUploadFromGallery('STF-026')).toBe(true);
+
+      // Promotores de otros perfiles o nombres no autorizados DEBEN evaluar false
+      expect(
+        canUploadFromGallery({
+          id: 'STF-021',
+          name: 'SCARLETH PIÑA',
+          role: 'Promotora Impulso',
+          tag: 'Impulso',
+        })
+      ).toBe(false);
+      expect(
+        canUploadFromGallery({
+          id: 'STF-022',
+          name: 'CARELIZ REYES',
+          role: 'Promotora Impulso',
+          tag: 'Impulso',
+        })
+      ).toBe(false);
+      expect(
+        canUploadFromGallery({
+          name: 'CARELIZ REYES',
+          role: 'Promotor Merchandising',
+        })
+      ).toBe(false);
+      expect(
+        canUploadFromGallery({
+          name: 'José Pérez',
+          role: 'Vendedor',
+        })
+      ).toBe(false);
+      expect(
+        canUploadFromGallery({
+          name: 'Zioreli Grangger',
+          role: 'Supervisor de Ventas',
+        })
+      ).toBe(false);
+      expect(canUploadFromGallery('Scarleth Piña')).toBe(false);
+      expect(canUploadFromGallery('CARELIZ REYES')).toBe(false);
+      expect(canUploadFromGallery(null)).toBe(false);
+      expect(canUploadFromGallery('')).toBe(false);
+    });
+
+    it('preserva compatibilidad con informes antiguos de 1 foto y soporta hasta 6 fotos en el certificado de auditoría', () => {
+      // Informe antiguo con 1 sola foto
+      const legacyReport = mapSupabaseMerchRowToReport({
+        id: '3353b5ea-4355-42e0-8d00-5617d79ff3f6',
+        type: 'Merchandising',
+        date: '2026-10-28',
+        store: 'Fiorella Cumbre',
+        promoter: 'ZIORELI GRANGGER',
+        comments: JSON.stringify({
+          isMerchandising: true,
+          photos: ['data:image/jpeg;base64,foto_unica_legacy'],
+        }),
+      });
+      expect(legacyReport.photos).toHaveLength(1);
+      expect(legacyReport.photos?.[0]).toBe('data:image/jpeg;base64,foto_unica_legacy');
+
+      // Informe con 6 fotos de galería (tope máximo de 6)
+      const sixPhotosReport = mapSupabaseMerchRowToReport({
+        id: '42bf67f2-61be-4e6b-89de-bb5ad44cc0bf',
+        type: 'Merchandising',
+        date: '2026-10-28',
+        store: 'Fiorella La Curva',
+        promoter: 'JOSE BARROSO',
+        comments: JSON.stringify({
+          isMerchandising: true,
+          photos: [
+            'data:image/jpeg;base64,ev1',
+            'data:image/jpeg;base64,ev2',
+            'data:image/jpeg;base64,ev3',
+            'data:image/jpeg;base64,ev4',
+            'data:image/jpeg;base64,ev5',
+            'data:image/jpeg;base64,ev6',
+            'data:image/jpeg;base64,ev7_exceso',
+          ],
+        }),
+      });
+      expect(sixPhotosReport.photos).toHaveLength(6);
+      expect(sixPhotosReport.photos).toEqual([
+        'data:image/jpeg;base64,ev1',
+        'data:image/jpeg;base64,ev2',
+        'data:image/jpeg;base64,ev3',
+        'data:image/jpeg;base64,ev4',
+        'data:image/jpeg;base64,ev5',
+        'data:image/jpeg;base64,ev6',
+      ]);
     });
   });
 });

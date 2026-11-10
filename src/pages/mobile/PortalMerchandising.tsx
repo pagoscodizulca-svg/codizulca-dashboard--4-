@@ -33,14 +33,15 @@ import {
   merchandisingService,
   MERCHANDISING_ACTIVITIES,
   STORE_MANAGER_ROLES,
-  MerchandisingReport
+  MerchandisingReport,
+  canUploadFromGallery,
 } from '../../lib/merchandisingService';
 import {
   STORAGE_KEY_ACTIVE_STORE,
   isGenericDefaultStoreName,
   resolveStoreByGpsIfGenericDefault,
 } from '../../lib/checkinsService';
-import { campoService, PromoterProfile, resolvePromoterNameFromRaw } from '../../lib/campoService';
+import { campoService, PromoterProfile, PROMOTERS_LIST, resolvePromoterNameFromRaw } from '../../lib/campoService';
 import { ClientSearchAutocomplete } from '../../components/mobile/ClientSearchAutocomplete';
 
 const FREQUENT_STORES = [
@@ -156,7 +157,28 @@ export const PortalMerchandising: React.FC<{ activePromoterName?: string }> = ({
   const [photos, setPhotos] = useState<string[]>([]);
   const [isCompressing, setIsCompressing] = useState<boolean>(false);
   const [photoViewerIndex, setPhotoViewerIndex] = useState<number | null>(null);
+  const [photoLimitWarning, setPhotoLimitWarning] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const galleryInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Control de Acceso RBAC para Carga desde Galería (EXCLUSIVO Zioreli y José en rol Merchandising)
+  const activeProm = outletCtx?.activePromoter || campoService.getActivePromoter();
+  const matchedCatalogPromoter = PROMOTERS_LIST.find(
+    (p) => p.name.toLowerCase() === resolvePromoterNameFromRaw(promoterName).toLowerCase()
+  );
+  const effectiveRole = campoService.isAuthenticatedPromoter()
+    ? activeProm?.role
+    : matchedCatalogPromoter?.role || activeProm?.role;
+  const effectiveTag = campoService.isAuthenticatedPromoter()
+    ? activeProm?.tag
+    : matchedCatalogPromoter?.tag || activeProm?.tag;
+  const hasGalleryAccess = canUploadFromGallery({
+    id: matchedCatalogPromoter?.id || activeProm?.id,
+    name: promoterName,
+    role: effectiveRole,
+    tag: effectiveTag,
+    email: matchedCatalogPromoter?.email || activeProm?.email,
+  });
 
   // 7. Certificación y Firma Digital del Encargado
   const [storeManagerName, setStoreManagerName] = useState<string>('');
@@ -200,8 +222,17 @@ export const PortalMerchandising: React.FC<{ activePromoterName?: string }> = ({
 
     const remainingSlots = 6 - photos.length;
     if (remainingSlots <= 0) {
-      alert('Ya has alcanzado el límite máximo de 6 fotos de evidencia.');
+      setPhotoLimitWarning('Máximo 6 fotos permitidas por informe');
+      alert('Máximo 6 fotos permitidas por informe');
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      if (galleryInputRef.current) galleryInputRef.current.value = '';
       return;
+    }
+
+    if (files.length > remainingSlots) {
+      setPhotoLimitWarning('Máximo 6 fotos permitidas por informe');
+    } else {
+      setPhotoLimitWarning(null);
     }
 
     const filesToProcess = files.slice(0, remainingSlots);
@@ -264,17 +295,19 @@ export const PortalMerchandising: React.FC<{ activePromoterName?: string }> = ({
         compressedResults.push(base64);
       }
 
-      setPhotos((prev) => [...prev, ...compressedResults]);
+      setPhotos((prev) => [...prev, ...compressedResults].slice(0, 6));
     } catch (err) {
       console.error('Error procesando fotos de merchandising:', err);
     } finally {
       setIsCompressing(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
+      if (galleryInputRef.current) galleryInputRef.current.value = '';
     }
   };
 
   const removePhoto = (index: number) => {
     setPhotos((prev) => prev.filter((_, i) => i !== index));
+    setPhotoLimitWarning(null);
   };
 
   // =========================================================================
@@ -379,6 +412,10 @@ export const PortalMerchandising: React.FC<{ activePromoterName?: string }> = ({
   // VALIDACIÓN Y ENVÍO DEL REPORTE CERTIFICADO
   // =========================================================================
   const handleSubmitReport = async () => {
+    if (hasGalleryAccess && photos.length < 1) {
+      alert('Debes cargar al menos 1 foto de evidencia para guardar el informe');
+      return;
+    }
     if (!storeName.trim()) {
       alert('Ingresa el nombre del punto de venta visitado.');
       return;
@@ -437,6 +474,7 @@ export const PortalMerchandising: React.FC<{ activePromoterName?: string }> = ({
   const handleStartNewReport = () => {
     setSubmittedReport(null);
     setPhotos([]);
+    setPhotoLimitWarning(null);
     setObservations('');
     setStoreManagerName('');
     setStoreManagerPhone('');
@@ -481,6 +519,32 @@ export const PortalMerchandising: React.FC<{ activePromoterName?: string }> = ({
               <strong className="text-gray-900">{submittedReport.photos?.length || 0} fotos optimizadas</strong>
             </div>
           </div>
+
+          {/* Evidencias Fotográficas de Auditoría (Estilo Oscuro de Certificado) */}
+          {submittedReport.photos && submittedReport.photos.length > 0 && (
+            <div className="p-3.5 rounded-2xl bg-zinc-900 border border-zinc-800 text-left space-y-2">
+              <span className="text-[11px] font-bold text-zinc-300 uppercase tracking-wider block">
+                Evidencias Fotográficas de Auditoría ({submittedReport.photos.length} fotos):
+              </span>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {submittedReport.photos.map((pic, idx) => (
+                  <div
+                    key={idx}
+                    className="relative aspect-video rounded-xl overflow-hidden border border-white/10 bg-black group shadow-sm"
+                  >
+                    <img
+                      src={pic}
+                      alt={`Evidencia #${idx + 1}`}
+                      className="w-full h-full object-cover"
+                    />
+                    <div className="absolute bottom-1 right-1 px-1.5 py-0.5 rounded bg-black/70 text-white text-[9px] font-mono">
+                      Evidencia #{idx + 1}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Visualización de la Firma */}
           <div className="p-3 bg-white rounded-2xl border border-dashed border-gray-300 text-center">
@@ -724,16 +788,23 @@ export const PortalMerchandising: React.FC<{ activePromoterName?: string }> = ({
             <div>
               <label className="text-xs font-bold text-gray-800 flex items-center gap-1.5 uppercase tracking-wider">
                 <Camera className="h-4 w-4 text-red-600" />
-                Evidencia de Merchandising ({photos.length} de 6):
+                Evidencia de Merchandising {hasGalleryAccess && <span className="text-red-500">*</span>}:
               </label>
               <span className="text-[10px] text-gray-500">
                 Compresión automática en Canvas (Max 1200px @ 75% JPEG)
               </span>
             </div>
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-gray-100 text-gray-700 font-mono">
-              {6 - photos.length} slots libres
+            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-gray-100 text-gray-800 font-mono">
+              {photos.length} / 6 fotos cargadas
             </span>
           </div>
+
+          {photoLimitWarning && (
+            <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-[11px] font-semibold flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
+              <span>{photoLimitWarning}</span>
+            </div>
+          )}
 
           {/* Cuadrícula de fotos */}
           <div className="grid grid-cols-3 gap-2.5">
@@ -744,7 +815,7 @@ export const PortalMerchandising: React.FC<{ activePromoterName?: string }> = ({
               >
                 <img
                   src={photoUrl}
-                  alt={`Evidencia ${idx + 1}`}
+                  alt={`Evidencia #${idx + 1}`}
                   className="w-full h-full object-cover cursor-pointer hover:scale-105 transition-transform"
                   onClick={() => setPhotoViewerIndex(idx)}
                 />
@@ -759,36 +830,68 @@ export const PortalMerchandising: React.FC<{ activePromoterName?: string }> = ({
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                 </button>
-                <div className="absolute bottom-1 left-1 px-1.5 py-0.5 rounded bg-black/60 text-white text-[9px] font-mono">
-                  #{idx + 1}
+                <div className="absolute bottom-1 left-1 px-1.5 py-0.5 rounded bg-black/70 text-white text-[9px] font-mono">
+                  Evidencia #{idx + 1}
                 </div>
               </div>
             ))}
 
-            {/* Botón para agregar más fotos si no ha llegado a 6 */}
+            {/* Botones para agregar fotos hasta un máximo de 6 */}
             {photos.length < 6 && (
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={isCompressing}
-                className="aspect-square rounded-xl border-2 border-dashed border-gray-300 hover:border-red-400 bg-gray-50 hover:bg-red-50/50 flex flex-col items-center justify-center p-2 text-center transition cursor-pointer"
-              >
-                {isCompressing ? (
-                  <Loader2 className="h-6 w-6 animate-spin text-red-600" />
-                ) : (
-                  <>
-                    <Camera className="h-6 w-6 text-gray-400 mb-1" />
-                    <span className="text-[10px] font-bold text-gray-700 leading-tight">
-                      + Foto
-                    </span>
-                    <span className="text-[9px] text-gray-400">
-                      Cámara / Galería
-                    </span>
-                  </>
+              <>
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isCompressing}
+                  className="aspect-square rounded-xl border-2 border-dashed border-gray-300 hover:border-red-400 bg-gray-50 hover:bg-red-50/50 flex flex-col items-center justify-center p-2 text-center transition cursor-pointer"
+                >
+                  {isCompressing ? (
+                    <Loader2 className="h-6 w-6 animate-spin text-red-600" />
+                  ) : (
+                    <>
+                      <Camera className="h-6 w-6 text-gray-400 mb-1" />
+                      <span className="text-[10px] font-bold text-gray-700 leading-tight">
+                        {hasGalleryAccess ? '+ Cámara' : '+ Foto'}
+                      </span>
+                      <span className="text-[9px] text-gray-400">
+                        {hasGalleryAccess ? 'Tomar Foto' : 'Cámara / Galería'}
+                      </span>
+                    </>
+                  )}
+                </button>
+
+                {hasGalleryAccess && (
+                  <button
+                    type="button"
+                    onClick={() => galleryInputRef.current?.click()}
+                    disabled={isCompressing}
+                    className="aspect-square rounded-xl border-2 border-dashed border-red-300 hover:border-red-500 bg-red-50/30 hover:bg-red-50 flex flex-col items-center justify-center p-2 text-center transition cursor-pointer"
+                  >
+                    {isCompressing ? (
+                      <Loader2 className="h-6 w-6 animate-spin text-red-600" />
+                    ) : (
+                      <>
+                        <UploadCloud className="h-6 w-6 text-red-500 mb-1" />
+                        <span className="text-[10px] font-bold text-red-700 leading-tight">
+                          + Galería
+                        </span>
+                        <span className="text-[9px] text-red-500">
+                          Subir Fotos (Máx. 6)
+                        </span>
+                      </>
+                    )}
+                  </button>
                 )}
-              </button>
+              </>
             )}
           </div>
+
+          {hasGalleryAccess && photos.length < 1 && (
+            <p className="text-[11px] font-semibold text-red-600 flex items-center gap-1.5">
+              <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+              Debes cargar al menos 1 foto de evidencia para guardar el informe
+            </p>
+          )}
 
           <input
             ref={fileInputRef}
@@ -799,6 +902,17 @@ export const PortalMerchandising: React.FC<{ activePromoterName?: string }> = ({
             onChange={handlePhotoUpload}
             className="hidden"
           />
+
+          {hasGalleryAccess && (
+            <input
+              ref={galleryInputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={handlePhotoUpload}
+              className="hidden"
+            />
+          )}
 
           <div>
             <label className="text-[11px] font-bold text-gray-600 block mb-1">
@@ -925,13 +1039,22 @@ export const PortalMerchandising: React.FC<{ activePromoterName?: string }> = ({
       </Card>
 
       {/* Botón Principal de Certificación y Envío */}
-      <div className="pt-1">
+      <div className="pt-1 space-y-2">
         <Button
           type="button"
           onClick={handleSubmitReport}
-          disabled={isSubmitting || !hasSignature || !storeName.trim() || !storeManagerName.trim()}
+          disabled={
+            isSubmitting ||
+            (hasGalleryAccess && photos.length < 1) ||
+            !hasSignature ||
+            !storeName.trim() ||
+            !storeManagerName.trim()
+          }
           className={`w-full h-13 text-sm font-black rounded-xl shadow-lg transition flex items-center justify-center gap-2 cursor-pointer ${
-            hasSignature && storeName.trim() && storeManagerName.trim()
+            (!hasGalleryAccess || photos.length >= 1) &&
+            hasSignature &&
+            storeName.trim() &&
+            storeManagerName.trim()
               ? 'bg-red-600 hover:bg-red-700 text-white'
               : 'bg-gray-300 text-gray-500 cursor-not-allowed'
           }`}

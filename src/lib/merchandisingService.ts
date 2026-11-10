@@ -70,7 +70,7 @@ export const STORE_MANAGER_ROLES = [
 const STORAGE_KEY = 'codizulca_merchandising_reports';
 
 import { supabase } from './supabase';
-import { ensureCampoUuid, resolvePromoterNameFromRaw, campoService } from './campoService';
+import { ensureCampoUuid, resolvePromoterNameFromRaw, campoService, PROMOTERS_LIST } from './campoService';
 import {
   checkinsService,
   CheckInRecord,
@@ -105,6 +105,119 @@ function normalizeMerchTokenText(raw?: string): string {
     .replace(/[^A-Z0-9\s]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+export interface GalleryAccessUserInput {
+  id?: string;
+  name?: string;
+  full_name?: string;
+  role?: string;
+  tag?: string;
+  email?: string;
+}
+
+const AUTHORIZED_GALLERY_IDS = new Set([
+  'STF-026',
+  'STF-027',
+  'BD271523-05D7-430C-9DD7-D859F3D848F8',
+  'JOSE-BARROSO-OFFICIAL',
+  '6A14294A-7AC4-4D0B-AF3C-652B7FF06CE6',
+]);
+
+const AUTHORIZED_GALLERY_EMAILS = new Set([
+  'JOSEABRAHAM.BARROSO@GMAIL.COM',
+  'ZIORELIS.GRANGGER@CODIZULCA.COM',
+]);
+
+/**
+ * Control de Acceso (RBAC focalizado):
+ * Evalúa `true` ÚNICAMENTE cuando el usuario pertenezca al perfil/rol de Merchandising (o Mercaderista)
+ * Y corresponda a Zioreli (ej. Zioreli Grangger) o José (ej. Jose Barroso / José Barroso).
+ */
+export function canUploadFromGallery(
+  user?: GalleryAccessUserInput | string | null
+): boolean {
+  if (!user) return false;
+
+  if (typeof user === 'string') {
+    const trimmed = user.trim();
+    if (!trimmed) return false;
+    const upper = trimmed.toUpperCase();
+    if (AUTHORIZED_GALLERY_IDS.has(upper) || AUTHORIZED_GALLERY_EMAILS.has(upper)) {
+      return true;
+    }
+    const normName = normalizeMerchTokenText(trimmed);
+    const isZioreli = normName.includes('ZIORELI');
+    const isJose = /\bJOSE\b/.test(normName);
+    if (!isZioreli && !isJose) return false;
+
+    const catalogMatch = PROMOTERS_LIST.find(
+      (p) => normalizeMerchTokenText(p.name) === normName
+    );
+    if (catalogMatch) {
+      const catRole = normalizeMerchTokenText(`${catalogMatch.role || ''} ${catalogMatch.tag || ''}`);
+      if (!catRole.includes('MERCHANDISING') && !catRole.includes('MERCADERISTA')) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  const rawId = String(user.id || '').trim().toUpperCase();
+  const rawEmail = String(user.email || '').trim().toUpperCase();
+  const rawName = String(user.name || user.full_name || '').trim();
+  const normName = normalizeMerchTokenText(rawName);
+  const normRole = normalizeMerchTokenText(`${user.role || ''} ${user.tag || ''}`);
+
+  // 1. Validar que el perfil/rol sea estrictamente Merchandising o Mercaderista
+  if (normRole) {
+    const isMerchRole =
+      normRole.includes('MERCHANDISING') || normRole.includes('MERCADERISTA');
+    if (!isMerchRole) return false;
+  } else {
+    const catalogMatch = PROMOTERS_LIST.find((p) => {
+      if (rawId && p.id.toUpperCase() === rawId) return true;
+      if (rawEmail && p.email?.toUpperCase() === rawEmail) return true;
+      if (normName && normalizeMerchTokenText(p.name) === normName) return true;
+      return false;
+    });
+    if (catalogMatch) {
+      const catRole = normalizeMerchTokenText(`${catalogMatch.role || ''} ${catalogMatch.tag || ''}`);
+      if (!catRole.includes('MERCHANDISING') && !catRole.includes('MERCADERISTA')) {
+        return false;
+      }
+    } else {
+      return false;
+    }
+  }
+
+  // 2. Validar que el usuario corresponda exclusivamente a Zioreli o José
+  const isAuthorizedByName =
+    normName.includes('ZIORELI') || /\bJOSE\b/.test(normName);
+  const isAuthorizedByIdOrEmail =
+    (Boolean(rawId) && AUTHORIZED_GALLERY_IDS.has(rawId)) ||
+    (Boolean(rawEmail) && AUTHORIZED_GALLERY_EMAILS.has(rawEmail));
+
+  if (normName) {
+    return isAuthorizedByName;
+  }
+
+  return isAuthorizedByIdOrEmail;
+}
+
+function normalizeMerchPhotosList(rawPhotos: any, fallbackSingle?: any): string[] {
+  if (Array.isArray(rawPhotos)) {
+    return rawPhotos
+      .filter((p) => typeof p === 'string' && p.trim().length > 0)
+      .slice(0, 6);
+  }
+  if (typeof rawPhotos === 'string' && rawPhotos.trim().length > 0) {
+    return [rawPhotos.trim()];
+  }
+  if (typeof fallbackSingle === 'string' && fallbackSingle.trim().length > 0) {
+    return [fallbackSingle.trim()];
+  }
+  return [];
 }
 
 export function isSameMerchandisingStore(
@@ -268,7 +381,7 @@ export function mapSupabaseMerchRowToReport(row: any): MerchandisingReport {
       promoter: resolvePromoterNameFromRaw(row.promoter, (row as any).creatorId),
       signature: row.signature || SAMPLE_SIGNATURE,
       certified: row.certified !== undefined ? Boolean(row.certified) : true,
-      photos: Array.isArray(row.photos) ? row.photos : [],
+      photos: normalizeMerchPhotosList(row.photos, (row as any).photo || (row as any).photoBase64),
       created_at: row.created_at || row.signedAt || row.date || new Date().toISOString(),
     };
   }
@@ -310,7 +423,10 @@ export function mapSupabaseMerchRowToReport(row: any): MerchandisingReport {
     signature: c?.signature || row?.signature || SAMPLE_SIGNATURE,
     signedAt: c?.signedAt || row?.signedAt || row?.created_at || rawDate,
     certified: c?.certified !== undefined ? Boolean(c.certified) : true,
-    photos: Array.isArray(c?.photos) ? c.photos : Array.isArray(row?.photos) ? row.photos : [],
+    photos: normalizeMerchPhotosList(
+      c?.photos !== undefined ? c.photos : row?.photos,
+      c?.photo || c?.photoBase64 || row?.photo || row?.photoBase64
+    ),
     category: c?.category || row?.category,
     metrics: c?.metrics || row?.metrics,
     alerts: c?.alerts || row?.alerts,
