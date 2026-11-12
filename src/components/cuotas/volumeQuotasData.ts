@@ -20,7 +20,7 @@ export interface SellerVolumeQuota {
   };
 }
 
-// Metas y ejecución oficial de volumen mensual (Octubre 2026) sincronizadas exactamente con la pestaña "Cuotas Volumen" del Google Sheet 16pU4iEcNU_1j6sB7rZbshu2PM8OyH5hI7a24-vYO7P0
+// Metas y ejecución oficial de volumen mensual sincronizadas exactamente con la pestaña "Cuotas Volumen" del Google Sheet (process.env.GOOGLE_SHEET_ID)
 export const SELLER_VOLUME_QUOTAS: Record<string, SellerVolumeQuota> = {
   // ==========================================
   // SUPERVISOR: NELSON FINOL (12 Carteras de Vendedores)
@@ -268,7 +268,7 @@ export const SELLER_VOLUME_QUOTAS: Record<string, SellerVolumeQuota> = {
   // SUPERVISOR: ALI PEREZ (7 Carteras de Vendedores — Clientes de Ali Perez pasaron a Angel Navarro, Mariangel Gonzalez y Victor Campos)
   // ==========================================
   'ANGEL NAVARRO': {
-    kgs: 25034.40,
+    kgs: 24254.70,
     realKgsOct: 6537.70,
     cajas: 7581,
     monto: 56860,
@@ -512,7 +512,7 @@ export const getSellerOctoberRealFromSheet = (
   return q.realKgsOct;
 };
 
-// Sincroniza en vivo las cuotas de volumen desde la pestaña "Cuotas Volumen" del Google Sheet 16pU4iEcNU_1j6sB7rZbshu2PM8OyH5hI7a24-vYO7P0
+// Sincroniza en vivo las cuotas de volumen desde la pestaña "Cuotas Volumen" del Google Sheet (process.env.GOOGLE_SHEET_ID vía /api/sheets)
 let volumeQuotasSynced = false;
 export const syncVolumeQuotasFromGoogleSheet = async (force = false): Promise<boolean> => {
   if (volumeQuotasSynced && !force) return true;
@@ -520,16 +520,10 @@ export const syncVolumeQuotasFromGoogleSheet = async (force = false): Promise<bo
     let csvText = '';
     const sheetParam = encodeURIComponent('Cuotas Volumen');
     try {
-      const res = await fetch(`/api/sheets?sheet=${sheetParam}${force ? '&refresh=true' : ''}`);
+      const res = await fetch(`/api/sheets?raw=true&sheet=${sheetParam}${force ? '&refresh=true' : ''}`);
       if (res.ok) csvText = await res.text();
     } catch {
-      // fallback to direct Google Sheet URL
-    }
-    if (!csvText) {
-      const res2 = await fetch(
-        `https://docs.google.com/spreadsheets/d/16pU4iEcNU_1j6sB7rZbshu2PM8OyH5hI7a24-vYO7P0/gviz/tq?tqx=out:csv&sheet=${sheetParam}`
-      );
-      if (res2.ok) csvText = await res2.text();
+      // ignore network error and use static seed fallback
     }
     if (!csvText) return false;
 

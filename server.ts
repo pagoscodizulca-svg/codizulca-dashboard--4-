@@ -68,6 +68,17 @@ import {
   uploadMonthlySalesToSupabaseInBatches,
   validateMonthlyCsvControlTotals,
 } from './src/lib/monthlySalesCsvImporter';
+import {
+  ALLOWED_GOOGLE_SHEET_TABS,
+  DisallowedSheetTabError,
+  GOOGLE_SHEET_TAB_GIDS,
+  NOVEMBER_STRICT_CUTOFF_DATE,
+  assertAllowedSheetTab,
+  buildGoogleSheetRawExportUrl,
+  calculateNovember2026CommercialMetrics,
+  getConfiguredGoogleSheetId,
+  parseVentasSheetCsv,
+} from './src/lib/googleSheetsMatrixParser';
 
 
 async function startServer() {
@@ -867,84 +878,47 @@ async function startServer() {
       }
     }
 
-    // Sincronizar lo que va del mes en curso desde Google Sheets (16pU4iEcNU_1j6sB7rZbshu2PM8OyH5hI7a24-vYO7P0 gid=1176024108)
+    // Sincronizar lo que va del mes en curso (Noviembre 2026) desde Google Sheets (vía process.env.GOOGLE_SHEET_ID)
     try {
-      const sheetsUrl = 'https://docs.google.com/spreadsheets/d/16pU4iEcNU_1j6sB7rZbshu2PM8OyH5hI7a24-vYO7P0/gviz/tq?tqx=out:csv&gid=1176024108';
-      const sheetRes = await fetch(sheetsUrl);
-      if (sheetRes.ok) {
-        const sheetCsv = await sheetRes.text();
-        const parsed = Papa.parse(sheetCsv, { header: true, skipEmptyLines: true });
-        if (parsed.data && Array.isArray(parsed.data) && parsed.data.length > 0) {
-          const MONTH_NUM_MAP: Record<string, string> = {
-            '01': 'ENERO', '02': 'FEBRERO', '03': 'MARZO', '04': 'ABRIL',
-            '05': 'MAYO', '06': 'JUNIO', '07': 'JULIO', '08': 'AGOSTO',
-            '09': 'SEPTIEMBRE', '10': 'OCTUBRE', '11': 'NOVIEMBRE', '12': 'DICIEMBRE',
-          };
-          const liveSheetMap = new Map<string, any>();
-          const liveMonthsSeen = new Set<string>();
-
-          parsed.data.forEach((r: any) => {
-            const normVendedor = normalizeSellerName(r['Vendedor'] || r['vendedor'] || '');
-            if (!isValidVolumeSeller(normVendedor)) {
-              return;
-            }
-            const rawFecha = String(r['Fecha'] || r['fecha'] || '').trim();
-            if (rawFecha.slice(0, 10) < '2026-11-01') {
-              return;
-            }
-            let mes = String(r['Mes'] || r['mes'] || '').trim().toUpperCase();
-            if (!mes && rawFecha.length >= 7) {
-              const mm = rawFecha.slice(5, 7);
-              mes = MONTH_NUM_MAP[mm] || 'NOVIEMBRE';
-            }
-            if (!mes) mes = 'NOVIEMBRE';
-
-            const ano = 2026;
-            const cajas = parseFloat(String(r['Cajas'] || '0').replace(/,/g, '')) || 0;
-            const kgs = parseFloat(String(r['Kg'] || '0').replace(/,/g, '')) || 0;
-            const monto = parseFloat(String(r['Monto'] || '0').replace(/,/g, '')) || 0;
-            if (cajas === 0 && kgs === 0 && monto === 0) return;
-            const isDV = monto < 0 || cajas < 0;
-
-            liveMonthsSeen.add(mes);
-            const key = `${normVendedor}|||${mes}`;
-            if (!liveSheetMap.has(key)) {
-              liveSheetMap.set(key, {
-                vendedor: normVendedor,
-                mes,
-                ano,
-                cajas: 0,
-                kgs: 0,
-                montoNeto: 0,
-                montoFA: 0,
-                montoDV: 0,
-                cajasFA: 0,
-                cajasDV: 0,
-                facturasCount: 0
-              });
-            }
-            const sObj = liveSheetMap.get(key);
-            sObj.cajas += cajas;
-            sObj.kgs += kgs;
-            sObj.montoNeto += monto;
-            if (isDV) {
-              sObj.montoDV += monto;
-              sObj.cajasDV += cajas;
-            } else {
-              sObj.montoFA += monto;
-              sObj.cajasFA += cajas;
-            }
-            sObj.facturasCount++;
-            sheetRowsCount++;
+      const sheetId = getConfiguredGoogleSheetId();
+      if (sheetId) {
+        const sheetsUrl = buildGoogleSheetRawExportUrl('Ventas', sheetId);
+        const sheetRes = await fetch(sheetsUrl);
+        if (sheetRes.ok) {
+          const sheetCsv = await sheetRes.text();
+          const novAudit = calculateNovember2026CommercialMetrics({
+            ventasCsv: sheetCsv,
+            targetYear: 2026,
+            targetMonth: 11,
           });
-
-          if (liveSheetMap.size > 0) {
+          if (novAudit.sellers.length > 0) {
             for (const [k, v] of Array.from(sellerMonthMap.entries())) {
-              if (liveMonthsSeen.has(v.mes)) {
+              if (v.mes === 'NOVIEMBRE') {
                 sellerMonthMap.delete(k);
               }
             }
-            liveSheetMap.forEach((v, k) => sellerMonthMap.set(k, v));
+            for (const sMetric of novAudit.sellers) {
+              if (!isValidVolumeSeller(sMetric.vendedor)) continue;
+              const key = `${sMetric.vendedor}|||NOVIEMBRE`;
+              sellerMonthMap.set(key, {
+                vendedor: sMetric.vendedor,
+                mes: 'NOVIEMBRE',
+                ano: 2026,
+                cajas: sMetric.cajasNetas,
+                kgs: sMetric.volumenNetoKg,
+                kgsBrutos: sMetric.volumenBrutoKg,
+                kgsDevoluciones: sMetric.devolucionesKg,
+                montoNeto: sMetric.montoNeto,
+                montoFA: sMetric.montoBruto,
+                montoDV: sMetric.montoDevoluciones,
+                cajasFA: sMetric.cajasBrutas,
+                cajasDV: sMetric.cajasDevoluciones,
+                facturasCount: sMetric.filasValidasNoviembre,
+                clientesActivadosNetos: sMetric.clientesActivadosNetos,
+                skusActivadosNetos: sMetric.skusActivadosNetos,
+              });
+            }
+            sheetRowsCount = novAudit.rowCounts.validNovember2026Rows;
           }
         }
       }
@@ -1000,6 +974,8 @@ async function startServer() {
       ...s,
       cajas: Math.round(s.cajas * 100) / 100,
       kgs: Math.round(s.kgs * 100) / 100,
+      kgsBrutos: s.kgsBrutos !== undefined ? Math.round(s.kgsBrutos * 100) / 100 : undefined,
+      kgsDevoluciones: s.kgsDevoluciones !== undefined ? Math.round(s.kgsDevoluciones * 100) / 100 : undefined,
       montoNeto: Math.round(s.montoNeto * 100) / 100,
       montoFA: Math.round(s.montoFA * 100) / 100,
       montoDV: Math.round(s.montoDV * 100) / 100,
@@ -1019,105 +995,199 @@ async function startServer() {
     return payload;
   };
 
+  let sellersVolumeMemoryCache: { payload: any; timestamp: number } | null = null;
+  const SELLERS_VOLUME_CACHE_TTL_MS = 120_000;
+
+  const refreshNovemberInSellersVolumeCache = async (baseCached: any) => {
+    const mergedMap = new Map<string, any>();
+    const totalsMap = new Map<string, any>();
+
+    if (baseCached && Array.isArray(baseCached.sellerMonthlyData)) {
+      baseCached.sellerMonthlyData.forEach((s: any) => {
+        const normVendedor = normalizeSellerName(s.vendedor || '');
+        if (!isValidVolumeSeller(normVendedor)) return;
+        const mes = (s.mes || '').trim().toUpperCase();
+        const key = `${normVendedor}|||${mes}`;
+        if (!mergedMap.has(key)) {
+          mergedMap.set(key, {
+            vendedor: normVendedor,
+            mes,
+            ano: s.ano || 2026,
+            cajas: 0,
+            kgs: 0,
+            kgsBrutos: s.kgsBrutos,
+            kgsDevoluciones: s.kgsDevoluciones,
+            montoNeto: 0,
+            montoFA: 0,
+            montoDV: 0,
+            cajasFA: 0,
+            cajasDV: 0,
+            facturasCount: 0,
+            clientesActivadosNetos: s.clientesActivadosNetos,
+            skusActivadosNetos: s.skusActivadosNetos,
+          });
+        }
+        const cur = mergedMap.get(key);
+        cur.cajas += Number(s.cajas) || 0;
+        cur.kgs += Number(s.kgs) || 0;
+        cur.montoNeto += Number(s.montoNeto) || 0;
+        cur.montoFA += Number(s.montoFA) || 0;
+        cur.montoDV += Number(s.montoDV) || 0;
+        cur.cajasFA += Number(s.cajasFA) || 0;
+        cur.cajasDV += Number(s.cajasDV) || 0;
+        cur.facturasCount += Number(s.facturasCount) || 0;
+      });
+    }
+
+    // Revalidar Noviembre 2026 en vivo desde Google Sheets (vía process.env.GOOGLE_SHEET_ID)
+    try {
+      const sheetId = getConfiguredGoogleSheetId();
+      if (sheetId) {
+        const sheetsUrl = buildGoogleSheetRawExportUrl('Ventas', sheetId);
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 8000);
+        const sheetRes = await fetch(sheetsUrl, { signal: controller.signal });
+        clearTimeout(timeout);
+        if (sheetRes.ok) {
+          const sheetCsv = await sheetRes.text();
+          const novAudit = calculateNovember2026CommercialMetrics({
+            ventasCsv: sheetCsv,
+            targetYear: 2026,
+            targetMonth: 11,
+          });
+          if (novAudit.sellers.length > 0) {
+            for (const [k, v] of Array.from(mergedMap.entries())) {
+              if (v.mes === 'NOVIEMBRE') {
+                mergedMap.delete(k);
+              }
+            }
+            for (const sMetric of novAudit.sellers) {
+              if (!isValidVolumeSeller(sMetric.vendedor)) continue;
+              const key = `${sMetric.vendedor}|||NOVIEMBRE`;
+              mergedMap.set(key, {
+                vendedor: sMetric.vendedor,
+                mes: 'NOVIEMBRE',
+                ano: 2026,
+                cajas: sMetric.cajasNetas,
+                kgs: sMetric.volumenNetoKg,
+                kgsBrutos: sMetric.volumenBrutoKg,
+                kgsDevoluciones: sMetric.devolucionesKg,
+                montoNeto: sMetric.montoNeto,
+                montoFA: sMetric.montoBruto,
+                montoDV: sMetric.montoDevoluciones,
+                cajasFA: sMetric.cajasBrutas,
+                cajasDV: sMetric.cajasDevoluciones,
+                facturasCount: sMetric.filasValidasNoviembre,
+                clientesActivadosNetos: sMetric.clientesActivadosNetos,
+                skusActivadosNetos: sMetric.skusActivadosNetos,
+              });
+            }
+          }
+        }
+      }
+    } catch (e: any) {
+      console.warn('[Volume Revalidate] Using cached November data:', e?.message);
+    }
+
+    const MONTH_ORDER = [
+      'ENERO', 'FEBRERO', 'MARZO', 'ABRIL', 'MAYO', 'JUNIO',
+      'JULIO', 'AGOSTO', 'SEPTIEMBRE', 'OCTUBRE', 'NOVIEMBRE', 'DICIEMBRE'
+    ];
+
+    const sellerMonthlyData = Array.from(mergedMap.values()).map((s: any) => {
+      if (!totalsMap.has(s.mes)) {
+        totalsMap.set(s.mes, {
+          mes: s.mes,
+          ano: s.ano || 2026,
+          cajas: 0,
+          kgs: 0,
+          montoNeto: 0,
+          montoFA: 0,
+          montoDV: 0,
+          vendedoresCount: new Set<string>(),
+          facturasCount: 0,
+        });
+      }
+      const m = totalsMap.get(s.mes);
+      m.cajas += s.cajas;
+      m.kgs += s.kgs;
+      m.montoNeto += s.montoNeto;
+      m.montoFA += s.montoFA;
+      m.montoDV += s.montoDV;
+      m.vendedoresCount.add(s.vendedor);
+      m.facturasCount += s.facturasCount;
+
+      return {
+        ...s,
+        cajas: Math.round(s.cajas * 100) / 100,
+        kgs: Math.round(s.kgs * 100) / 100,
+        kgsBrutos: s.kgsBrutos !== undefined ? Math.round(s.kgsBrutos * 100) / 100 : undefined,
+        kgsDevoluciones: s.kgsDevoluciones !== undefined ? Math.round(s.kgsDevoluciones * 100) / 100 : undefined,
+        montoNeto: Math.round(s.montoNeto * 100) / 100,
+        montoFA: Math.round(s.montoFA * 100) / 100,
+        montoDV: Math.round(s.montoDV * 100) / 100,
+        cajasFA: Math.round(s.cajasFA * 100) / 100,
+        cajasDV: Math.round(s.cajasDV * 100) / 100,
+      };
+    });
+
+    const monthlyTotals = Array.from(totalsMap.values())
+      .map((m: any) => ({
+        mes: m.mes,
+        ano: m.ano,
+        cajas: Math.round(m.cajas * 100) / 100,
+        kgs: Math.round(m.kgs * 100) / 100,
+        montoNeto: Math.round(m.montoNeto * 100) / 100,
+        montoFA: Math.round(m.montoFA * 100) / 100,
+        montoDV: Math.round(m.montoDV * 100) / 100,
+        vendedoresCount: m.vendedoresCount.size,
+        facturasCount: m.facturasCount,
+      }))
+      .sort((a: any, b: any) => MONTH_ORDER.indexOf(a.mes) - MONTH_ORDER.indexOf(b.mes));
+
+    const updatedPayload = {
+      ano: baseCached?.ano || 2026,
+      lastSync: new Date().toISOString(),
+      totalSourceRows: baseCached?.totalSourceRows || 0,
+      monthlyTotals,
+      sellerMonthlyData,
+    };
+
+    try {
+      fs.writeFileSync(sellersVolumeCachePath, JSON.stringify(updatedPayload, null, 2));
+    } catch {}
+    sellersVolumeMemoryCache = { payload: updatedPayload, timestamp: Date.now() };
+    return updatedPayload;
+  };
+
   app.get('/api/sellers-monthly-volume', async (req, res) => {
     try {
+      const forceRefresh = req.query.refresh === 'true';
+      const now = Date.now();
+      if (
+        !forceRefresh &&
+        sellersVolumeMemoryCache &&
+        now - sellersVolumeMemoryCache.timestamp < SELLERS_VOLUME_CACHE_TTL_MS
+      ) {
+        return res.json(sellersVolumeMemoryCache.payload);
+      }
+
       if (fs.existsSync(sellersVolumeCachePath)) {
         const cached = JSON.parse(fs.readFileSync(sellersVolumeCachePath, 'utf8'));
-        if (cached && Array.isArray(cached.sellerMonthlyData)) {
-          const mergedMap = new Map<string, any>();
-          const totalsMap = new Map<string, any>();
+        const cachedAgeMs = cached?.lastSync
+          ? now - new Date(cached.lastSync).getTime()
+          : Number.POSITIVE_INFINITY;
 
-          cached.sellerMonthlyData.forEach((s: any) => {
-            const normVendedor = normalizeSellerName(s.vendedor || '');
-            if (!isValidVolumeSeller(normVendedor)) return;
-            const mes = (s.mes || '').trim().toUpperCase();
-            const key = `${normVendedor}|||${mes}`;
-            if (!mergedMap.has(key)) {
-              mergedMap.set(key, {
-                vendedor: normVendedor,
-                mes,
-                ano: s.ano || 2026,
-                cajas: 0,
-                kgs: 0,
-                montoNeto: 0,
-                montoFA: 0,
-                montoDV: 0,
-                cajasFA: 0,
-                cajasDV: 0,
-                facturasCount: 0,
-              });
-            }
-            const cur = mergedMap.get(key);
-            cur.cajas += Number(s.cajas) || 0;
-            cur.kgs += Number(s.kgs) || 0;
-            cur.montoNeto += Number(s.montoNeto) || 0;
-            cur.montoFA += Number(s.montoFA) || 0;
-            cur.montoDV += Number(s.montoDV) || 0;
-            cur.cajasFA += Number(s.cajasFA) || 0;
-            cur.cajasDV += Number(s.cajasDV) || 0;
-            cur.facturasCount += Number(s.facturasCount) || 0;
-          });
-
-          const MONTH_ORDER = [
-            'ENERO', 'FEBRERO', 'MARZO', 'ABRIL', 'MAYO', 'JUNIO',
-            'JULIO', 'AGOSTO', 'SEPTIEMBRE', 'OCTUBRE', 'NOVIEMBRE', 'DICIEMBRE'
-          ];
-
-          const sellerMonthlyData = Array.from(mergedMap.values()).map((s: any) => {
-            if (!totalsMap.has(s.mes)) {
-              totalsMap.set(s.mes, {
-                mes: s.mes,
-                ano: s.ano || 2026,
-                cajas: 0,
-                kgs: 0,
-                montoNeto: 0,
-                montoFA: 0,
-                montoDV: 0,
-                vendedoresCount: new Set<string>(),
-                facturasCount: 0,
-              });
-            }
-            const m = totalsMap.get(s.mes);
-            m.cajas += s.cajas;
-            m.kgs += s.kgs;
-            m.montoNeto += s.montoNeto;
-            m.montoFA += s.montoFA;
-            m.montoDV += s.montoDV;
-            m.vendedoresCount.add(s.vendedor);
-            m.facturasCount += s.facturasCount;
-
-            return {
-              ...s,
-              cajas: Math.round(s.cajas * 100) / 100,
-              kgs: Math.round(s.kgs * 100) / 100,
-              montoNeto: Math.round(s.montoNeto * 100) / 100,
-              montoFA: Math.round(s.montoFA * 100) / 100,
-              montoDV: Math.round(s.montoDV * 100) / 100,
-              cajasFA: Math.round(s.cajasFA * 100) / 100,
-              cajasDV: Math.round(s.cajasDV * 100) / 100,
-            };
-          });
-
-          const monthlyTotals = Array.from(totalsMap.values())
-            .map((m: any) => ({
-              mes: m.mes,
-              ano: m.ano,
-              cajas: Math.round(m.cajas * 100) / 100,
-              kgs: Math.round(m.kgs * 100) / 100,
-              montoNeto: Math.round(m.montoNeto * 100) / 100,
-              montoFA: Math.round(m.montoFA * 100) / 100,
-              montoDV: Math.round(m.montoDV * 100) / 100,
-              vendedoresCount: m.vendedoresCount.size,
-              facturasCount: m.facturasCount,
-            }))
-            .sort((a: any, b: any) => MONTH_ORDER.indexOf(a.mes) - MONTH_ORDER.indexOf(b.mes));
-
-          cached.sellerMonthlyData = sellerMonthlyData;
-          cached.monthlyTotals = monthlyTotals;
+        if (!forceRefresh && cachedAgeMs < SELLERS_VOLUME_CACHE_TTL_MS) {
+          sellersVolumeMemoryCache = { payload: cached, timestamp: now };
+          return res.json(cached);
         }
-        return res.json(cached);
+
+        const refreshed = await refreshNovemberInSellersVolumeCache(cached);
+        return res.json(refreshed);
       }
       const fresh = await syncSellersMonthlyVolumeFromSupabase();
+      sellersVolumeMemoryCache = { payload: fresh, timestamp: Date.now() };
       res.json(fresh);
     } catch (err: any) {
       console.error('Error serving sellers monthly volume:', err);
@@ -1357,24 +1427,26 @@ async function startServer() {
         return res.json(skuVolumeResponseCache.payload);
       }
 
-      // 1. Obtain Cuotas Volumen CSV (live from Google Sheets or seed fallback)
+      // 1. Obtain Cuotas Volumen CSV (live from Google Sheets via process.env.GOOGLE_SHEET_ID or seed fallback)
       let csvText = CUOTAS_VOLUMEN_CSV_SEED;
       try {
-        const sheetUrl =
-          'https://docs.google.com/spreadsheets/d/16pU4iEcNU_1j6sB7rZbshu2PM8OyH5hI7a24-vYO7P0/export?format=csv&gid=1575247832';
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 6500);
-        const sheetRes = await fetch(sheetUrl, { signal: controller.signal });
-        clearTimeout(timeout);
-        if (sheetRes.ok) {
-          const liveCsv = await sheetRes.text();
-          if (
-            liveCsv &&
-            (liveCsv.includes('POLLO VENCAMPO') ||
-              liveCsv.includes('POLLO TODAS LAS MARCAS') ||
-              liveCsv.includes('Articulo'))
-          ) {
-            csvText = liveCsv;
+        const sheetId = getConfiguredGoogleSheetId();
+        if (sheetId) {
+          const sheetUrl = buildGoogleSheetRawExportUrl('Cuotas Volumen', sheetId);
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 6500);
+          const sheetRes = await fetch(sheetUrl, { signal: controller.signal });
+          clearTimeout(timeout);
+          if (sheetRes.ok) {
+            const liveCsv = await sheetRes.text();
+            if (
+              liveCsv &&
+              (liveCsv.includes('POLLO VENCAMPO') ||
+                liveCsv.includes('POLLO TODAS LAS MARCAS') ||
+                liveCsv.includes('Articulo'))
+            ) {
+              csvText = liveCsv;
+            }
           }
         }
       } catch {
@@ -7267,114 +7339,158 @@ Responde con un JSON estructurado con:
     return res.json(bcvCache);
   });
 
-  // Google Sheets Proxy with in-memory caching to eliminate browser CORS and fetch errors
+  // Google Sheets Proxy with in-memory caching and strict 6-tab allowlist (Data Minimization)
   const sheetCache = new Map<string, { data: string; timestamp: number }>();
-  const OFFICIAL_SHEET_TAB_GIDS: Record<string, string> = {
-    ventas: '1176024108',
-    'cuotas volumen': '1575247832',
-    'cuotas de activacion': '1956715436',
-    inventario: '776651974',
-    productos: '1163463775',
-    clientes: '765796985',
-    supervisores: '1921442451',
-    usuarios: '228804341',
+  const SHEET_CACHE_TTL_MS = 120_000;
+  const CANONICAL_TAB_LOOKUP: Record<string, (typeof ALLOWED_GOOGLE_SHEET_TABS)[number]> = {
+    ventas: 'Ventas',
+    'cuotas volumen': 'Cuotas Volumen',
+    'cuotas de activacion': 'Cuotas de Activacion',
+    productos: 'Productos',
+    clientes: 'Clientes',
+    supervisores: 'Supervisores',
   };
 
   const resolveConfiguredSheetId = (): string => {
-    return (
-      (process.env.GOOGLE_SHEET_ID ||
-        process.env.VITE_GOOGLE_SHEET_ID ||
-        process.env.VITE_DATA_DASHBOARD_SHEET_ID ||
-        '16pU4iEcNU_1j6sB7rZbshu2PM8OyH5hI7a24-vYO7P0').trim()
-    );
+    return getConfiguredGoogleSheetId();
+  };
+
+  const fetchAllowedTabCsvServerSide = async (
+    tabName: (typeof ALLOWED_GOOGLE_SHEET_TABS)[number],
+    forceRefresh = false,
+    preferRawMatrix = true
+  ): Promise<string> => {
+    const allowedTab = assertAllowedSheetTab(tabName);
+    const sheetId = resolveConfiguredSheetId();
+    if (!sheetId) {
+      throw new Error('Missing server configuration: process.env.GOOGLE_SHEET_ID is not set');
+    }
+    const cacheKey = `sheet::${allowedTab}::${preferRawMatrix ? 'raw' : 'std'}`;
+    const cached = sheetCache.get(cacheKey);
+    const now = Date.now();
+    if (!forceRefresh && cached && now - cached.timestamp < SHEET_CACHE_TTL_MS) {
+      return cached.data;
+    }
+
+    const tabGid = GOOGLE_SHEET_TAB_GIDS[allowedTab];
+    const url = preferRawMatrix
+      ? `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${tabGid}`
+      : `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(allowedTab)}`;
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 12000);
+    const response = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeout);
+
+    if (!response.ok) {
+      throw new Error(`Google Sheets responded with status ${response.status}`);
+    }
+
+    let csvText = await response.text();
+    if (allowedTab === 'Productos' && Array.isArray(historicalAllCache) && historicalAllCache.length > 0) {
+      const extraMap = new Map<string, string>();
+      for (const r of historicalAllCache) {
+        const id = String(r.id_articulo || '').trim();
+        const name = String(r.articulo || '').replace(/"/g, '').trim();
+        if (id && name && !/^(Prod\s|Producto\s|ART[IÍ]CULO\s*#)/i.test(name)) {
+          extraMap.set(id, name);
+        }
+      }
+      const extraLines: string[] = [];
+      for (const [id, name] of extraMap.entries()) {
+        if (!csvText.includes(`"${id}",`) && !csvText.includes(`${id},`)) {
+          extraLines.push(`"${id}","${name}","GENERAL"`);
+        }
+      }
+      if (extraLines.length > 0) {
+        csvText = csvText.trimEnd() + '\n' + extraLines.join('\n') + '\n';
+      }
+    }
+
+    sheetCache.set(cacheKey, { data: csvText, timestamp: now });
+    return csvText;
   };
 
   app.get('/api/sheets', async (req, res) => {
-    const sheetName = req.query.sheet ? String(req.query.sheet).trim() : '';
-    const forceRefresh = req.query.refresh === 'true';
-    const preferRawMatrix = req.query.raw === 'true';
-    const sheetId = resolveConfiguredSheetId();
-    const cacheKey = `${sheetId}::${sheetName || '__main__'}::${preferRawMatrix ? 'raw' : 'std'}`;
-    const cached = sheetCache.get(cacheKey);
-    const now = Date.now();
-
-    // Cache valid for 30 seconds unless explicitly refreshed
-    if (!forceRefresh && cached && (now - cached.timestamp < 30000)) {
-      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-      return res.send(cached.data);
+    const rawRequested = req.query.sheet ? String(req.query.sheet).trim() : 'Ventas';
+    const canonicalTab = CANONICAL_TAB_LOOKUP[rawRequested.toLowerCase()];
+    if (!canonicalTab) {
+      return res.status(403).json({
+        error: 'Acceso denegado: La pestaña solicitada no pertenece a la allowlist analítica autorizada.',
+        allowedTabs: ALLOWED_GOOGLE_SHEET_TABS,
+      });
     }
 
+    const forceRefresh = req.query.refresh === 'true';
+    const preferRawMatrix = req.query.raw === 'true' || canonicalTab === 'Cuotas Volumen' || canonicalTab === 'Cuotas de Activacion';
+    const cacheKey = `sheet::${canonicalTab}::${preferRawMatrix ? 'raw' : 'std'}`;
+    const cached = sheetCache.get(cacheKey);
+
     try {
-      const normalizedTabKey = (sheetName || 'ventas').toLowerCase().trim();
-      const tabGid = OFFICIAL_SHEET_TAB_GIDS[normalizedTabKey];
-
-      const url =
-        preferRawMatrix && tabGid
-          ? `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${tabGid}`
-          : sheetName
-          ? `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheetName)}`
-          : `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${OFFICIAL_SHEET_TAB_GIDS['ventas']}`;
-
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 12000);
-
-      const response = await fetch(url, { signal: controller.signal });
-      clearTimeout(timeout);
-
-      if (!response.ok) {
-        throw new Error(`Google Sheets responded with status ${response.status}`);
-      }
-
-      let csvText = await response.text();
-      if (sheetName.toLowerCase() === 'productos' && Array.isArray(historicalAllCache) && historicalAllCache.length > 0) {
-        const extraMap = new Map<string, string>();
-        for (const r of historicalAllCache) {
-          const id = String(r.id_articulo || '').trim();
-          const name = String(r.articulo || '').replace(/"/g, '').trim();
-          if (id && name && !/^(Prod\s|Producto\s|ART[IÍ]CULO\s*#)/i.test(name)) {
-            extraMap.set(id, name);
-          }
-        }
-        const extraLines: string[] = [];
-        for (const [id, name] of extraMap.entries()) {
-          if (!csvText.includes(`"${id}",`) && !csvText.includes(`${id},`)) {
-            extraLines.push(`"${id}","${name}","GENERAL"`);
-          }
-        }
-        if (extraLines.length > 0) {
-          csvText = csvText.trimEnd() + '\n' + extraLines.join('\n') + '\n';
-        }
-      }
-      sheetCache.set(cacheKey, { data: csvText, timestamp: now });
-
+      const csvText = await fetchAllowedTabCsvServerSide(canonicalTab, forceRefresh, preferRawMatrix);
       res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-      res.send(csvText);
+      return res.send(csvText);
     } catch (err: any) {
+      if (err instanceof DisallowedSheetTabError) {
+        return res.status(403).json({ error: err.message, allowedTabs: ALLOWED_GOOGLE_SHEET_TABS });
+      }
       console.warn('Warning: Google Sheet fetch issue, serving cached fallback if available:', err?.message);
       if (cached) {
         res.setHeader('Content-Type', 'text/csv; charset=utf-8');
         return res.send(cached.data);
       }
-      res.status(502).json({ error: 'Failed to fetch from Google Sheets', details: err?.message });
+      return res.status(502).json({ error: 'Failed to fetch from Google Sheets' });
+    }
+  });
+
+  app.get('/api/cuotas/noviembre-2026-summary', async (req, res) => {
+    try {
+      const forceRefresh = req.query.refresh === 'true';
+      const [
+        ventasCsv,
+        cuotasVolumenCsv,
+        cuotasActivacionCsv,
+        productosCsv,
+        clientesCsv,
+        supervisoresCsv,
+      ] = await Promise.all([
+        fetchAllowedTabCsvServerSide('Ventas', forceRefresh, true),
+        fetchAllowedTabCsvServerSide('Cuotas Volumen', forceRefresh, true),
+        fetchAllowedTabCsvServerSide('Cuotas de Activacion', forceRefresh, true),
+        fetchAllowedTabCsvServerSide('Productos', forceRefresh, true),
+        fetchAllowedTabCsvServerSide('Clientes', forceRefresh, true),
+        fetchAllowedTabCsvServerSide('Supervisores', forceRefresh, true),
+      ]);
+
+      const report = calculateNovember2026CommercialMetrics({
+        ventasCsv,
+        cuotasVolumenCsv,
+        cuotasActivacionCsv,
+        productosCsv,
+        clientesCsv,
+        supervisoresCsv,
+        targetYear: 2026,
+        targetMonth: 11,
+      });
+
+      return res.json(report);
+    } catch (err: any) {
+      console.error('Error building November 2026 commercial summary:', err?.message);
+      return res.status(500).json({ error: 'Error al calcular el resumen comercial de Noviembre 2026' });
     }
   });
 
   app.post('/api/sync-sheets', async (req, res) => {
     try {
       sheetCache.clear();
-      const sheetId = resolveConfiguredSheetId();
-      console.log('[Sheets Sync] Cache limpiado. Sincronizando datos actualizados desde Google Sheets...');
-      const url = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${OFFICIAL_SHEET_TAB_GIDS['ventas']}`;
-      const response = await fetch(url);
-      if (!response.ok) {
-        throw new Error(`Google Sheets respondió con status ${response.status}`);
-      }
-      const csvText = await response.text();
-      sheetCache.set(`${sheetId}::__main__::std`, { data: csvText, timestamp: Date.now() });
+      sellersVolumeMemoryCache = null;
+      skuVolumeResponseCache = null;
+      console.log('[Sheets Sync] Cache limpiado. Sincronizando las 6 pestañas autorizadas desde Google Sheets...');
+      const csvText = await fetchAllowedTabCsvServerSide('Ventas', true, true);
       res.json({ success: true, message: 'Google Sheets sincronizado exitosamente', length: csvText.length });
     } catch (err: any) {
-      console.error('Error sincronizando Google Sheets:', err);
-      res.status(500).json({ error: 'Error al sincronizar con Google Sheets', details: err?.message });
+      console.error('Error sincronizando Google Sheets:', err?.message);
+      res.status(500).json({ error: 'Error al sincronizar con Google Sheets' });
     }
   });
 

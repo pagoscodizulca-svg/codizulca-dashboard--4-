@@ -1,29 +1,81 @@
 import Papa from 'papaparse';
-import { normalizeSellerName } from '../components/cuotas/sellerSupervisorMap';
+import { z } from 'zod';
+import {
+  EXCLUDED_VOLUME_SELLERS,
+  getSellerMetadata,
+  isValidVolumeSeller,
+  normalizeSellerName,
+} from '../components/cuotas/sellerSupervisorMap';
+import { ACTIVATION_CATEGORY_SKU_GROUPS, type RubroClienteCodigo } from '../components/cuotas/cuotasData';
 
-export const DEFAULT_GOOGLE_SHEET_ID = '16pU4iEcNU_1j6sB7rZbshu2PM8OyH5hI7a24-vYO7P0';
 export const NOVEMBER_STRICT_CUTOFF_DATE = '2026-11-01';
 
-export type GoogleSheetTabName =
-  | 'Ventas'
-  | 'Cuotas Volumen'
-  | 'Cuotas de Activacion'
-  | 'Inventario'
-  | 'Productos'
-  | 'Clientes'
-  | 'Supervisores'
-  | 'Usuarios';
+/**
+ * REGLA 2 DE SEGURIDAD Y GOBERNANZA (Data Minimization):
+ * Lista blanca estricta y cerrada de las 6 pestañas analíticas autorizadas.
+ * Queda terminantemente prohibido consultar, cachear, registrar o exponer
+ * cualquier otra pestaña del documento (ej. Usuarios, Inventario, etc.).
+ */
+export const ALLOWED_GOOGLE_SHEET_TABS = [
+  'Ventas',
+  'Cuotas Volumen',
+  'Cuotas de Activacion',
+  'Productos',
+  'Clientes',
+  'Supervisores',
+] as const;
+
+export type GoogleSheetTabName = (typeof ALLOWED_GOOGLE_SHEET_TABS)[number];
 
 export const GOOGLE_SHEET_TAB_GIDS: Record<GoogleSheetTabName, string> = {
   Ventas: '1176024108',
   'Cuotas Volumen': '1575247832',
   'Cuotas de Activacion': '1956715436',
-  Inventario: '776651974',
   Productos: '1163463775',
   Clientes: '765796985',
   Supervisores: '1921442451',
-  Usuarios: '228804341',
 };
+
+export class DisallowedSheetTabError extends Error {
+  public readonly statusCode = 403;
+  public readonly requestedTab: string;
+
+  constructor(requestedTab: string) {
+    super(
+      `Acceso denegado: La pestaña solicitada no pertenece a la allowlist analítica autorizada (${ALLOWED_GOOGLE_SHEET_TABS.join(', ')}).`
+    );
+    this.name = 'DisallowedSheetTabError';
+    this.requestedTab = requestedTab;
+  }
+}
+
+export class MissingGoogleSheetConfigError extends Error {
+  public readonly statusCode = 500;
+
+  constructor() {
+    super(
+      'Configuración faltante en servidor: La variable de entorno process.env.GOOGLE_SHEET_ID es obligatoria.'
+    );
+    this.name = 'MissingGoogleSheetConfigError';
+  }
+}
+
+/**
+ * Valida que el nombre de pestaña pertenezca exclusivamente a la allowlist de 6 pestañas.
+ */
+export function isAllowedGoogleSheetTab(tabName: unknown): tabName is GoogleSheetTabName {
+  if (typeof tabName !== 'string') return false;
+  const clean = tabName.trim();
+  return (ALLOWED_GOOGLE_SHEET_TABS as readonly string[]).includes(clean);
+}
+
+export function assertAllowedSheetTab(tabName: unknown): GoogleSheetTabName {
+  const clean = typeof tabName === 'string' ? tabName.trim() : '';
+  if (!isAllowedGoogleSheetTab(clean)) {
+    throw new DisallowedSheetTabError(clean || '<empty>');
+  }
+  return clean;
+}
 
 const SPANISH_MONTH_NAMES = [
   'ENERO',
@@ -41,57 +93,70 @@ const SPANISH_MONTH_NAMES = [
 ] as const;
 
 /**
- * Obtiene el ID del documento Google Sheet desde las variables de entorno o el valor oficial por defecto.
+ * REGLA 1 DE SEGURIDAD Y GOBERNANZA:
+ * Obtiene el ID del documento Google Sheet exclusivamente desde `process.env.GOOGLE_SHEET_ID`
+ * en entorno servidor (o `envOverride.GOOGLE_SHEET_ID` en pruebas unitarias).
+ * Prohibido leer `VITE_*`, `NEXT_PUBLIC_*` o usar IDs hardcodeados en código.
  */
 export function getConfiguredGoogleSheetId(
   envOverride?: Record<string, string | undefined>
 ): string {
-  const viteEnv =
-    (typeof import.meta !== 'undefined' && (import.meta as any)?.env) || {};
   const nodeEnv = (typeof process !== 'undefined' && process?.env) || {};
-
-  const configured =
-    envOverride?.VITE_GOOGLE_SHEET_ID ||
-    envOverride?.GOOGLE_SHEET_ID ||
-    viteEnv.VITE_GOOGLE_SHEET_ID ||
-    viteEnv.VITE_DATA_DASHBOARD_SHEET_ID ||
-    nodeEnv.GOOGLE_SHEET_ID ||
-    nodeEnv.VITE_GOOGLE_SHEET_ID ||
-    DEFAULT_GOOGLE_SHEET_ID;
-
-  return String(configured).trim() || DEFAULT_GOOGLE_SHEET_ID;
+  const configured = envOverride?.GOOGLE_SHEET_ID ?? nodeEnv.GOOGLE_SHEET_ID ?? '';
+  return String(configured).trim();
 }
 
 /**
- * Construye la URL de exportación CSV cruda (/export?format=csv&gid=...) que preserva
- * intactos los encabezados dobles (Fila 1 y Fila 2) y los códigos alfanuméricos sin coerción de tipos.
+ * Construye la URL de exportación CSV para una pestaña autorizada.
+ * - Valida estrictamente la allowlist de 6 pestañas (`assertAllowedSheetTab`).
+ * - En el servidor (con `sheetId` o `process.env.GOOGLE_SHEET_ID`), genera el endpoint CSV de Google Sheets.
+ * - Si no hay `sheetId` disponible (ej. navegador), retorna la ruta proxy segura del backend `/api/sheets`.
  */
 export function buildGoogleSheetRawExportUrl(
   tabName: GoogleSheetTabName | string,
-  sheetId: string = getConfiguredGoogleSheetId()
+  sheetId?: string
 ): string {
-  const cleanTab = String(tabName || 'Ventas').trim() as GoogleSheetTabName;
-  const gid = GOOGLE_SHEET_TAB_GIDS[cleanTab];
-  if (gid) {
-    return `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${gid}`;
+  const allowedTab = assertAllowedSheetTab(tabName || 'Ventas');
+  const resolvedSheetId = (sheetId ?? getConfiguredGoogleSheetId()).trim();
+
+  if (!resolvedSheetId) {
+    return `/api/sheets?raw=true&sheet=${encodeURIComponent(allowedTab)}`;
   }
-  return `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(
-    cleanTab
-  )}`;
+
+  const gid = GOOGLE_SHEET_TAB_GIDS[allowedTab];
+  return `https://docs.google.com/spreadsheets/d/${resolvedSheetId}/export?format=csv&gid=${gid}`;
+}
+
+/**
+ * REGLA 3 DE SEGURIDAD:
+ * Sanitiza celdas de texto para prevenir XSS y CSV/Formula Injection (`=`, `+`, `@`, etc.).
+ */
+export function sanitizeSheetCell(raw: unknown): string {
+  if (raw === null || raw === undefined) return '';
+  let str = String(raw)
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '')
+    .replace(/^["']+|["']+$/g, '')
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+    .replace(/<\/?[a-z][^>]*>/gi, '')
+    .trim();
+
+  // Neutralizar prefijos de inyección de fórmulas (=, +, @) cuando no son números válidos
+  if (/^[=+@]/.test(str) && !/^\+\d+(\.\d+)?$/.test(str)) {
+    str = str.replace(/^[=+@]+/, '').trim();
+  }
+  return str;
 }
 
 /**
  * Normaliza llaves de catálogos y nombres comerciales:
+ * - sanitiza contra XSS/CSV Injection
  * - aplica .trim() y .toUpperCase()
  * - colapsa espacios múltiples ("OSCAR ORTIZ-  LA COSTA" -> "OSCAR ORTIZ- LA COSTA")
  */
 export function normalizeCatalogKey(raw: unknown): string {
-  if (raw === null || raw === undefined) return '';
-  return String(raw)
-    .replace(/^["']+|["']+$/g, '')
-    .trim()
-    .toUpperCase()
-    .replace(/\s+/g, ' ');
+  const clean = sanitizeSheetCell(raw);
+  if (!clean) return '';
+  return clean.toUpperCase().replace(/\s+/g, ' ');
 }
 
 /**
@@ -107,13 +172,13 @@ export function normalizeSheetSellerOrSupervisorKey(raw: unknown): string {
 }
 
 /**
- * Parser numérico contable estricto:
- * - Limpia comas de miles ("2,760.00" -> 2760)
+ * Parser numérico contable estricto (`parseSheetNumber` / `parseStrictAccountingNumber`):
+ * - Limpia comas de miles ("1,140.00" -> 1140, "2,760.00" -> 2760)
  * - Limpia porcentajes ("82.50%" -> 82.5)
- * - Convierte guiones ("-", "--") y errores de fórmula ("#DIV/0!", "#N/A") en 0
- * - Respeta estrictamente los signos negativos ("-4" -> -4, "-104.00" -> -104, "-17.85" -> -17.85)
+ * - Convierte guiones ("-", "--"), vacíos, null y errores ("#DIV/0!", "#N/A") en 0
+ * - Respeta estrictamente los signos negativos ("-4" -> -4, "-13.20" -> -13.2, "-104.00" -> -104)
  */
-export function parseStrictAccountingNumber(raw: unknown): number {
+export function parseSheetNumber(raw: unknown): number {
   if (raw === null || raw === undefined) return 0;
   if (typeof raw === 'number') {
     return Number.isFinite(raw) ? raw : 0;
@@ -157,15 +222,10 @@ export function parseStrictAccountingNumber(raw: unknown): number {
 
   if (!s || s === '-') return 0;
 
-  // Manejo de separadores de miles y decimales:
-  // Si tiene coma y punto (ej. "2,760.00" o "1,234,567.89"), las comas son miles.
-  // Si tiene múltiples comas (ej. "1,234,567"), son miles.
-  // Si tiene una sola coma seguida de 3 dígitos exactos (ej. "2,760"), en formato US del Sheet es miles.
   if (s.includes(',') && s.includes('.')) {
     if (s.lastIndexOf('.') > s.lastIndexOf(',')) {
       s = s.replace(/,/g, '');
     } else {
-      // Formato europeo eventual "2.760,50"
       s = s.replace(/\./g, '').replace(',', '.');
     }
   } else if (s.includes(',')) {
@@ -173,10 +233,8 @@ export function parseStrictAccountingNumber(raw: unknown): number {
     if (parts.length > 2) {
       s = s.replace(/,/g, '');
     } else if (parts[1] && parts[1].length === 3 && /^\d+$/.test(parts[0])) {
-      // "2,760" -> 2760
       s = s.replace(/,/g, '');
     } else {
-      // "17,85" -> 17.85
       s = s.replace(',', '.');
     }
   }
@@ -186,20 +244,58 @@ export function parseStrictAccountingNumber(raw: unknown): number {
   return isNegative ? -Math.abs(parsed) : parsed;
 }
 
+export const parseStrictAccountingNumber = parseSheetNumber;
+
+export interface ParsedSheetDate {
+  isoDate: string; // YYYY-MM-DD (America/Caracas)
+  year: number;
+  month: number; // 1-12
+  day: number; // 1-31
+}
+
 /**
- * Parsea cualquier cadena de fecha del Google Sheet o Supabase a formato canónico `YYYY-MM-DD`
- * en zona horaria local (`America/Caracas` UTC-04:00), evitando cualquier conversión `new Date(iso)`
- * en UTC que haría retroceder las `00:00:00` del día 1 al mes anterior.
+ * Parser de fechas determinístico en `America/Caracas` (`UTC-04:00`):
+ * Soporta:
+ * 1. Timestamps ISO (`2026-11-02 0:00:00`, `2026-11-02T00:00:00`)
+ * 2. Cadenas latinas `DD/MM/YYYY` (`02/11/2026`, `2/11/2026`)
+ * 3. Números seriales de Lotus / Google Sheets (base `1899-12-30`, ej. `46328` -> `2026-11-02`)
  */
-export function parseCaracasLocalDate(raw: unknown): string | null {
+export function parseSheetDate(raw: unknown): ParsedSheetDate | null {
   if (raw === null || raw === undefined) return null;
+
+  // Caso 3: Número serial de Lotus / Google Sheets (ej. 46328 -> 2026-11-02)
+  if (typeof raw === 'number' && Number.isFinite(raw)) {
+    const serialDays = Math.floor(raw);
+    if (serialDays >= 36526 && serialDays <= 73050) {
+      const utcMs = Date.UTC(1899, 11, 30) + serialDays * 86_400_000;
+      const d = new Date(utcMs);
+      const year = d.getUTCFullYear();
+      const month = d.getUTCMonth() + 1;
+      const day = d.getUTCDate();
+      return {
+        isoDate: `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`,
+        year,
+        month,
+        day,
+      };
+    }
+    return null;
+  }
+
   const clean = String(raw)
     .replace(/^["']+|["']+$/g, '')
     .trim();
   if (!clean) return null;
 
+  // Verificar si es un serial numérico en string (ej. "46328" o "46328.0")
+  if (/^\d{5}(\.\d+)?$/.test(clean)) {
+    const serialNum = Number(clean);
+    if (serialNum >= 36526 && serialNum <= 73050) {
+      return parseSheetDate(serialNum);
+    }
+  }
+
   // Extraer solo la porción de fecha antes de cualquier espacio o 'T'
-  // Ej: "2026-11-01 0:00:00" -> "2026-11-01"
   const dateToken = clean.split(/[\sT]/)[0].trim();
 
   // Caso 1: YYYY-M-D o YYYY/M/D
@@ -209,25 +305,57 @@ export function parseCaracasLocalDate(raw: unknown): string | null {
     const month = Number(isoMatch[2]);
     const day = Number(isoMatch[3]);
     if (year >= 2000 && month >= 1 && month <= 12 && day >= 1 && day <= 31) {
-      return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      return {
+        isoDate: `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`,
+        year,
+        month,
+        day,
+      };
     }
   }
 
-  // Caso 2: DD/MM/YYYY o DD-MM-YYYY
+  // Caso 2: DD/MM/YYYY o DD-MM-YYYY (Formato local Venezuela)
   const dmyMatch = /^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/.exec(dateToken);
   if (dmyMatch) {
     const p1 = Number(dmyMatch[1]);
     const p2 = Number(dmyMatch[2]);
     const year = Number(dmyMatch[3]);
-    // En Venezuela el formato local es DD/MM/YYYY; si p2 > 12 entonces es MM/DD/YYYY
     const day = p2 > 12 ? p2 : p1;
     const month = p2 > 12 ? p1 : p2;
     if (year >= 2000 && month >= 1 && month <= 12 && day >= 1 && day <= 31) {
-      return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      return {
+        isoDate: `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`,
+        year,
+        month,
+        day,
+      };
     }
   }
 
   return null;
+}
+
+/**
+ * Parsea cualquier cadena o serial de fecha del Google Sheet o Supabase a formato canónico `YYYY-MM-DD`
+ * en zona horaria local (`America/Caracas` UTC-04:00).
+ */
+export function parseCaracasLocalDate(raw: unknown): string | null {
+  const parsed = parseSheetDate(raw);
+  return parsed ? parsed.isoDate : null;
+}
+
+/**
+ * Forward-fill para encabezados matriciales con celdas combinadas (merged cells):
+ * cuando la API exporta `['VENDEDOR_A', '', '', 'VENDEDOR_B', '', '']`, propaga el último
+ * valor no vacío hacia la derecha: `['VENDEDOR_A', 'VENDEDOR_A', 'VENDEDOR_A', 'VENDEDOR_B', 'VENDEDOR_B', 'VENDEDOR_B']`.
+ */
+export function forwardFillRow(row: unknown[]): string[] {
+  let current = '';
+  return (row || []).map((cell) => {
+    const val = sanitizeSheetCell(cell);
+    if (val !== '') current = val;
+    return current;
+  });
 }
 
 export function getPeriodMetadataFromIsoDate(isoDate: string): {
@@ -247,6 +375,51 @@ export function getPeriodMetadataFromIsoDate(isoDate: string): {
 }
 
 // ============================================================================
+// ESQUEMAS ZOD DE VALIDACIÓN ESTRICTA DE FILAS ENTRANTES
+// ============================================================================
+
+export const SheetVentasRowSchema = z.object({
+  rowNumber: z.number().int().positive(),
+  fecha: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  ano: z.number().int().min(2000).max(2100),
+  mes: z.string().min(1),
+  idCliente: z.string().min(1),
+  idArticulo: z.string().min(1),
+  vendedorRaw: z.string().min(1),
+  vendedor: z.string().min(1),
+  canonicalVendedor: z.string().min(1),
+  cajas: z.number().finite(),
+  unidades: z.number().finite(),
+  kg: z.number().finite(),
+  monto: z.number().finite(),
+  costo: z.number().finite(),
+  utilidad: z.number().finite(),
+  pctUtilidad: z.number().finite(),
+  tipoDoc: z.enum(['FA', 'DV']),
+});
+
+export const ProductoCatalogRowSchema = z.object({
+  codProducto: z.string().min(1),
+  producto: z.string().min(1),
+  categoria: z.string().min(1),
+});
+
+export const ClienteCatalogRowSchema = z.object({
+  codCliente: z.string().min(1),
+  cliente: z.string().min(1),
+  vendedorRaw: z.string(),
+  vendedor: z.string(),
+  region: z.string(),
+  categoria: z.string(),
+});
+
+export const SupervisorCatalogRowSchema = z.object({
+  vendedorRaw: z.string().min(1),
+  vendedor: z.string().min(1),
+  supervisor: z.string().min(1),
+});
+
+// ============================================================================
 // 1. PESTAÑA "Ventas" (A1:K...) CON REGLA DE CORTE ESTRICTA (Fecha >= '2026-11-01')
 // ============================================================================
 
@@ -259,6 +432,7 @@ export interface SheetVentasDetailRow {
   idArticulo: string;
   vendedorRaw: string;
   vendedor: string;
+  canonicalVendedor?: string;
   cajas: number;
   unidades: number;
   kg: number;
@@ -274,15 +448,17 @@ export interface SheetVentasParseResult {
   totalRawDataRows: number;
   ignoredBeforeCutoffCount: number;
   acceptedFromCutoffCount: number;
+  rejectedMalformedCount?: number;
   cutoffDate: string;
 }
 
 /**
  * Parsea la pestaña `Ventas` (A1:K...) aplicando:
  * - `.trim()` a todos los encabezados (ej. `"% de utilidad "` -> `"% de utilidad"`)
- * - Parseo de fecha local `America/Caracas` (`YYYY-MM-DD`)
+ * - Parseo de fecha determinístico `America/Caracas` (`YYYY-MM-DD`) vía `parseSheetDate`
  * - REGLA DE CORTE ESTRICTA: ignora absolutamente cualquier fila con `Fecha < cutoffDate` (`'2026-11-01'`)
  * - Limpieza numérica preservando signos negativos en devoluciones (`Cajas`, `Unidades`, `Kg`, `Monto`, `Costo`, `Utilidad`)
+ * - Validación de esquema `Zod` por cada fila
  */
 export function parseVentasSheetCsv(
   csvText: string,
@@ -294,6 +470,7 @@ export function parseVentasSheetCsv(
       totalRawDataRows: 0,
       ignoredBeforeCutoffCount: 0,
       acceptedFromCutoffCount: 0,
+      rejectedMalformedCount: 0,
       cutoffDate,
     };
   }
@@ -310,15 +487,13 @@ export function parseVentasSheetCsv(
       totalRawDataRows: 0,
       ignoredBeforeCutoffCount: 0,
       acceptedFromCutoffCount: 0,
+      rejectedMalformedCount: 0,
       cutoffDate,
     };
   }
 
-  // Fila 1: Encabezados con .trim() obligatorio
   const rawHeaders = matrix[0].map((h) =>
-    String(h || '')
-      .replace(/^["']+|["']+$/g, '')
-      .trim()
+    sanitizeSheetCell(h)
       .toLowerCase()
   );
 
@@ -345,18 +520,19 @@ export function parseVentasSheetCsv(
   const rows: SheetVentasDetailRow[] = [];
   let totalRawDataRows = 0;
   let ignoredBeforeCutoffCount = 0;
+  let rejectedMalformedCount = 0;
 
   for (let r = 1; r < matrix.length; r++) {
     const line = matrix[r];
     if (!line || line.length === 0) continue;
 
     const rawFechaCell = line[idxFecha];
-    const isoDate = parseCaracasLocalDate(rawFechaCell);
-    if (!isoDate) continue;
+    const parsedDate = parseSheetDate(rawFechaCell);
+    if (!parsedDate) continue;
 
+    const { isoDate } = parsedDate;
     totalRawDataRows++;
 
-    // REGLA INNEGOCIABLE: Ignorar absolutamente cualquier fila con Fecha < '2026-11-01'
     if (isoDate < cutoffDate) {
       ignoredBeforeCutoffCount++;
       continue;
@@ -365,22 +541,23 @@ export function parseVentasSheetCsv(
     const idCliente = normalizeCatalogKey(line[idxCliente]);
     const idArticulo = normalizeCatalogKey(line[idxArticulo]);
     const vendedorRaw = normalizeSheetSellerOrSupervisorKey(line[idxVendedor]);
+    const canonicalVendedor = normalizeSellerName(vendedorRaw) || vendedorRaw;
     const vendedor = vendedorRaw.startsWith('OSCAR ORTIZ-')
       ? vendedorRaw
-      : normalizeSellerName(vendedorRaw) || vendedorRaw;
+      : canonicalVendedor;
 
-    const cajas = parseStrictAccountingNumber(line[idxCajas]);
-    const unidades = parseStrictAccountingNumber(line[idxUnidades]);
-    const kg = parseStrictAccountingNumber(line[idxKg]);
-    const monto = parseStrictAccountingNumber(line[idxMonto]);
-    const costo = parseStrictAccountingNumber(line[idxCosto]);
-    const utilidad = parseStrictAccountingNumber(line[idxUtilidad]);
-    const pctUtilidad = parseStrictAccountingNumber(line[idxPctUtilidad]);
+    const cajas = parseSheetNumber(line[idxCajas]);
+    const unidades = parseSheetNumber(line[idxUnidades]);
+    const kg = parseSheetNumber(line[idxKg]);
+    const monto = parseSheetNumber(line[idxMonto]);
+    const costo = parseSheetNumber(line[idxCosto]);
+    const utilidad = parseSheetNumber(line[idxUtilidad]);
+    const pctUtilidad = parseSheetNumber(line[idxPctUtilidad]);
 
     const { ano, mes } = getPeriodMetadataFromIsoDate(isoDate);
     const tipoDoc: 'FA' | 'DV' = monto < 0 || cajas < 0 || kg < 0 ? 'DV' : 'FA';
 
-    rows.push({
+    const candidate: SheetVentasDetailRow = {
       rowNumber: r + 1,
       fecha: isoDate,
       ano,
@@ -389,6 +566,7 @@ export function parseVentasSheetCsv(
       idArticulo,
       vendedorRaw,
       vendedor,
+      canonicalVendedor,
       cajas,
       unidades,
       kg,
@@ -397,7 +575,15 @@ export function parseVentasSheetCsv(
       utilidad,
       pctUtilidad,
       tipoDoc,
-    });
+    };
+
+    const validation = SheetVentasRowSchema.safeParse(candidate);
+    if (!validation.success) {
+      rejectedMalformedCount++;
+      continue;
+    }
+
+    rows.push(candidate);
   }
 
   return {
@@ -405,12 +591,13 @@ export function parseVentasSheetCsv(
     totalRawDataRows,
     ignoredBeforeCutoffCount,
     acceptedFromCutoffCount: rows.length,
+    rejectedMalformedCount,
     cutoffDate,
   };
 }
 
 // ============================================================================
-// 2. PESTAÑA "Cuotas Volumen" (A1:CW52) — DOBLE ENCABEZADO CON FORWARD-FILL
+// 2. PESTAÑA "Cuotas Volumen" (A1:CN89) — DOBLE ENCABEZADO CON FORWARD-FILL
 // ============================================================================
 
 export interface CuotasVolumenSellerMetricCell {
@@ -440,12 +627,10 @@ export interface CuotasVolumenMatrixParseResult {
 }
 
 /**
- * Parsea la matriz `Cuotas Volumen` (A1:CW52) con soporte de:
- * - Encabezado doble real (`/export?format=csv&gid=1575247832`):
- *   * Fila 1 tiene el nombre del Vendedor combinado cada 3 columnas desde la columna C (índice 2).
- *   * Fila 2 repite `CUOTA` (o `CUOTA KG`), `KG` (o `VENTA KG`) y `%`.
- *   * Columnas A y B son `Cod` y `Articulo`.
- * - Fallback automático si el CSV proviene de `gviz` con las 2 filas fusionadas en la Fila 1.
+ * Parsea la matriz `Cuotas Volumen` (A1:CN89) aplicando `forwardFillRow` sobre la Fila 1:
+ * - Fila 1 tiene el nombre del Vendedor combinado cada 3 columnas desde la columna C (índice 2).
+ * - Fila 2 repite `CUOTA` (o `CUOTA KG`), `KG` (o `VENTA KG`) y `%`.
+ * - Columnas A y B son `Cod` y `Articulo`.
  */
 export function parseCuotasVolumenSheetMatrix(
   csvText: string
@@ -467,11 +652,9 @@ export function parseCuotasVolumenSheetMatrix(
     };
   }
 
-  const row0 = rawMatrix[0].map((c) => String(c || '').trim());
-  const row1 = rawMatrix[1].map((c) => String(c || '').trim());
+  const row0 = rawMatrix[0].map((c) => sanitizeSheetCell(c));
+  const row1 = rawMatrix[1].map((c) => sanitizeSheetCell(c));
 
-  // Detectar si es encabezado doble real (Row 1 tiene "Cod" y "Articulo" en A2:B2)
-  // o si es encabezado fusionado por gviz (Row 0 tiene "Cod" y "Articulo" en A1:B1)
   const isDoubleHeader =
     normalizeCatalogKey(row1[0]) === 'COD' ||
     normalizeCatalogKey(row1[1]).startsWith('ARTICULO');
@@ -482,28 +665,23 @@ export function parseCuotasVolumenSheetMatrix(
   const dataStartRowIdx = isDoubleHeader ? 2 : 1;
 
   if (isDoubleHeader) {
-    // Forward-fill en Fila 1 desde la columna C (índice 2)
-    let currentSeller = '';
+    const cleanedRow0 = new Array(maxCols).fill('');
     for (let c = 0; c < maxCols; c++) {
-      const r0Cell = normalizeSheetSellerOrSupervisorKey(row0[c])
-        .replace(/\s+CUOTA(\s+KG)?$/i, '')
-        .trim();
-      const r1Cell = normalizeCatalogKey(row1[c]);
-
-      if (c < 2) {
-        forwardFilledRow1[c] = r0Cell;
-        row2Subheaders[c] = r1Cell;
-        continue;
-      }
-
-      if (r0Cell) {
-        currentSeller = r0Cell;
-      }
-      forwardFilledRow1[c] = currentSeller;
-      row2Subheaders[c] = r1Cell;
+      cleanedRow0[c] =
+        c < 2
+          ? normalizeSheetSellerOrSupervisorKey(row0[c])
+          : normalizeSheetSellerOrSupervisorKey(row0[c])
+              .replace(/\s+CUOTA(\s+KG)?$/i, '')
+              .trim();
+      row2Subheaders[c] = normalizeCatalogKey(row1[c]);
+    }
+    const ffilled = forwardFillRow(cleanedRow0.slice(2));
+    forwardFilledRow1[0] = cleanedRow0[0];
+    forwardFilledRow1[1] = cleanedRow0[1];
+    for (let c = 2; c < maxCols; c++) {
+      forwardFilledRow1[c] = ffilled[c - 2] || '';
     }
   } else {
-    // Formato fusionado gviz: Row 0 tiene el nombre del vendedor cada 3 columnas ("CARLOS FUENMAYOR CUOTA", "KG", "%")
     let currentSeller = '';
     for (let c = 0; c < maxCols; c++) {
       const cell = normalizeCatalogKey(row0[c]);
@@ -528,7 +706,6 @@ export function parseCuotasVolumenSheetMatrix(
     }
   }
 
-  // Construir definición de bloques de 3 columnas por vendedor desde columna C (índice 2)
   const sellerBlocks: Array<{
     sellerHeader: string;
     canonicalSeller: string;
@@ -569,7 +746,6 @@ export function parseCuotasVolumenSheetMatrix(
     const cod = normalizeCatalogKey(line[0]);
     const articulo = normalizeCatalogKey(line[1]);
 
-    // Ignorar fila final de sumatorias que no tiene ni Cod ni Articulo
     if (!cod && !articulo) continue;
 
     const bySellerHeader: Record<string, CuotasVolumenSellerMetricCell> = {};
@@ -579,9 +755,9 @@ export function parseCuotasVolumenSheetMatrix(
     > = {};
 
     for (const block of sellerBlocks) {
-      const cuotaKg = parseStrictAccountingNumber(line[block.cuotaCol]);
-      const ventaKg = parseStrictAccountingNumber(line[block.kgCol]);
-      const cumplimientoPct = parseStrictAccountingNumber(line[block.pctCol]);
+      const cuotaKg = parseSheetNumber(line[block.cuotaCol]);
+      const ventaKg = parseSheetNumber(line[block.kgCol]);
+      const cumplimientoPct = parseSheetNumber(line[block.pctCol]);
 
       bySellerHeader[block.sellerHeader] = {
         rawSellerHeader: block.sellerHeader,
@@ -625,7 +801,7 @@ export function parseCuotasVolumenSheetMatrix(
 }
 
 // ============================================================================
-// 3. PESTAÑA "Cuotas de Activacion" (A1:L28) — DOBLE ENCABEZADO
+// 3. PESTAÑA "Cuotas de Activacion" (A1:L28) — DOBLE ENCABEZADO CON FORWARD-FILL
 // ============================================================================
 
 export interface CuotasActivacionMatrixRow {
@@ -655,10 +831,9 @@ export interface CuotasActivacionMatrixParseResult {
 }
 
 /**
- * Parsea la pestaña `Cuotas de Activacion` (A1:L28):
+ * Parsea la pestaña `Cuotas de Activacion` (A1:L28) aplicando `forwardFillRow` sobre la Fila 1:
  * - Fila 1 tiene las 5 categorías combinadas cada 2 columnas desde C hasta L:
  *   `AZUCAR`, `LECHE VENCAMPO`, `POLLO`, `ESTANDAR Y SUPERIOR ASTURIAS`, `MORTADELA SALPICAO Y ASTURIAS`
- *   (o formato previo `ACEITE`, `AZUCAR`, `POLLO`, `ESTANDAR Y SUPERIOR ASTURIAS`, `MORTADELA SALPICAO Y ASTURIAS`)
  * - Fila 2 tiene `Vendedor` (A), `CARTERA` (B) y pares `Meta ...` / `Activados` (C a L).
  */
 export function parseCuotasActivacionSheetMatrix(
@@ -684,16 +859,12 @@ export function parseCuotasActivacionSheetMatrix(
   const subheadersRow2: string[] = new Array(maxCols).fill('');
 
   if (isDoubleHeader) {
-    let curCat = '';
+    const ffilled = forwardFillRow(row0.slice(2));
     for (let c = 0; c < maxCols; c++) {
-      if (c >= 2 && row0[c]) {
-        curCat = row0[c];
-      }
-      categoriesRow1[c] = c < 2 ? '' : curCat;
+      categoriesRow1[c] = c < 2 ? '' : (ffilled[c - 2] || '');
       subheadersRow2[c] = row1[c] || '';
     }
   } else {
-    // Fallback gviz donde Fila 1 y Fila 2 vienen concatenadas en row0
     let curCat = '';
     for (let c = 0; c < maxCols; c++) {
       if (c >= 2 && c % 2 === 0 && row0[c]) {
@@ -725,24 +896,24 @@ export function parseCuotasActivacionSheetMatrix(
 
     const vendedor = normalizeSellerName(vendedorRaw) || vendedorRaw;
     const pair0 = {
-      meta: parseStrictAccountingNumber(line[2]),
-      activados: parseStrictAccountingNumber(line[3]),
+      meta: parseSheetNumber(line[2]),
+      activados: parseSheetNumber(line[3]),
     };
     const pair1 = {
-      meta: parseStrictAccountingNumber(line[4]),
-      activados: parseStrictAccountingNumber(line[5]),
+      meta: parseSheetNumber(line[4]),
+      activados: parseSheetNumber(line[5]),
     };
     const pair2 = {
-      meta: parseStrictAccountingNumber(line[6]),
-      activados: parseStrictAccountingNumber(line[7]),
+      meta: parseSheetNumber(line[6]),
+      activados: parseSheetNumber(line[7]),
     };
     const pair3 = {
-      meta: parseStrictAccountingNumber(line[8]),
-      activados: parseStrictAccountingNumber(line[9]),
+      meta: parseSheetNumber(line[8]),
+      activados: parseSheetNumber(line[9]),
     };
     const pair4 = {
-      meta: parseStrictAccountingNumber(line[10]),
-      activados: parseStrictAccountingNumber(line[11]),
+      meta: parseSheetNumber(line[10]),
+      activados: parseSheetNumber(line[11]),
     };
 
     const azucar = isNewOrderLayout ? pair0 : pair1;
@@ -756,7 +927,7 @@ export function parseCuotasActivacionSheetMatrix(
       rowIndex: r + 1,
       vendedorRaw,
       vendedor,
-      cartera: parseStrictAccountingNumber(line[1]),
+      cartera: parseSheetNumber(line[1]),
       categorias: {
         azucar,
         lecheVencampo,
@@ -780,149 +951,7 @@ export function parseCuotasActivacionSheetMatrix(
 }
 
 // ============================================================================
-// 4. PESTAÑA "Inventario" (A1:N83) — DOBLE ENCABEZADO
-// ============================================================================
-
-export interface InventarioSheetMatrixRow {
-  rowIndex: number;
-  fecha: string;
-  sku: string;
-  producto: string;
-  minimo: number;
-  inicial: { cajas: number; kg: number };
-  compras: { cajas: number; kg: number };
-  ajustes: { cajas: number; kg: number };
-  ventas: { cajas: number; kg: number };
-  cuota: { cajas: number; kg: number };
-  stockFinalCajas: number;
-  stockFinalKg: number;
-}
-
-export interface InventarioMatrixParseResult {
-  blocksRow1: string[];
-  unitsRow2: string[];
-  rows: InventarioSheetMatrixRow[];
-}
-
-/**
- * Parsea la pestaña `Inventario` (A1:N83):
- * - Fila 1 tiene `INICIAL` (E:F), `COMPRAS` (G:H), `AJUSTES` (I:J), `VENTAS` (K:L), `CUOTA` (M:N)
- * - Fila 2 tiene `Cajas` y `Kg` para cada bloque, más `Fecha` (A), `SKU` (B), `Producto` (C), `Mínimo` (D).
- */
-export function parseInventarioSheetMatrix(
-  csvText: string
-): InventarioMatrixParseResult {
-  const parsed = Papa.parse<string[]>(csvText || '', {
-    header: false,
-    skipEmptyLines: true,
-  });
-  const matrix = parsed.data || [];
-  if (matrix.length < 2) {
-    return { blocksRow1: [], unitsRow2: [], rows: [] };
-  }
-
-  const row0 = matrix[0].map((c) => normalizeCatalogKey(c));
-  const row1 = matrix[1].map((c) => normalizeCatalogKey(c));
-
-  const isDoubleHeader =
-    row1[4] === 'CAJAS' || row1[5] === 'KG' || row0[4] === 'INICIAL';
-
-  const maxCols = Math.max(14, row0.length, row1.length);
-  const blocksRow1: string[] = new Array(maxCols).fill('');
-  const unitsRow2: string[] = new Array(maxCols).fill('');
-
-  if (isDoubleHeader) {
-    let curBlock = '';
-    for (let c = 0; c < maxCols; c++) {
-      if (c < 4) {
-        blocksRow1[c] = row0[c] || row1[c] || '';
-        unitsRow2[c] = row1[c] || row0[c] || '';
-      } else {
-        if (row0[c]) curBlock = row0[c];
-        blocksRow1[c] = curBlock;
-        unitsRow2[c] = row1[c] || (c % 2 === 0 ? 'CAJAS' : 'KG');
-      }
-    }
-  } else {
-    const defaultBlocks = ['INICIAL', 'COMPRAS', 'AJUSTES', 'VENTAS', 'CUOTA'];
-    for (let c = 0; c < maxCols; c++) {
-      if (c < 4) {
-        blocksRow1[c] = row0[c] || '';
-        unitsRow2[c] = row0[c] || '';
-      } else {
-        const bIdx = Math.floor((c - 4) / 2);
-        blocksRow1[c] = defaultBlocks[bIdx] || '';
-        unitsRow2[c] = c % 2 === 0 ? 'CAJAS' : 'KG';
-      }
-    }
-  }
-
-  const dataStartIdx = isDoubleHeader ? 2 : 1;
-  const rows: InventarioSheetMatrixRow[] = [];
-
-  for (let r = dataStartIdx; r < matrix.length; r++) {
-    const line = matrix[r];
-    if (!line) continue;
-
-    const sku = normalizeCatalogKey(line[1]);
-    const producto = normalizeCatalogKey(line[2]);
-    if (!sku && !producto) continue;
-
-    const fecha = parseCaracasLocalDate(line[0]) || String(line[0] || '').trim();
-    const minimo = parseStrictAccountingNumber(line[3]);
-
-    const inicial = {
-      cajas: parseStrictAccountingNumber(line[4]),
-      kg: parseStrictAccountingNumber(line[5]),
-    };
-    const compras = {
-      cajas: parseStrictAccountingNumber(line[6]),
-      kg: parseStrictAccountingNumber(line[7]),
-    };
-    const ajustes = {
-      cajas: parseStrictAccountingNumber(line[8]),
-      kg: parseStrictAccountingNumber(line[9]),
-    };
-    const ventas = {
-      cajas: parseStrictAccountingNumber(line[10]),
-      kg: parseStrictAccountingNumber(line[11]),
-    };
-    const cuota = {
-      cajas: parseStrictAccountingNumber(line[12]),
-      kg: parseStrictAccountingNumber(line[13]),
-    };
-
-    const stockFinalCajas =
-      Math.round((inicial.cajas + compras.cajas + ajustes.cajas - ventas.cajas) * 100) /
-      100;
-    const stockFinalKg =
-      Math.round((inicial.kg + compras.kg + ajustes.kg - ventas.kg) * 100) / 100;
-
-    rows.push({
-      rowIndex: r + 1,
-      fecha,
-      sku,
-      producto,
-      minimo,
-      inicial,
-      compras,
-      ajustes,
-      ventas,
-      cuota,
-      stockFinalCajas,
-      stockFinalKg,
-    });
-  }
-
-  return {
-    blocksRow1,
-    unitsRow2,
-    rows,
-  };
-}
-
-// ============================================================================
-// 5. CATÁLOGOS ("Productos", "Clientes", "Supervisores", "Usuarios")
+// 4. CATÁLOGOS PERMITIDOS ("Productos", "Clientes", "Supervisores")
 // ============================================================================
 
 export interface ProductoCatalogRow {
@@ -946,13 +975,6 @@ export interface SupervisorCatalogRow {
   supervisor: string;
 }
 
-export interface UsuarioCatalogRow {
-  usuario: string;
-  contrasena: string;
-  rol: string;
-  nombre: string;
-}
-
 export function parseProductosCatalogCsv(csvText: string): {
   rows: ProductoCatalogRow[];
   byCode: Map<string, ProductoCatalogRow>;
@@ -968,16 +990,24 @@ export function parseProductosCatalogCsv(csvText: string): {
   for (let r = 1; r < matrix.length; r++) {
     const line = matrix[r];
     if (!line) continue;
-    const codProducto = normalizeCatalogKey(line[0]).replace(/^0+/, '') || normalizeCatalogKey(line[0]);
+    const rawCode = normalizeCatalogKey(line[0]);
+    const codProducto = rawCode.replace(/^0+/, '') || rawCode;
     const producto = normalizeCatalogKey(line[1]);
     const categoria = normalizeCatalogKey(line[2]) || 'GENERAL';
     if (!codProducto && !producto) continue;
 
-    const item: ProductoCatalogRow = { codProducto, producto, categoria };
-    rows.push(item);
+    const candidate: ProductoCatalogRow = {
+      codProducto: codProducto || producto,
+      producto: producto || codProducto,
+      categoria,
+    };
+    const valid = ProductoCatalogRowSchema.safeParse(candidate);
+    if (!valid.success) continue;
+
+    rows.push(candidate);
     if (codProducto) {
-      byCode.set(codProducto, item);
-      byCode.set(normalizeCatalogKey(line[0]), item);
+      byCode.set(codProducto, candidate);
+      byCode.set(rawCode, candidate);
     }
   }
 
@@ -999,7 +1029,8 @@ export function parseClientesCatalogCsv(csvText: string): {
   for (let r = 1; r < matrix.length; r++) {
     const line = matrix[r];
     if (!line) continue;
-    const codCliente = normalizeCatalogKey(line[0]).replace(/^0+/, '') || normalizeCatalogKey(line[0]);
+    const rawCode = normalizeCatalogKey(line[0]);
+    const codCliente = rawCode.replace(/^0+/, '') || rawCode;
     const cliente = normalizeCatalogKey(line[1]);
     const vendedorRaw = normalizeSheetSellerOrSupervisorKey(line[2]);
     const vendedor = normalizeSellerName(vendedorRaw) || vendedorRaw;
@@ -1007,18 +1038,21 @@ export function parseClientesCatalogCsv(csvText: string): {
     const categoria = normalizeCatalogKey(line[4]);
     if (!codCliente && !cliente) continue;
 
-    const item: ClienteCatalogRow = {
-      codCliente,
-      cliente,
+    const candidate: ClienteCatalogRow = {
+      codCliente: codCliente || cliente,
+      cliente: cliente || codCliente,
       vendedorRaw,
       vendedor,
       region,
       categoria,
     };
-    rows.push(item);
+    const valid = ClienteCatalogRowSchema.safeParse(candidate);
+    if (!valid.success) continue;
+
+    rows.push(candidate);
     if (codCliente) {
-      byCode.set(codCliente, item);
-      byCode.set(normalizeCatalogKey(line[0]), item);
+      byCode.set(codCliente, candidate);
+      byCode.set(rawCode, candidate);
     }
   }
 
@@ -1042,15 +1076,18 @@ export function parseSupervisoresCatalogCsv(csvText: string): {
     if (!line) continue;
     const vendedorRaw = normalizeSheetSellerOrSupervisorKey(line[0]);
     const supervisor = normalizeSheetSellerOrSupervisorKey(line[1]);
-    if (!vendedorRaw || vendedorRaw === 'VENDEDOR') continue;
+    if (!vendedorRaw || vendedorRaw === 'VENDEDOR' || !supervisor) continue;
 
     const vendedor = normalizeSellerName(vendedorRaw) || vendedorRaw;
-    const item: SupervisorCatalogRow = {
+    const candidate: SupervisorCatalogRow = {
       vendedorRaw,
       vendedor,
       supervisor,
     };
-    rows.push(item);
+    const valid = SupervisorCatalogRowSchema.safeParse(candidate);
+    if (!valid.success) continue;
+
+    rows.push(candidate);
     bySeller.set(vendedorRaw, supervisor);
     bySeller.set(vendedor, supervisor);
   }
@@ -1058,36 +1095,597 @@ export function parseSupervisoresCatalogCsv(csvText: string): {
   return { rows, bySeller };
 }
 
-export function parseUsuariosCatalogCsv(csvText: string): {
-  rows: UsuarioCatalogRow[];
-  byUsername: Map<string, UsuarioCatalogRow>;
-} {
-  const parsed = Papa.parse<string[]>(csvText || '', {
-    header: false,
-    skipEmptyLines: true,
-  });
-  const matrix = parsed.data || [];
-  const rows: UsuarioCatalogRow[] = [];
-  const byUsername = new Map<string, UsuarioCatalogRow>();
+// ============================================================================
+// 5. MOTOR MATEMÁTICO Y DE NEGOCIO PARA NOVIEMBRE 2026 (CUADRATURA COMERCIAL)
+// ============================================================================
 
-  for (let r = 1; r < matrix.length; r++) {
-    const line = matrix[r];
-    if (!line) continue;
-    const usuario = normalizeCatalogKey(line[0]);
-    const contrasena = String(line[1] || '').trim();
-    const rol = normalizeCatalogKey(line[2]);
-    const nombre = normalizeSheetSellerOrSupervisorKey(line[3]);
-    if (!usuario || usuario === 'USUARIO') continue;
+export interface SellerCommercialMetricsNov2026 {
+  vendedor: string;
+  vendedoresRawIncluidos: string[];
+  supervisor: string;
+  isExcludedInstitutional: boolean;
+  filasValidasNoviembre: number;
+  // 1. Volumen (Kg, Cajas, Monto)
+  volumenBrutoKg: number;
+  devolucionesKg: number;
+  volumenNetoKg: number;
+  cajasBrutas: number;
+  cajasDevoluciones: number;
+  cajasNetas: number;
+  montoBruto: number;
+  montoDevoluciones: number;
+  montoNeto: number;
+  cuotaVolumenHojaKg: number;
+  ventaVolumenHojaKg: number;
+  cumplimientoVolumenPct: number;
+  rankingGeneral: number | null;
+  rankingSupervisor: number | null;
+  // 2. Activación por Clientes
+  carteraClientesHoja: number;
+  carteraCuotasActivacion: number;
+  carteraAsignadaOficial: number;
+  clientesUnicosBrutos: number;
+  clientesActivadosNetos: number; // SUM(Kg) > 0 o SUM(Monto) > 0
+  clientesConDevolucionTotal: number;
+  pctActivacionClientes: number;
+  // 3. Activación por SKU (General y por Rubro)
+  skusConMovimientoBruto: number;
+  skusActivadosNetos: number; // SUM(Kg) > 0
+  skusConDevolucionTotal: number;
+  paresClienteSkuActivadosNetos: number;
+  activacionPorCategoriaProductos: Record<string, { skusActivados: number; clientesActivados: number; kgNeto: number }>;
+  activacionPorRubroFocoVentas: Record<RubroClienteCodigo, { skusActivados: number; clientesActivados: number; kgNeto: number }>;
+  cuotasActivacionHoja?: {
+    azucar: { meta: number; activados: number };
+    lecheVencampo: { meta: number; activados: number };
+    pollo: { meta: number; activados: number };
+    estandarSuperiorAsturias: { meta: number; activados: number };
+    mortadelaSalpicaoAsturias: { meta: number; activados: number };
+  };
+}
 
-    const item: UsuarioCatalogRow = {
-      usuario,
-      contrasena,
-      rol,
-      nombre,
-    };
-    rows.push(item);
-    byUsername.set(usuario, item);
+export interface November2026CommercialAuditReport {
+  period: { year: number; month: number; label: string };
+  rowCounts: {
+    totalRawRowsInVentas: number;
+    validNovember2026Rows: number;
+    ignoredBeforeNovemberRows: number;
+    rejectedMalformedRows: number;
+  };
+  globalTotals: {
+    volumenBrutoKg: number;
+    devolucionesKg: number;
+    volumenNetoKg: number;
+    cajasNetas: number;
+    montoNeto: number;
+    clientesUnicosBrutosGlobal: number;
+    clientesActivadosNetosGlobal: number;
+    skusConMovimientoBrutoGlobal: number;
+    skusActivadosNetosGlobal: number;
+  };
+  controlCaseAngelNavarro: SellerCommercialMetricsNov2026 | null;
+  sellers: SellerCommercialMetricsNov2026[];
+  referentialIntegrity: {
+    skusHuerfanosEnVentas: string[];
+    clientesHuerfanosEnVentas: string[];
+    vendedoresRawNoEnHojaSupervisores: Array<{ vendedorRaw: string; canonicalSeller: string; resolvedSupervisor: string }>;
+  };
+}
+
+const round2 = (n: number): number => Math.round((n + Number.EPSILON) * 100) / 100;
+
+/**
+ * Calcula de forma determinística la cuadratura comercial de Noviembre 2026
+ * para toda la fuerza de ventas y el caso de control obligatorio `ANGEL NAVARRO`:
+ * 1. Volumen (Kg Bruto, Devoluciones, Kg Neto, Cuota Hoja y Ranking)
+ * 2. Activación por Clientes (Neteando devoluciones: un cliente activa sí y solo sí SUM(Kg) > 0 o SUM(Monto) > 0)
+ * 3. Activación por SKU (General y por Rubro: un SKU activa sí y solo sí SUM(Kg) > 0)
+ */
+export function calculateNovember2026CommercialMetrics(params: {
+  ventasCsv: string;
+  cuotasVolumenCsv?: string;
+  cuotasActivacionCsv?: string;
+  productosCsv?: string;
+  clientesCsv?: string;
+  supervisoresCsv?: string;
+  targetYear?: number;
+  targetMonth?: number;
+}): November2026CommercialAuditReport {
+  const targetYear = params.targetYear ?? 2026;
+  const targetMonth = params.targetMonth ?? 11;
+
+  const parsedVentas = parseVentasSheetCsv(params.ventasCsv, NOVEMBER_STRICT_CUTOFF_DATE);
+  const parsedVolumen = params.cuotasVolumenCsv
+    ? parseCuotasVolumenSheetMatrix(params.cuotasVolumenCsv)
+    : { sellersOrder: [], forwardFilledRow1: [], row2Subheaders: [], items: [] };
+  const parsedActivacion = params.cuotasActivacionCsv
+    ? parseCuotasActivacionSheetMatrix(params.cuotasActivacionCsv)
+    : { categoriesRow1: [], subheadersRow2: [], rows: [] };
+  const parsedProductos = params.productosCsv
+    ? parseProductosCatalogCsv(params.productosCsv)
+    : { rows: [], byCode: new Map<string, ProductoCatalogRow>() };
+  const parsedClientes = params.clientesCsv
+    ? parseClientesCatalogCsv(params.clientesCsv)
+    : { rows: [], byCode: new Map<string, ClienteCatalogRow>() };
+  const parsedSupervisores = params.supervisoresCsv
+    ? parseSupervisoresCatalogCsv(params.supervisoresCsv)
+    : { rows: [], bySeller: new Map<string, string>() };
+
+  // Filtrar estrictamente al año y mes objetivo (Noviembre 2026: year=2026, month=11)
+  const targetPrefix = `${targetYear}-${String(targetMonth).padStart(2, '0')}`;
+  const novRows = parsedVentas.rows.filter((r) => r.fecha.startsWith(targetPrefix));
+
+  // Mapa de SKU -> Rubro Foco (5 rubros)
+  const skuToFocusRubro = new Map<string, RubroClienteCodigo>();
+  (Object.entries(ACTIVATION_CATEGORY_SKU_GROUPS) as Array<[RubroClienteCodigo, readonly string[]]>).forEach(
+    ([rubroCode, skuList]) => {
+      skuList.forEach((sku) => {
+        const clean = sku.replace(/^0+/, '') || sku;
+        skuToFocusRubro.set(clean, rubroCode);
+        skuToFocusRubro.set(sku, rubroCode);
+      });
+    }
+  );
+
+  // Acumuladores de Cuotas Volumen por vendedor canónico
+  const volumeQuotaBySeller = new Map<string, { cuotaKg: number; ventaKg: number }>();
+  for (const item of parsedVolumen.items) {
+    for (const [canonSeller, metrics] of Object.entries(item.byCanonicalSeller)) {
+      const cur = volumeQuotaBySeller.get(canonSeller) || { cuotaKg: 0, ventaKg: 0 };
+      cur.cuotaKg = round2(cur.cuotaKg + metrics.cuotaKg);
+      cur.ventaKg = round2(cur.ventaKg + metrics.ventaKg);
+      volumeQuotaBySeller.set(canonSeller, cur);
+    }
   }
 
-  return { rows, byUsername };
+  // Acumuladores de Cuotas de Activacion por vendedor canónico
+  const activationSheetBySeller = new Map<string, CuotasActivacionMatrixRow>();
+  for (const row of parsedActivacion.rows) {
+    const existing = activationSheetBySeller.get(row.vendedor);
+    if (!existing) {
+      activationSheetBySeller.set(row.vendedor, {
+        ...row,
+        categorias: {
+          azucar: { ...row.categorias.azucar },
+          lecheVencampo: { ...row.categorias.lecheVencampo },
+          pollo: { ...row.categorias.pollo },
+          estandarSuperiorAsturias: { ...row.categorias.estandarSuperiorAsturias },
+          mortadelaSalpicaoAsturias: { ...row.categorias.mortadelaSalpicaoAsturias },
+          aceite: { ...row.categorias.aceite },
+          estandarAsturias: { ...row.categorias.estandarAsturias },
+          jamonAsturias: { ...row.categorias.jamonAsturias },
+          mortadelaAsturias: { ...row.categorias.mortadelaAsturias },
+          salpicao: { ...row.categorias.salpicao },
+        },
+      });
+    } else {
+      existing.cartera += row.cartera;
+      existing.categorias.azucar.meta += row.categorias.azucar.meta;
+      existing.categorias.azucar.activados += row.categorias.azucar.activados;
+      existing.categorias.lecheVencampo.meta += row.categorias.lecheVencampo.meta;
+      existing.categorias.lecheVencampo.activados += row.categorias.lecheVencampo.activados;
+      existing.categorias.pollo.meta += row.categorias.pollo.meta;
+      existing.categorias.pollo.activados += row.categorias.pollo.activados;
+      existing.categorias.estandarSuperiorAsturias.meta += row.categorias.estandarSuperiorAsturias.meta;
+      existing.categorias.estandarSuperiorAsturias.activados += row.categorias.estandarSuperiorAsturias.activados;
+      existing.categorias.mortadelaSalpicaoAsturias.meta += row.categorias.mortadelaSalpicaoAsturias.meta;
+      existing.categorias.mortadelaSalpicaoAsturias.activados += row.categorias.mortadelaSalpicaoAsturias.activados;
+    }
+  }
+
+  // Conteo de clientes en hoja Clientes por vendedorRaw (sin reasignar ALI PEREZ -> ANGEL NAVARRO para reflejar estado literal de Clientes)
+  const clientesHojaByRawSeller = new Map<string, Set<string>>();
+  for (const cli of parsedClientes.rows) {
+    if (!clientesHojaByRawSeller.has(cli.vendedorRaw)) {
+      clientesHojaByRawSeller.set(cli.vendedorRaw, new Set());
+    }
+    clientesHojaByRawSeller.get(cli.vendedorRaw)!.add(cli.codCliente);
+  }
+
+  // Acumuladores globales
+  let globalBrutoKg = 0;
+  let globalDevKg = 0;
+  let globalNetoKg = 0;
+  let globalCajasNetas = 0;
+  let globalMontoNeto = 0;
+  const globalClientAgg = new Map<string, { kg: number; monto: number }>();
+  const globalSkuAgg = new Map<string, { kg: number; monto: number }>();
+
+  const skusHuerfanosSet = new Set<string>();
+  const clientesHuerfanosSet = new Set<string>();
+  const vendedoresRawSeen = new Map<string, string>();
+
+  interface SellerInternalAcc {
+    canonicalSeller: string;
+    rawNames: Set<string>;
+    rowCount: number;
+    brutoKg: number;
+    devKg: number;
+    netoKg: number;
+    cajasBrutas: number;
+    cajasDev: number;
+    cajasNetas: number;
+    montoBruto: number;
+    montoDev: number;
+    montoNeto: number;
+    byClient: Map<string, { kg: number; monto: number }>;
+    bySku: Map<string, { kg: number; monto: number; categoria: string }>;
+    byClientSku: Map<string, { client: string; sku: string; kg: number; monto: number; categoria: string }>;
+  }
+
+  const sellerMap = new Map<string, SellerInternalAcc>();
+
+  for (const r of novRows) {
+    const canonSeller = r.canonicalVendedor || normalizeSellerName(r.vendedorRaw) || r.vendedorRaw;
+    vendedoresRawSeen.set(r.vendedorRaw, canonSeller);
+
+    const cleanSku = r.idArticulo.replace(/^0+/, '') || r.idArticulo;
+    const cleanClient = r.idCliente.replace(/^0+/, '') || r.idCliente;
+
+    if (parsedProductos.byCode.size > 0 && !parsedProductos.byCode.has(cleanSku) && !parsedProductos.byCode.has(r.idArticulo)) {
+      skusHuerfanosSet.add(r.idArticulo);
+    }
+    if (parsedClientes.byCode.size > 0 && !parsedClientes.byCode.has(cleanClient) && !parsedClientes.byCode.has(r.idCliente)) {
+      clientesHuerfanosSet.add(r.idCliente);
+    }
+
+    const prodInfo = parsedProductos.byCode.get(cleanSku) || parsedProductos.byCode.get(r.idArticulo);
+    const categoria = prodInfo?.categoria || 'GENERAL';
+
+    // Global totals
+    if (r.kg > 0) globalBrutoKg += r.kg;
+    else if (r.kg < 0) globalDevKg += r.kg;
+    globalNetoKg += r.kg;
+    globalCajasNetas += r.cajas;
+    globalMontoNeto += r.monto;
+
+    const gCli = globalClientAgg.get(cleanClient) || { kg: 0, monto: 0 };
+    gCli.kg += r.kg;
+    gCli.monto += r.monto;
+    globalClientAgg.set(cleanClient, gCli);
+
+    const gSku = globalSkuAgg.get(cleanSku) || { kg: 0, monto: 0 };
+    gSku.kg += r.kg;
+    gSku.monto += r.monto;
+    globalSkuAgg.set(cleanSku, gSku);
+
+    if (!sellerMap.has(canonSeller)) {
+      sellerMap.set(canonSeller, {
+        canonicalSeller: canonSeller,
+        rawNames: new Set(),
+        rowCount: 0,
+        brutoKg: 0,
+        devKg: 0,
+        netoKg: 0,
+        cajasBrutas: 0,
+        cajasDev: 0,
+        cajasNetas: 0,
+        montoBruto: 0,
+        montoDev: 0,
+        montoNeto: 0,
+        byClient: new Map(),
+        bySku: new Map(),
+        byClientSku: new Map(),
+      });
+    }
+
+    const acc = sellerMap.get(canonSeller)!;
+    acc.rawNames.add(r.vendedorRaw);
+    acc.rowCount++;
+
+    if (r.kg > 0) acc.brutoKg += r.kg;
+    else if (r.kg < 0) acc.devKg += r.kg;
+    acc.netoKg += r.kg;
+
+    if (r.cajas > 0) acc.cajasBrutas += r.cajas;
+    else if (r.cajas < 0) acc.cajasDev += r.cajas;
+    acc.cajasNetas += r.cajas;
+
+    if (r.monto > 0) acc.montoBruto += r.monto;
+    else if (r.monto < 0) acc.montoDev += r.monto;
+    acc.montoNeto += r.monto;
+
+    const cAgg = acc.byClient.get(cleanClient) || { kg: 0, monto: 0 };
+    cAgg.kg += r.kg;
+    cAgg.monto += r.monto;
+    acc.byClient.set(cleanClient, cAgg);
+
+    const sAgg = acc.bySku.get(cleanSku) || { kg: 0, monto: 0, categoria };
+    sAgg.kg += r.kg;
+    sAgg.monto += r.monto;
+    acc.bySku.set(cleanSku, sAgg);
+
+    const csKey = `${cleanClient}|${cleanSku}`;
+    const csAgg = acc.byClientSku.get(csKey) || {
+      client: cleanClient,
+      sku: cleanSku,
+      kg: 0,
+      monto: 0,
+      categoria,
+    };
+    csAgg.kg += r.kg;
+    csAgg.monto += r.monto;
+    acc.byClientSku.set(csKey, csAgg);
+  }
+
+  // Construir métricas por vendedor
+  const sellersMetrics: SellerCommercialMetricsNov2026[] = [];
+
+  for (const acc of sellerMap.values()) {
+    const metaInfo = getSellerMetadata(acc.canonicalSeller);
+    const supervisor =
+      metaInfo.supervisor ||
+      parsedSupervisores.bySeller.get(acc.canonicalSeller) ||
+      'SIN SUPERVISOR';
+    const isExcludedInstitutional =
+      !isValidVolumeSeller(acc.canonicalSeller) ||
+      EXCLUDED_VOLUME_SELLERS.has(acc.canonicalSeller);
+
+    // Clientes: Neto > 0 (SUM(Kg) > 0 o SUM(Monto Neto) > 0)
+    const clientesUnicosBrutos = acc.byClient.size;
+    let clientesActivadosNetos = 0;
+    for (const cVal of acc.byClient.values()) {
+      if (round2(cVal.kg) > 0 || round2(cVal.monto) > 0) {
+        clientesActivadosNetos++;
+      }
+    }
+    const clientesConDevolucionTotal = clientesUnicosBrutos - clientesActivadosNetos;
+
+    // SKUs: Neto > 0
+    const skusConMovimientoBruto = acc.bySku.size;
+    let skusActivadosNetos = 0;
+    const catSkusMap = new Map<string, Set<string>>();
+    const catKgMap = new Map<string, number>();
+
+    for (const [skuCode, sVal] of acc.bySku.entries()) {
+      const netSkuKg = round2(sVal.kg);
+      catKgMap.set(sVal.categoria, round2((catKgMap.get(sVal.categoria) || 0) + netSkuKg));
+      if (netSkuKg > 0) {
+        skusActivadosNetos++;
+        if (!catSkusMap.has(sVal.categoria)) catSkusMap.set(sVal.categoria, new Set());
+        catSkusMap.get(sVal.categoria)!.add(skuCode);
+      }
+    }
+    const skusConDevolucionTotal = skusConMovimientoBruto - skusActivadosNetos;
+
+    // Pares (Cliente, SKU) y (Cliente, Categoría/Rubro) con Neto > 0
+    let paresClienteSkuActivadosNetos = 0;
+    const catClientsNetMap = new Map<string, Map<string, number>>();
+    const focusRubroClientsNetMap = new Map<RubroClienteCodigo, Map<string, number>>();
+    const focusRubroSkusNetMap = new Map<RubroClienteCodigo, Map<string, number>>();
+
+    const focusRubroKeys: RubroClienteCodigo[] = [
+      'AZUCAR',
+      'LECHE_VENCAMPO',
+      'POLLO',
+      'ESTANDAR_SUPERIOR_ASTURIAS',
+      'MORTADELA_SALPICAO_ASTURIAS',
+    ];
+    focusRubroKeys.forEach((rk) => {
+      focusRubroClientsNetMap.set(rk, new Map());
+      focusRubroSkusNetMap.set(rk, new Map());
+    });
+
+    for (const csVal of acc.byClientSku.values()) {
+      const netCsKg = round2(csVal.kg);
+      if (netCsKg > 0) {
+        paresClienteSkuActivadosNetos++;
+      }
+      if (!catClientsNetMap.has(csVal.categoria)) {
+        catClientsNetMap.set(csVal.categoria, new Map());
+      }
+      const cMap = catClientsNetMap.get(csVal.categoria)!;
+      cMap.set(csVal.client, round2((cMap.get(csVal.client) || 0) + csVal.kg));
+
+      const focusRubro = skuToFocusRubro.get(csVal.sku);
+      if (focusRubro) {
+        const fcMap = focusRubroClientsNetMap.get(focusRubro)!;
+        fcMap.set(csVal.client, round2((fcMap.get(csVal.client) || 0) + csVal.kg));
+        const fsMap = focusRubroSkusNetMap.get(focusRubro)!;
+        fsMap.set(csVal.sku, round2((fsMap.get(csVal.sku) || 0) + csVal.kg));
+      }
+    }
+
+    const activacionPorCategoriaProductos: Record<
+      string,
+      { skusActivados: number; clientesActivados: number; kgNeto: number }
+    > = {};
+    const allCats = new Set<string>([...catKgMap.keys(), ...catClientsNetMap.keys()]);
+    for (const cat of allCats) {
+      let activeCatClients = 0;
+      const cMap = catClientsNetMap.get(cat);
+      if (cMap) {
+        for (const kgVal of cMap.values()) {
+          if (round2(kgVal) > 0) activeCatClients++;
+        }
+      }
+      activacionPorCategoriaProductos[cat] = {
+        skusActivados: catSkusMap.get(cat)?.size || 0,
+        clientesActivados: activeCatClients,
+        kgNeto: round2(catKgMap.get(cat) || 0),
+      };
+    }
+
+    const activacionPorRubroFocoVentas = {} as Record<
+      RubroClienteCodigo,
+      { skusActivados: number; clientesActivados: number; kgNeto: number }
+    >;
+    for (const rk of focusRubroKeys) {
+      let activeRubroClients = 0;
+      let rubroKg = 0;
+      const fcMap = focusRubroClientsNetMap.get(rk)!;
+      for (const kgVal of fcMap.values()) {
+        rubroKg += kgVal;
+        if (round2(kgVal) > 0) activeRubroClients++;
+      }
+      let activeRubroSkus = 0;
+      const fsMap = focusRubroSkusNetMap.get(rk)!;
+      for (const kgVal of fsMap.values()) {
+        if (round2(kgVal) > 0) activeRubroSkus++;
+      }
+      activacionPorRubroFocoVentas[rk] = {
+        skusActivados: activeRubroSkus,
+        clientesActivados: activeRubroClients,
+        kgNeto: round2(rubroKg),
+      };
+    }
+
+    // Cartera en Clientes vs Cuotas de Activacion
+    let carteraClientesHoja = 0;
+    for (const rawName of acc.rawNames) {
+      carteraClientesHoja += clientesHojaByRawSeller.get(rawName)?.size || 0;
+    }
+    const actSheetRow = activationSheetBySeller.get(acc.canonicalSeller);
+    const carteraCuotasActivacion = actSheetRow?.cartera || 0;
+    const carteraAsignadaOficial =
+      carteraCuotasActivacion > 0 ? carteraCuotasActivacion : carteraClientesHoja;
+    const pctActivacionClientes =
+      carteraAsignadaOficial > 0
+        ? round2((clientesActivadosNetos / carteraAsignadaOficial) * 100)
+        : 0;
+
+    const volQuota = volumeQuotaBySeller.get(acc.canonicalSeller) || {
+      cuotaKg: 0,
+      ventaKg: 0,
+    };
+    const cumplimientoVolumenPct =
+      volQuota.cuotaKg > 0
+        ? round2((round2(acc.netoKg) / volQuota.cuotaKg) * 100)
+        : 0;
+
+    sellersMetrics.push({
+      vendedor: acc.canonicalSeller,
+      vendedoresRawIncluidos: Array.from(acc.rawNames).sort(),
+      supervisor,
+      isExcludedInstitutional,
+      filasValidasNoviembre: acc.rowCount,
+      volumenBrutoKg: round2(acc.brutoKg),
+      devolucionesKg: round2(acc.devKg),
+      volumenNetoKg: round2(acc.netoKg),
+      cajasBrutas: round2(acc.cajasBrutas),
+      cajasDevoluciones: round2(acc.cajasDev),
+      cajasNetas: round2(acc.cajasNetas),
+      montoBruto: round2(acc.montoBruto),
+      montoDevoluciones: round2(acc.montoDev),
+      montoNeto: round2(acc.montoNeto),
+      cuotaVolumenHojaKg: volQuota.cuotaKg,
+      ventaVolumenHojaKg: volQuota.ventaKg,
+      cumplimientoVolumenPct,
+      rankingGeneral: null,
+      rankingSupervisor: null,
+      carteraClientesHoja,
+      carteraCuotasActivacion,
+      carteraAsignadaOficial,
+      clientesUnicosBrutos,
+      clientesActivadosNetos,
+      clientesConDevolucionTotal,
+      pctActivacionClientes,
+      skusConMovimientoBruto,
+      skusActivadosNetos,
+      skusConDevolucionTotal,
+      paresClienteSkuActivadosNetos,
+      activacionPorCategoriaProductos,
+      activacionPorRubroFocoVentas,
+      cuotasActivacionHoja: actSheetRow
+        ? {
+            azucar: actSheetRow.categorias.azucar,
+            lecheVencampo: actSheetRow.categorias.lecheVencampo,
+            pollo: actSheetRow.categorias.pollo,
+            estandarSuperiorAsturias: actSheetRow.categorias.estandarSuperiorAsturias,
+            mortadelaSalpicaoAsturias: actSheetRow.categorias.mortadelaSalpicaoAsturias,
+          }
+        : undefined,
+    });
+  }
+
+  // Ordenar por volumenNetoKg descendente y asignar rankings (para vendedores activos de la fuerza de ventas)
+  sellersMetrics.sort((a, b) => b.volumenNetoKg - a.volumenNetoKg);
+
+  const activeSalesForce = sellersMetrics.filter((s) => !s.isExcludedInstitutional);
+  activeSalesForce.forEach((s, idx) => {
+    s.rankingGeneral = idx + 1;
+  });
+
+  const bySupervisorGroups = new Map<string, SellerCommercialMetricsNov2026[]>();
+  activeSalesForce.forEach((s) => {
+    if (!bySupervisorGroups.has(s.supervisor)) {
+      bySupervisorGroups.set(s.supervisor, []);
+    }
+    bySupervisorGroups.get(s.supervisor)!.push(s);
+  });
+  bySupervisorGroups.forEach((group) => {
+    group.sort((a, b) => b.volumenNetoKg - a.volumenNetoKg);
+    group.forEach((s, idx) => {
+      s.rankingSupervisor = idx + 1;
+    });
+  });
+
+  // Totales globales de clientes y SKUs activados netos
+  let globalActiveClientsNet = 0;
+  for (const cVal of globalClientAgg.values()) {
+    if (round2(cVal.kg) > 0 || round2(cVal.monto) > 0) {
+      globalActiveClientsNet++;
+    }
+  }
+  let globalActiveSkusNet = 0;
+  for (const sVal of globalSkuAgg.values()) {
+    if (round2(sVal.kg) > 0) {
+      globalActiveSkusNet++;
+    }
+  }
+
+  // Vendedores en Ventas que no aparecen literalmente en la pestaña Supervisores
+  const vendedoresRawNoEnHojaSupervisores: Array<{
+    vendedorRaw: string;
+    canonicalSeller: string;
+    resolvedSupervisor: string;
+  }> = [];
+  for (const [rawName, canonName] of vendedoresRawSeen.entries()) {
+    if (
+      parsedSupervisores.bySeller.size > 0 &&
+      !parsedSupervisores.bySeller.has(rawName) &&
+      !parsedSupervisores.bySeller.has(canonName)
+    ) {
+      vendedoresRawNoEnHojaSupervisores.push({
+        vendedorRaw: rawName,
+        canonicalSeller: canonName,
+        resolvedSupervisor: getSellerMetadata(canonName).supervisor,
+      });
+    }
+  }
+
+  const controlCaseAngelNavarro =
+    sellersMetrics.find((s) => s.vendedor === 'ANGEL NAVARRO') || null;
+
+  return {
+    period: {
+      year: targetYear,
+      month: targetMonth,
+      label: `${SPANISH_MONTH_NAMES[targetMonth - 1] || 'NOVIEMBRE'} ${targetYear}`,
+    },
+    rowCounts: {
+      totalRawRowsInVentas: parsedVentas.totalRawDataRows,
+      validNovember2026Rows: novRows.length,
+      ignoredBeforeNovemberRows: parsedVentas.ignoredBeforeCutoffCount,
+      rejectedMalformedRows: parsedVentas.rejectedMalformedCount ?? 0,
+    },
+    globalTotals: {
+      volumenBrutoKg: round2(globalBrutoKg),
+      devolucionesKg: round2(globalDevKg),
+      volumenNetoKg: round2(globalNetoKg),
+      cajasNetas: round2(globalCajasNetas),
+      montoNeto: round2(globalMontoNeto),
+      clientesUnicosBrutosGlobal: globalClientAgg.size,
+      clientesActivadosNetosGlobal: globalActiveClientsNet,
+      skusConMovimientoBrutoGlobal: globalSkuAgg.size,
+      skusActivadosNetosGlobal: globalActiveSkusNet,
+    },
+    controlCaseAngelNavarro,
+    sellers: sellersMetrics,
+    referentialIntegrity: {
+      skusHuerfanosEnVentas: Array.from(skusHuerfanosSet).sort(),
+      clientesHuerfanosEnVentas: Array.from(clientesHuerfanosSet).sort(),
+      vendedoresRawNoEnHojaSupervisores,
+    },
+  };
 }

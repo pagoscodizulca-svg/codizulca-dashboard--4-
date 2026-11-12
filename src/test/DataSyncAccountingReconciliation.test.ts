@@ -1,7 +1,11 @@
 import { describe, expect, it, beforeEach, vi } from 'vitest';
 import {
+  ALLOWED_GOOGLE_SHEET_TABS,
+  DisallowedSheetTabError,
   NOVEMBER_STRICT_CUTOFF_DATE,
+  assertAllowedSheetTab,
   buildGoogleSheetRawExportUrl,
+  forwardFillRow,
   getConfiguredGoogleSheetId,
   normalizeCatalogKey,
   normalizeSheetSellerOrSupervisorKey,
@@ -9,11 +13,11 @@ import {
   parseClientesCatalogCsv,
   parseCuotasActivacionSheetMatrix,
   parseCuotasVolumenSheetMatrix,
-  parseInventarioSheetMatrix,
   parseProductosCatalogCsv,
+  parseSheetDate,
+  parseSheetNumber,
   parseStrictAccountingNumber,
   parseSupervisoresCatalogCsv,
-  parseUsuariosCatalogCsv,
   parseVentasSheetCsv,
 } from '../lib/googleSheetsMatrixParser';
 import {
@@ -75,9 +79,11 @@ describe('Data Sync & Accounting Reconciliation (Supabase history_sales + Google
       expect(normalizeSheetSellerOrSupervisorKey('JOHNATAN  GARCIA')).toBe('JOHNATAN SOTO');
     });
 
-    it('reads Google Sheet ID from configuration and builds raw export URLs by tab GID', () => {
-      const id = getConfiguredGoogleSheetId({ VITE_GOOGLE_SHEET_ID: 'TEST_SHEET_ID_123' });
+    it('reads Google Sheet ID exclusively from server GOOGLE_SHEET_ID and builds raw export URLs by tab GID', () => {
+      const id = getConfiguredGoogleSheetId({ GOOGLE_SHEET_ID: 'TEST_SHEET_ID_123' });
       expect(id).toBe('TEST_SHEET_ID_123');
+      // Must ignore VITE_GOOGLE_SHEET_ID
+      expect(getConfiguredGoogleSheetId({ VITE_GOOGLE_SHEET_ID: 'FORBIDDEN_CLIENT_ID' })).toBe('');
       const url = buildGoogleSheetRawExportUrl('Cuotas Volumen', 'TEST_SHEET_ID_123');
       expect(url).toBe('https://docs.google.com/spreadsheets/d/TEST_SHEET_ID_123/export?format=csv&gid=1575247832');
     });
@@ -162,25 +168,23 @@ describe('Data Sync & Accounting Reconciliation (Supabase history_sales + Google
       expect(parsed.rows[0].categorias.mortadelaSalpicaoAsturias).toEqual({ meta: 24, activados: 19 });
     });
 
-    it('parses Inventario (double header with INICIAL, COMPRAS, AJUSTES, VENTAS, CUOTA blocks)', () => {
-      const sampleInventarioCsv = [
-        ',,,,INICIAL,,COMPRAS,,AJUSTES,,VENTAS,,CUOTA,',
-        'Fecha,SKU,Producto,Mínimo,Cajas,Kg,Cajas,Kg,Cajas,Kg,Cajas,Kg,Cajas,Kg',
-        '2026-10-01 0:00:00,5,CHORIZO DE TERNERA X 3KG,331.42,10,180.00,50,900.00,-2,-36.00,"1,546.50","2,835.50","2,209.49","4,050.00"',
-      ].join('\n');
-
-      const parsed = parseInventarioSheetMatrix(sampleInventarioCsv);
-      expect(parsed.rows).toHaveLength(1);
-      expect(parsed.rows[0].fecha).toBe('2026-10-01');
-      expect(parsed.rows[0].sku).toBe('5');
-      expect(parsed.rows[0].minimo).toBe(331.42);
-      expect(parsed.rows[0].inicial).toEqual({ cajas: 10, kg: 180 });
-      expect(parsed.rows[0].ajustes).toEqual({ cajas: -2, kg: -36 });
-      expect(parsed.rows[0].ventas).toEqual({ cajas: 1546.5, kg: 2835.5 });
-      expect(parsed.rows[0].cuota).toEqual({ cajas: 2209.49, kg: 4050 });
+    it('enforces the strict 6-tab allowlist and blocks administrative tabs like Usuarios and Inventario', () => {
+      expect(ALLOWED_GOOGLE_SHEET_TABS).toEqual([
+        'Ventas',
+        'Cuotas Volumen',
+        'Cuotas de Activacion',
+        'Productos',
+        'Clientes',
+        'Supervisores',
+      ]);
+      expect(() => assertAllowedSheetTab('Usuarios')).toThrow(DisallowedSheetTabError);
+      expect(() => assertAllowedSheetTab('Inventario')).toThrow(DisallowedSheetTabError);
+      expect(() => buildGoogleSheetRawExportUrl('Usuarios', 'TEST_SHEET_ID_123')).toThrow(
+        DisallowedSheetTabError
+      );
     });
 
-    it('parses Productos, Clientes, Supervisores, and Usuarios catalogs with trimmed headers and normalized keys', () => {
+    it('parses Productos, Clientes, and Supervisores catalogs with trimmed headers and normalized keys', () => {
       const prodCsv = 'Cód. Producto,Producto,"Categoria "\n005,CHORIZO DE TERNERA X 3KG,EMBUTIDOS\n';
       const prodCatalog = parseProductosCatalogCsv(prodCsv);
       expect(prodCatalog.byCode.get('5')?.categoria).toBe('EMBUTIDOS');
@@ -192,11 +196,6 @@ describe('Data Sync & Accounting Reconciliation (Supabase history_sales + Google
       const supCsv = 'Vendedor,Supervisor\nOSCAR ORTIZ-  LA COSTA,CARLOS FUENMAYOR\n';
       const supCatalog = parseSupervisoresCatalogCsv(supCsv);
       expect(supCatalog.bySeller.get('OSCAR ORTIZ- LA COSTA')).toBe('CARLOS FUENMAYOR');
-
-      const usrCsv = 'Usuario,Contraseña,Rol,Nombre\ngerencia@codizulca.com,1234,admin,GERENCIA\n';
-      const usrCatalog = parseUsuariosCatalogCsv(usrCsv);
-      expect(usrCatalog.rows).toHaveLength(1);
-      expect(usrCatalog.rows[0].rol).toBe('ADMIN');
     });
   });
 

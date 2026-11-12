@@ -138,7 +138,7 @@ export const MonthlyVolumeHistoryTable: React.FC<MonthlyVolumeHistoryTableProps>
     });
   };
 
-  // Load initial data and sync live volume quotas from Google Sheet 16pU4iEcNU_1j6sB7rZbshu2PM8OyH5hI7a24-vYO7P0
+  // Load initial data and sync live volume quotas from Google Sheet via /api/sheets
   useEffect(() => {
     let isMounted = true;
     const fetchData = async () => {

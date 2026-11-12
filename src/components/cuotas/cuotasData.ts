@@ -122,7 +122,7 @@ export interface SellerActivationRow {
   };
 }
 
-// Datos oficiales sincronizados de la pestaña "Cuotas de Activacion" (gid=1956715436) del Google Sheet 16pU4iEcNU_1j6sB7rZbshu2PM8OyH5hI7a24-vYO7P0
+// Datos oficiales sincronizados de la pestaña "Cuotas de Activacion" (gid=1956715436) del Google Sheet (process.env.GOOGLE_SHEET_ID)
 // Orden de metas y act: [azucar, lecheVencampo, pollo, estandarSuperiorAsturias, mortadelaSalpicaoAsturias]
 const SHEET_ACTIVATION_SELLERS: Array<{
   name: string;
@@ -130,31 +130,31 @@ const SHEET_ACTIVATION_SELLERS: Array<{
   metas: [number, number, number, number, number];
   act: [number, number, number, number, number];
 }> = [
-  { name: 'MARIA BRICEÑO', cartera: 125, metas: [70, 28, 40, 70, 40], act: [24, 16, 20, 15, 13] },
+  { name: 'MARIA BRICEÑO', cartera: 125, metas: [70, 28, 40, 70, 40], act: [42, 34, 26, 31, 23] },
   { name: 'CUENTAS CLAVES 1 - MC', cartera: 37, metas: [23, 15, 20, 15, 23], act: [3, 0, 1, 1, 2] },
-  { name: 'MIKELANGELO DIAZ', cartera: 90, metas: [61, 20, 45, 48, 63], act: [17, 11, 12, 7, 11] },
-  { name: 'HERNAN PAZ', cartera: 65, metas: [40, 15, 12, 40, 32], act: [3, 2, 2, 5, 1] },
-  { name: 'OSWALDO CHURION', cartera: 65, metas: [39, 15, 15, 35, 35], act: [6, 2, 0, 3, 3] },
-  { name: 'OSCAR ORTIZ', cartera: 86, metas: [38, 20, 24, 16, 20], act: [16, 4, 12, 3, 6] },
-  { name: 'CARLOS FUENMAYOR', cartera: 95, metas: [53, 30, 27, 38, 35], act: [6, 3, 9, 5, 3] },
-  { name: 'SARAH REYES', cartera: 130, metas: [78, 25, 32, 50, 52], act: [15, 12, 6, 12, 10] },
-  { name: 'J PABLO ARAUJO - CAB/OJE', cartera: 55, metas: [30, 15, 18, 20, 19], act: [9, 9, 5, 2, 6] },
-  { name: 'JOSE G. GONZALEZ', cartera: 133, metas: [60, 28, 60, 40, 42], act: [14, 17, 26, 12, 15] },
-  { name: 'ANGELICA MORENO', cartera: 87, metas: [52, 16, 62, 45, 57], act: [10, 3, 11, 6, 5] },
-  { name: 'ADEL JARABA', cartera: 84, metas: [55, 15, 42, 35, 62], act: [8, 0, 7, 2, 5] },
-  { name: 'JUAN HERNANDEZ', cartera: 104, metas: [55, 25, 12, 50, 30], act: [12, 7, 5, 11, 10] },
-  { name: 'YOLEIDA LUGO', cartera: 94, metas: [58, 50, 47, 35, 43], act: [16, 24, 8, 9, 6] },
+  { name: 'MIKELANGELO DIAZ', cartera: 90, metas: [61, 20, 45, 48, 63], act: [31, 34, 20, 29, 37] },
+  { name: 'HERNAN PAZ', cartera: 65, metas: [40, 15, 12, 40, 32], act: [7, 6, 7, 12, 5] },
+  { name: 'OSWALDO CHURION', cartera: 65, metas: [39, 15, 15, 35, 35], act: [11, 11, 2, 6, 9] },
+  { name: 'OSCAR ORTIZ', cartera: 86, metas: [38, 20, 24, 16, 20], act: [19, 8, 14, 3, 8] },
+  { name: 'CARLOS FUENMAYOR', cartera: 95, metas: [53, 30, 27, 38, 35], act: [14, 9, 10, 10, 8] },
+  { name: 'SARAH REYES', cartera: 130, metas: [78, 25, 32, 50, 52], act: [29, 19, 8, 19, 15] },
+  { name: 'J PABLO ARAUJO - CAB/OJE', cartera: 55, metas: [30, 15, 18, 20, 19], act: [19, 11, 8, 9, 9] },
+  { name: 'JOSE G. GONZALEZ', cartera: 133, metas: [60, 28, 60, 40, 42], act: [23, 19, 27, 20, 22] },
+  { name: 'ANGELICA MORENO', cartera: 87, metas: [52, 16, 62, 45, 57], act: [24, 13, 30, 11, 18] },
+  { name: 'ADEL JARABA', cartera: 84, metas: [55, 15, 42, 35, 62], act: [25, 12, 14, 13, 21] },
+  { name: 'JUAN HERNANDEZ', cartera: 104, metas: [55, 25, 12, 50, 30], act: [21, 15, 7, 17, 15] },
+  { name: 'YOLEIDA LUGO', cartera: 94, metas: [58, 50, 47, 35, 43], act: [25, 32, 13, 16, 6] },
   { name: 'CUENTAS CLAVES 2 - SV', cartera: 36, metas: [20, 18, 16, 16, 20], act: [0, 0, 0, 0, 0] },
-  { name: 'ELISA SOLER', cartera: 158, metas: [100, 53, 94, 70, 60], act: [59, 42, 33, 31, 11] },
-  { name: 'ANGEL NAVARRO', cartera: 58, metas: [40, 27, 20, 15, 15], act: [10, 10, 6, 3, 7] },
-  { name: 'J PABLO ARAUJO', cartera: 150, metas: [90, 56, 75, 55, 55], act: [46, 37, 29, 21, 7] },
-  { name: 'EDUARDO PIÑA', cartera: 174, metas: [80, 41, 25, 30, 32], act: [24, 8, 2, 5, 7] },
-  { name: 'LEONARDO RIOS', cartera: 80, metas: [52, 15, 30, 28, 30], act: [14, 8, 5, 5, 10] },
-  { name: 'MARYERY GARCIA', cartera: 148, metas: [95, 51, 65, 60, 70], act: [27, 22, 23, 17, 13] },
-  { name: 'LUIS GUANIPA', cartera: 52, metas: [35, 10, 12, 20, 25], act: [12, 13, 2, 4, 5] },
-  { name: 'PEDRO ABREU', cartera: 57, metas: [35, 15, 18, 20, 30], act: [1, 2, 3, 2, 1] },
-  { name: 'MARIANGEL GONZALEZ', cartera: 70, metas: [42, 15, 40, 15, 35], act: [22, 11, 16, 3, 7] },
-  { name: 'VICTOR CAMPOS', cartera: 71, metas: [43, 15, 25, 20, 35], act: [11, 16, 5, 6, 4] },
+  { name: 'ELISA SOLER', cartera: 158, metas: [100, 53, 94, 70, 60], act: [70, 52, 45, 39, 17] },
+  { name: 'ANGEL NAVARRO', cartera: 58, metas: [40, 27, 20, 15, 15], act: [12, 11, 7, 5, 10] },
+  { name: 'J PABLO ARAUJO', cartera: 150, metas: [90, 56, 75, 55, 55], act: [72, 46, 43, 33, 18] },
+  { name: 'EDUARDO PIÑA', cartera: 174, metas: [80, 41, 25, 30, 32], act: [38, 21, 6, 10, 14] },
+  { name: 'LEONARDO RIOS', cartera: 80, metas: [52, 15, 30, 28, 30], act: [20, 14, 6, 11, 14] },
+  { name: 'MARYERY GARCIA', cartera: 148, metas: [95, 51, 65, 60, 70], act: [58, 48, 37, 32, 30] },
+  { name: 'LUIS GUANIPA', cartera: 52, metas: [35, 10, 12, 20, 25], act: [14, 11, 2, 5, 5] },
+  { name: 'PEDRO ABREU', cartera: 57, metas: [35, 15, 18, 20, 30], act: [18, 16, 5, 10, 18] },
+  { name: 'MARIANGEL GONZALEZ', cartera: 70, metas: [42, 15, 40, 15, 35], act: [30, 25, 18, 8, 9] },
+  { name: 'VICTOR CAMPOS', cartera: 71, metas: [43, 15, 25, 20, 35], act: [22, 22, 9, 13, 7] },
 ];
 
 export const INITIAL_SELLERS_ACTIVATION: SellerActivationRow[] = SHEET_ACTIVATION_SELLERS.map((s, idx) => {

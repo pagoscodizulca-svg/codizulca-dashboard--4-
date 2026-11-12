@@ -113,19 +113,10 @@ export const GapAnalysisPanel: React.FC<GapAnalysisPanelProps> = ({
           try {
             let text = '';
             try {
-              const res = await fetch('/api/sheets?sheet=Productos');
+              const res = await fetch('/api/sheets?raw=true&sheet=Productos');
               if (res.ok) text = await res.text();
             } catch {
-              // fallback
-            }
-
-            if (!text) {
-              try {
-                const res = await fetch('https://docs.google.com/spreadsheets/d/16pU4iEcNU_1j6sB7rZbshu2PM8OyH5hI7a24-vYO7P0/gviz/tq?tqx=out:csv&sheet=Productos');
-                if (res.ok) text = await res.text();
-              } catch {
-                // direct fetch failed
-              }
+              // ignore network fallback
             }
 
             if (text) {
@@ -269,24 +260,15 @@ export const GapAnalysisPanel: React.FC<GapAnalysisPanelProps> = ({
           console.warn('Failed to load historical data in GapAnalysisPanel:', err);
         }
 
-        // 3. Fetch current active month (Noviembre 2026: 2026-11-01 .. 2026-11-30) from Google Sheets live data
+        // 3. Fetch current active month (Noviembre 2026: 2026-11-01 .. 2026-11-30) from Google Sheets live data via server proxy
         const fetchNovemberData = async () => {
           try {
             let text = '';
             try {
-              const res = await fetch(syncKey ? '/api/sheets?refresh=true' : '/api/sheets');
+              const res = await fetch(syncKey ? '/api/sheets?raw=true&sheet=Ventas&refresh=true' : '/api/sheets?raw=true&sheet=Ventas');
               if (res.ok) text = await res.text();
             } catch {
-              // fallback
-            }
-
-            if (!text) {
-              try {
-                const res = await fetch('https://docs.google.com/spreadsheets/d/16pU4iEcNU_1j6sB7rZbshu2PM8OyH5hI7a24-vYO7P0/gviz/tq?tqx=out:csv');
-                if (res.ok) text = await res.text();
-              } catch {
-                // direct failed
-              }
+              // ignore network fallback
             }
 
             if (text) {

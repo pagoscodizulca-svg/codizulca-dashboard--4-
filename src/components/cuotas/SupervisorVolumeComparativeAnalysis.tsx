@@ -107,7 +107,7 @@ export const SupervisorVolumeComparativeAnalysis: React.FC<SupervisorVolumeCompa
   sellerRows,
   supervisorRows,
   metric,
-  selectedMonth = 'OCTUBRE',
+  selectedMonth = 'NOVIEMBRE',
   diasLaborables = DEFAULT_DIAS_LABORABLES,
   diasTranscurridos = DEFAULT_DIAS_TRANSCURRIDOS,
   rawSellerMonthlyData = [],
@@ -130,7 +130,7 @@ export const SupervisorVolumeComparativeAnalysis: React.FC<SupervisorVolumeCompa
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
   const [quotasVersion, setQuotasVersion] = useState<number>(0);
 
-  // Sincronizar cuotas de volumen en vivo desde el Google Sheet 16pU4iEcNU_1j6sB7rZbshu2PM8OyH5hI7a24-vYO7P0
+  // Sincronizar cuotas de volumen en vivo desde el Google Sheet vía /api/sheets
   useEffect(() => {
     let mounted = true;
     syncVolumeQuotasFromGoogleSheet().then((updated) => {
@@ -155,8 +155,8 @@ export const SupervisorVolumeComparativeAnalysis: React.FC<SupervisorVolumeCompa
     if (availableMonths && availableMonths.length > 0) {
       return [...availableMonths].sort((a, b) => MONTH_ORDER.indexOf(a) - MONTH_ORDER.indexOf(b));
     }
-    // Fallback a meses estándar 2026 incluyendo Octubre
-    return ['ENERO', 'FEBRERO', 'MARZO', 'ABRIL', 'MAYO', 'JUNIO', 'JULIO', 'AGOSTO', 'SEPTIEMBRE', 'OCTUBRE'];
+    // Fallback a meses estándar 2026 incluyendo Noviembre
+    return ['ENERO', 'FEBRERO', 'MARZO', 'ABRIL', 'MAYO', 'JUNIO', 'JULIO', 'AGOSTO', 'SEPTIEMBRE', 'OCTUBRE', 'NOVIEMBRE'];
   }, [availableMonths]);
 
   const diasRestantes = Math.max(1, diasLaborables - diasTranscurridos);

@@ -1,4 +1,4 @@
-// Snapshot oficial sincronizado de la pestaña "Cuotas Volumen" de Google Sheets (16pU4iEcNU_1j6sB7rZbshu2PM8OyH5hI7a24-vYO7P0)
+// Snapshot oficial sincronizado de la pestaña "Cuotas Volumen" de Google Sheets (process.env.GOOGLE_SHEET_ID)
 // Sirve como base instantánea y fallback offline; se actualiza en vivo desde /api/cuotas/sku-volume y /api/sheets?sheet=Cuotas%20Volumen
 
 export const CUOTAS_VOLUMEN_CSV_SEED = `,,CARLOS FUENMAYOR,,,EDUARDO PIÑA,,,J PABLO ARAUJO,,,J PABLO ARAUJO - CAB/OJE,,,JOSE G. GONZALEZ,,,MARIA BRICEÑO,,,MARYERY GARCIA,,,PEDRO ABREU,,,SARAH REYES,,,YOLEIDA LUGO,,,CUENTAS CLAVE 1 - MC,,,CUENTAS CLAVE 2 - SV,,,ADEL JARABA,,,ANGELICA MORENO,,,HERNAN PAZ,,,MIKELANGELO DIAZ1,,,MIKELANGELO DIAZ - VILLA DEL ROS,,,JUAN HERNANDEZ,,,OSWALDO CHURION,,,MARIANGEL GONZALEZ,,,VICTOR CAMPOS,,,ANGEL NAVARRO,,,ELISA SOLER,,,LEONARDO RIOS,,,LUIS GUANIPA,,,OSCAR ORTIZ- CORO,,,OSCAR ORTIZ- LA COSTA,,,ALI PEREZ,,,JOHNATAN SOTO,,,NELSON FINOL,,
