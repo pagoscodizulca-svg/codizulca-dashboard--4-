@@ -17,6 +17,15 @@ import {
   OFFICIAL_MASTER_VENDEDORES_SEED,
   getRuntimeSellerCatalog,
 } from '../lib/maestraCatalogSanitizer';
+import {
+  ACTIVATION_CATEGORY_SKU_GROUPS,
+  RUBROS_ACTIVACION_CLIENTES,
+} from '../components/cuotas/cuotasData';
+import {
+  type ClientRubroSalesSummary,
+  buildClientRubroSalesIndex,
+  normalizeClientCode,
+} from '../lib/clientRubroActivationSync';
 import type {
   ExistingActivationRecordLike,
   ExistingCarteraRecordLike,
@@ -206,6 +215,82 @@ export function buildLocalMaestraMetadataMap(rootDir = process.cwd()): Map<
   return metaMap;
 }
 
+let cachedSalesIndexState: {
+  rootDir: string;
+  octMtimeMs: number;
+  index: Map<string, ClientRubroSalesSummary>;
+} | null = null;
+
+/**
+ * Construye y cachea en memoria el índice relacional Cliente -> Venta -> Producto -> Rubro
+ * leyendo `october_sales_rows.json` y los archivos de `cache_product_clients/*.json` de los 5 rubros foco.
+ */
+export function getLocalClientRubroSalesIndex(
+  rootDir = process.cwd()
+): Map<string, ClientRubroSalesSummary> {
+  const octPath = path.join(rootDir, 'october_sales_rows.json');
+  let octMtimeMs = 0;
+  try {
+    if (fs.existsSync(octPath)) {
+      octMtimeMs = fs.statSync(octPath).mtimeMs;
+    }
+  } catch {
+    octMtimeMs = 0;
+  }
+
+  if (
+    cachedSalesIndexState &&
+    cachedSalesIndexState.rootDir === rootDir &&
+    cachedSalesIndexState.octMtimeMs === octMtimeMs
+  ) {
+    return cachedSalesIndexState.index;
+  }
+
+  let salesRows: any[] = [];
+  try {
+    if (fs.existsSync(octPath)) {
+      const parsed = JSON.parse(fs.readFileSync(octPath, 'utf8'));
+      if (Array.isArray(parsed)) {
+        salesRows = parsed;
+      }
+    }
+  } catch {
+    salesRows = [];
+  }
+
+  const productClientCaches: Array<{ id_articulo?: unknown; articulo?: unknown; clients?: any[] }> = [];
+  try {
+    const cacheDir = path.join(rootDir, 'cache_product_clients');
+    if (fs.existsSync(cacheDir)) {
+      const focusSkus = new Set<string>();
+      for (const rubro of RUBROS_ACTIVACION_CLIENTES) {
+        for (const sku of ACTIVATION_CATEGORY_SKU_GROUPS[rubro] || []) {
+          focusSkus.add(String(sku).trim());
+        }
+      }
+      for (const sku of focusSkus) {
+        const skuFile = path.join(cacheDir, `${sku}.json`);
+        if (fs.existsSync(skuFile)) {
+          const parsedCache = JSON.parse(fs.readFileSync(skuFile, 'utf8'));
+          if (parsedCache && typeof parsedCache === 'object') {
+            productClientCaches.push(parsedCache);
+          }
+        }
+      }
+    }
+  } catch {
+    // Continuar con salesRows si no existe cache_product_clients
+  }
+
+  const index = buildClientRubroSalesIndex(salesRows, productClientCaches);
+  cachedSalesIndexState = {
+    rootDir,
+    octMtimeMs,
+    index,
+  };
+  return index;
+}
+
 /**
  * Mapea filas crudas de Supabase public.activacion_clientes a objetos tipados del Módulo de Cuotas,
  * respetando llave compuesta por ruta + cliente y filtrando bajas lógicas (status = 'BAJA_MAESTRA') por defecto.
@@ -216,6 +301,7 @@ export function mapSupabaseRowsToClientActivationList(
   includeInactive = false
 ): EnrichedClientActivationPayload[] {
   const metaMap = buildLocalMaestraMetadataMap(rootDir);
+  const salesIndex = getLocalClientRubroSalesIndex(rootDir);
   const byCompositeMap = new Map<string, EnrichedClientActivationPayload>();
 
   for (const r of supaRows) {
@@ -233,37 +319,67 @@ export function mapSupabaseRowsToClientActivationList(
     const baseCompKey = buildRouteClientKey(vNombre, cid);
     const mapKey = isBajaMaestra ? `INACTIVO::${baseCompKey}` : baseCompKey;
 
-    const cajasAzucar = Number(r.cajas_azucar) || 0;
-    const cajasLeche = Number(r.cajas_leche_vencampo ?? r.cajas_aceite) || 0;
-    const cajasPollo = Number(r.cajas_pollo) || 0;
-    const cajasEstandarSuperior =
+    const salesSummary = !isBajaMaestra ? salesIndex.get(normalizeClientCode(cid)) : undefined;
+
+    const cajasAzucar = Math.max(
+      Number(r.cajas_azucar) || 0,
+      salesSummary?.rubroNetVolume.AZUCAR || 0
+    );
+    const cajasLeche = Math.max(
+      Number(r.cajas_leche_vencampo ?? r.cajas_aceite) || 0,
+      salesSummary?.rubroNetVolume.LECHE_VENCAMPO || 0
+    );
+    const cajasPollo = Math.max(
+      Number(r.cajas_pollo) || 0,
+      salesSummary?.rubroNetVolume.POLLO || 0
+    );
+    const cajasEstandarSuperior = Math.max(
       Number(
         r.cajas_estandar_superior_asturias ?? r.cajas_estandar_asturias ?? r.cajas_jamon_asturias
-      ) || 0;
-    const cajasMortadelaSalpicao =
+      ) || 0,
+      salesSummary?.rubroNetVolume.ESTANDAR_SUPERIOR_ASTURIAS || 0
+    );
+    const cajasMortadelaSalpicao = Math.max(
       Number(
         r.cajas_mortadela_salpicao_asturias ??
           r.cajas_mortadela_salpicao ??
           r.cajas_mortadela_asturias ??
           r.cajas_salpicao
-      ) || 0;
+      ) || 0,
+      salesSummary?.rubroNetVolume.MORTADELA_SALPICAO_ASTURIAS || 0
+    );
 
-    const hasAzucar = Boolean(r.has_azucar) || cajasAzucar > 0;
-    const hasLecheVencampo = Boolean(r.has_leche_vencampo ?? r.has_aceite) || cajasLeche > 0;
-    const hasPollo = Boolean(r.has_pollo) || cajasPollo > 0;
+    const hasAzucar =
+      Boolean(r.has_azucar) ||
+      Boolean(salesSummary?.activeRubros.has('AZUCAR')) ||
+      cajasAzucar > 0;
+    const hasLecheVencampo =
+      Boolean(r.has_leche_vencampo) ||
+      Boolean(r.has_aceite) ||
+      Boolean(salesSummary?.activeRubros.has('LECHE_VENCAMPO')) ||
+      cajasLeche > 0;
+    const hasPollo =
+      Boolean(r.has_pollo) ||
+      Boolean(salesSummary?.activeRubros.has('POLLO')) ||
+      cajasPollo > 0;
     const hasEstandarSuperior =
-      Boolean(
-        r.has_estandar_superior_asturias ?? r.has_estandar_asturias ?? r.has_jamon_asturias
-      ) || cajasEstandarSuperior > 0;
+      Boolean(r.has_estandar_superior_asturias) ||
+      Boolean(r.has_estandar_asturias) ||
+      Boolean(r.has_jamon_asturias) ||
+      Boolean(salesSummary?.activeRubros.has('ESTANDAR_SUPERIOR_ASTURIAS')) ||
+      cajasEstandarSuperior > 0;
     const hasMortadelaSalpicao =
-      Boolean(
-        r.has_mortadela_salpicao_asturias ??
-          r.has_mortadela_salpicao ??
-          r.has_mortadela_asturias ??
-          r.has_salpicao
-      ) || cajasMortadelaSalpicao > 0;
+      Boolean(r.has_mortadela_salpicao_asturias) ||
+      Boolean(r.has_mortadela_salpicao) ||
+      Boolean(r.has_mortadela_asturias) ||
+      Boolean(r.has_salpicao) ||
+      Boolean(salesSummary?.activeRubros.has('MORTADELA_SALPICAO_ASTURIAS')) ||
+      cajasMortadelaSalpicao > 0;
 
     const meta = metaMap.get(baseCompKey) || metaMap.get(`ID_ONLY::${cid}`);
+    const hasAnySales = Boolean(
+      salesSummary && (salesSummary.totalNetVolume > 0 || salesSummary.totalNetAmount > 0)
+    );
     const effectiveStatus = isBajaMaestra
       ? 'BAJA_MAESTRA'
       : hasAzucar ||
@@ -271,6 +387,7 @@ export function mapSupabaseRowsToClientActivationList(
         hasPollo ||
         hasEstandarSuperior ||
         hasMortadelaSalpicao ||
+        hasAnySales ||
         rawStatus === 'ACTIVO'
       ? 'ACTIVO'
       : 'INACTIVO';
@@ -406,6 +523,7 @@ export async function executeMaestraActivaBatchSync(
     supaByClient.get(cid)!.push(row);
   }
 
+  const salesIndex = getLocalClientRubroSalesIndex(rootDir);
   const usedDbRowIds = new Set<number>();
   const rowsToUpsertById: Array<Record<string, unknown>> = [];
   const rowsToInsertNew: Array<{ rec: MaestraSanitizedClient; payload: Record<string, unknown> }> = [];
@@ -423,21 +541,79 @@ export async function executeMaestraActivaBatchSync(
       }
     }
 
+    const salesSummary = salesIndex.get(normalizeClientCode(rec.idCliente));
+    const salesCajasAzucar = salesSummary?.rubroNetVolume.AZUCAR || 0;
+    const salesCajasLeche = salesSummary?.rubroNetVolume.LECHE_VENCAMPO || 0;
+    const salesCajasPollo = salesSummary?.rubroNetVolume.POLLO || 0;
+    const salesCajasEstandar = salesSummary?.rubroNetVolume.ESTANDAR_SUPERIOR_ASTURIAS || 0;
+    const salesCajasMortadela = salesSummary?.rubroNetVolume.MORTADELA_SALPICAO_ASTURIAS || 0;
+    const hasSalesActivity = Boolean(
+      salesSummary &&
+        (salesSummary.totalNetVolume > 0 ||
+          salesSummary.totalNetAmount > 0 ||
+          salesSummary.activeRubros.size > 0)
+    );
+
     if (matchedRow && typeof matchedRow.id === 'number' && !usedDbRowIds.has(Number(matchedRow.id))) {
       const rowId = Number(matchedRow.id);
       usedDbRowIds.add(rowId);
 
-      const hasPurchases =
+      const mergedCajasLeche = Math.max(
+        Number(matchedRow.cajas_leche_vencampo ?? matchedRow.cajas_aceite) || 0,
+        salesCajasLeche
+      );
+      const mergedCajasAzucar = Math.max(Number(matchedRow.cajas_azucar) || 0, salesCajasAzucar);
+      const mergedCajasPollo = Math.max(Number(matchedRow.cajas_pollo) || 0, salesCajasPollo);
+      const mergedCajasEstandar = Math.max(
+        Number(
+          matchedRow.cajas_estandar_superior_asturias ??
+            matchedRow.cajas_estandar_asturias ??
+            matchedRow.cajas_jamon_asturias
+        ) || 0,
+        salesCajasEstandar
+      );
+      const mergedCajasMortadela = Math.max(
+        Number(
+          matchedRow.cajas_mortadela_salpicao_asturias ??
+            matchedRow.cajas_mortadela_salpicao ??
+            matchedRow.cajas_mortadela_asturias
+        ) || 0,
+        salesCajasMortadela
+      );
+
+      const mergedHasLeche =
+        Boolean(matchedRow.has_leche_vencampo) ||
+        Boolean(matchedRow.has_aceite) ||
+        Boolean(salesSummary?.activeRubros.has('LECHE_VENCAMPO')) ||
+        mergedCajasLeche > 0;
+      const mergedHasAzucar =
         Boolean(matchedRow.has_azucar) ||
-        Boolean(matchedRow.has_leche_vencampo ?? matchedRow.has_pollo) ||
-        Boolean(matchedRow.has_jamon_asturias ?? matchedRow.has_estandar_asturias) ||
-        Boolean(matchedRow.has_mortadela_asturias ?? matchedRow.has_mortadela_salpicao) ||
-        Boolean(matchedRow.has_salpicao ?? matchedRow.has_aceite) ||
-        (Number(matchedRow.cajas_azucar) || 0) > 0 ||
-        (Number(matchedRow.cajas_leche_vencampo ?? matchedRow.cajas_pollo) || 0) > 0 ||
-        (Number(matchedRow.cajas_jamon_asturias ?? matchedRow.cajas_estandar_asturias) || 0) > 0 ||
-        (Number(matchedRow.cajas_mortadela_asturias ?? matchedRow.cajas_mortadela_salpicao) || 0) > 0 ||
-        (Number(matchedRow.cajas_salpicao ?? matchedRow.cajas_aceite) || 0) > 0;
+        Boolean(salesSummary?.activeRubros.has('AZUCAR')) ||
+        mergedCajasAzucar > 0;
+      const mergedHasPollo =
+        Boolean(matchedRow.has_pollo) ||
+        Boolean(salesSummary?.activeRubros.has('POLLO')) ||
+        mergedCajasPollo > 0;
+      const mergedHasEstandar =
+        Boolean(matchedRow.has_estandar_superior_asturias) ||
+        Boolean(matchedRow.has_estandar_asturias) ||
+        Boolean(matchedRow.has_jamon_asturias) ||
+        Boolean(salesSummary?.activeRubros.has('ESTANDAR_SUPERIOR_ASTURIAS')) ||
+        mergedCajasEstandar > 0;
+      const mergedHasMortadela =
+        Boolean(matchedRow.has_mortadela_salpicao_asturias) ||
+        Boolean(matchedRow.has_mortadela_salpicao) ||
+        Boolean(matchedRow.has_mortadela_asturias) ||
+        Boolean(salesSummary?.activeRubros.has('MORTADELA_SALPICAO_ASTURIAS')) ||
+        mergedCajasMortadela > 0;
+
+      const hasPurchases =
+        mergedHasLeche ||
+        mergedHasAzucar ||
+        mergedHasPollo ||
+        mergedHasEstandar ||
+        mergedHasMortadela ||
+        hasSalesActivity;
 
       const currentStatus = sanitizeMaestraText(matchedRow.status).toUpperCase();
       const wasLogicallyInactive = isActivationRecordLogicallyInactive(matchedRow);
@@ -451,7 +627,12 @@ export async function executeMaestraActivaBatchSync(
         String(matchedRow.cliente_nombre || '') !== rec.razonSocial ||
         sanitizeMaestraText(matchedRow.vendedor_nombre).toUpperCase() !== rec.vendedor ||
         sanitizeMaestraText(matchedRow.vendedor_id).toUpperCase() !== rec.vendedor ||
-        currentStatus !== restoredStatus;
+        currentStatus !== restoredStatus ||
+        Boolean(matchedRow.has_aceite) !== mergedHasLeche ||
+        Boolean(matchedRow.has_azucar) !== mergedHasAzucar ||
+        Boolean(matchedRow.has_pollo) !== mergedHasPollo ||
+        Boolean(matchedRow.has_estandar_asturias) !== mergedHasEstandar ||
+        Boolean(matchedRow.has_mortadela_salpicao) !== mergedHasMortadela;
 
       if (needsUpdate) {
         rowsToUpsertById.push({
@@ -462,38 +643,42 @@ export async function executeMaestraActivaBatchSync(
           vendedor_id: rec.vendedor,
           vendedor_nombre: rec.vendedor,
           status: restoredStatus,
-          cajas_aceite: Number(matchedRow.cajas_leche_vencampo ?? matchedRow.cajas_aceite) || 0,
-          cajas_azucar: Number(matchedRow.cajas_azucar) || 0,
-          cajas_pollo: Number(matchedRow.cajas_pollo) || 0,
-          cajas_estandar_asturias:
-            Number(
-              matchedRow.cajas_estandar_superior_asturias ??
-                matchedRow.cajas_estandar_asturias ??
-                matchedRow.cajas_jamon_asturias
-            ) || 0,
-          cajas_mortadela_salpicao:
-            Number(
-              matchedRow.cajas_mortadela_salpicao_asturias ??
-                matchedRow.cajas_mortadela_salpicao ??
-                matchedRow.cajas_mortadela_asturias
-            ) || 0,
-          has_aceite: Boolean(matchedRow.has_leche_vencampo ?? matchedRow.has_aceite),
-          has_azucar: Boolean(matchedRow.has_azucar),
-          has_pollo: Boolean(matchedRow.has_pollo),
-          has_estandar_asturias: Boolean(
-            matchedRow.has_estandar_superior_asturias ??
-              matchedRow.has_estandar_asturias ??
-              matchedRow.has_jamon_asturias
-          ),
-          has_mortadela_salpicao: Boolean(
-            matchedRow.has_mortadela_salpicao_asturias ??
-              matchedRow.has_mortadela_salpicao ??
-              matchedRow.has_mortadela_asturias
-          ),
+          cajas_aceite: mergedCajasLeche,
+          cajas_azucar: mergedCajasAzucar,
+          cajas_pollo: mergedCajasPollo,
+          cajas_estandar_asturias: mergedCajasEstandar,
+          cajas_mortadela_salpicao: mergedCajasMortadela,
+          has_aceite: mergedHasLeche,
+          has_azucar: mergedHasAzucar,
+          has_pollo: mergedHasPollo,
+          has_estandar_asturias: mergedHasEstandar,
+          has_mortadela_salpicao: mergedHasMortadela,
         });
       }
     } else {
-      // Nueva alta (ej. Id = 8377 bajo LUIS GUANIPA o clientes nuevos)
+      // Nueva alta (ej. Id = 8377 bajo LUIS GUANIPA o clientes nuevos) enriquecida con ventas reales
+      const newHasLeche =
+        Boolean(salesSummary?.activeRubros.has('LECHE_VENCAMPO')) || salesCajasLeche > 0;
+      const newHasAzucar =
+        Boolean(salesSummary?.activeRubros.has('AZUCAR')) || salesCajasAzucar > 0;
+      const newHasPollo =
+        Boolean(salesSummary?.activeRubros.has('POLLO')) || salesCajasPollo > 0;
+      const newHasEstandar =
+        Boolean(salesSummary?.activeRubros.has('ESTANDAR_SUPERIOR_ASTURIAS')) ||
+        salesCajasEstandar > 0;
+      const newHasMortadela =
+        Boolean(salesSummary?.activeRubros.has('MORTADELA_SALPICAO_ASTURIAS')) ||
+        salesCajasMortadela > 0;
+      const newStatus =
+        newHasLeche ||
+        newHasAzucar ||
+        newHasPollo ||
+        newHasEstandar ||
+        newHasMortadela ||
+        hasSalesActivity
+          ? 'ACTIVO'
+          : 'INACTIVO';
+
       rowsToInsertNew.push({
         rec,
         payload: {
@@ -502,17 +687,17 @@ export async function executeMaestraActivaBatchSync(
           cliente_nombre: rec.razonSocial,
           vendedor_id: rec.vendedor,
           vendedor_nombre: rec.vendedor,
-          status: 'INACTIVO',
-          cajas_aceite: 0,
-          cajas_azucar: 0,
-          cajas_pollo: 0,
-          cajas_estandar_asturias: 0,
-          cajas_mortadela_salpicao: 0,
-          has_aceite: false,
-          has_azucar: false,
-          has_pollo: false,
-          has_estandar_asturias: false,
-          has_mortadela_salpicao: false,
+          status: newStatus,
+          cajas_aceite: salesCajasLeche,
+          cajas_azucar: salesCajasAzucar,
+          cajas_pollo: salesCajasPollo,
+          cajas_estandar_asturias: salesCajasEstandar,
+          cajas_mortadela_salpicao: salesCajasMortadela,
+          has_aceite: newHasLeche,
+          has_azucar: newHasAzucar,
+          has_pollo: newHasPollo,
+          has_estandar_asturias: newHasEstandar,
+          has_mortadela_salpicao: newHasMortadela,
         },
       });
     }

@@ -43,8 +43,8 @@ export const CampoEncuestas: React.FC<{ activePromoterName?: string }> = ({
   }>();
   const activePromoter = context?.activePromoter || campoService.getActivePromoter();
 
-  // 1. Selector de Modelo: 'corta' o 'larga' (Exacto a las imágenes subidas)
-  const [surveyType, setSurveyType] = useState<'corta' | 'larga'>('corta');
+  // Tipo de encuesta fijo internamente en 'larga' ('extendida' / 'Profunda')
+  const surveyType = 'larga' as const;
 
   // Datos Generales sincronizados con la tienda activa de la promotora
   const [storeName, setStoreName] = useState<string>(() => {
@@ -60,13 +60,9 @@ export const CampoEncuestas: React.FC<{ activePromoterName?: string }> = ({
   });
   const [selectedProduct, setSelectedProduct] = useState<string>('Arroz Vencampo 900gr');
 
-  // === MODELO 1: ENCUESTA CORTA ===
-  const [saborCalidadCorta, setSaborCalidadCorta] = useState<number>(5);
-  const [comprariaCorta, setComprariaCorta] = useState<'Sí, seguro' | 'Tal vez' | 'No por ahora'>('Sí, seguro');
-  const [comentariosCorta, setComentariosCorta] = useState<string>('');
-
-  // === MODELO 2: ENCUESTA LARGA ===
-  const [saborTexturaLarga, setSaborTexturaLarga] = useState<number>(5);
+  // === ENCUESTA LARGA ===
+  const [saborLarga, setSaborLarga] = useState<number>(5);
+  const [texturaLarga, setTexturaLarga] = useState<number>(5);
   const [intencionCompraLarga, setIntencionCompraLarga] = useState<'Muy probable' | 'Probable' | 'Poco probable' | 'Nada probable'>('Muy probable');
   const [percepcionCalidadLarga, setPercepcionCalidadLarga] = useState<'Mejor' | 'Igual' | 'Peor'>('Mejor');
   const [relacionCalidadPrecioLarga, setRelacionCalidadPrecioLarga] = useState<'Excelente' | 'Buena' | 'Regular' | 'Mala'>('Excelente');
@@ -108,46 +104,19 @@ export const CampoEncuestas: React.FC<{ activePromoterName?: string }> = ({
     }
   };
 
-  // Envío de Encuesta Corta
-  const handleSubmitCorta = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!storeName.trim()) {
-      alert('Por favor ingresa la tienda o local.');
-      return;
-    }
-
-    setIsSubmitting(true);
-    try {
-      const generatedId =
-        typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
-          ? crypto.randomUUID()
-          : 'SURV-CORTA-' + Date.now().toString().slice(-6);
-      const payload: TastingSurveyPayload = {
-        id: generatedId,
-        date: new Date().toISOString(),
-        store: storeName.trim(),
-        promoter: activePromoterName || activePromoter?.name || campoService.getActivePromoter().name,
-        type: 'rapida',
-        productName: selectedProduct,
-        ratingOverall: saborCalidadCorta,
-        purchaseIntent: comprariaCorta === 'Sí, seguro' ? 'SI' : comprariaCorta === 'Tal vez' ? 'TAL_VEZ' : 'NO',
-        comments: comentariosCorta.trim() || undefined
-      };
-
-      const res = await campoService.saveTastingSurvey(payload);
-      await syncProgressWithAssignedDegustacion(saborCalidadCorta);
-      setSubmittedSuccess(true);
-      setIsOfflineSaved(res.offline);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
   // Envío de Encuesta Larga
   const handleSubmitLarga = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!storeName.trim()) {
       alert('Por favor ingresa la tienda o local.');
+      return;
+    }
+    if (!saborLarga || saborLarga < 1 || saborLarga > 5) {
+      alert('Por favor selecciona la calificación de sabor (1 al 5).');
+      return;
+    }
+    if (!texturaLarga || texturaLarga < 1 || texturaLarga > 5) {
+      alert('Por favor selecciona la calificación de textura (1 al 5).');
       return;
     }
 
@@ -167,8 +136,8 @@ export const CampoEncuestas: React.FC<{ activePromoterName?: string }> = ({
         ratingOverall: recomendacionLarga,
         purchaseIntent: (intencionCompraLarga === 'Muy probable' || intencionCompraLarga === 'Probable') ? 'SI' : 'NO',
         sensoryRatings: {
-          sabor: saborTexturaLarga,
-          textura: saborTexturaLarga,
+          sabor: saborLarga,
+          textura: texturaLarga,
           aroma: 5
         },
         comments: `[Percepción: ${percepcionCalidadLarga} | Calidad/Precio: ${relacionCalidadPrecioLarga} | Intención: ${intencionCompraLarga}] ${comentariosLarga.trim()}`
@@ -184,43 +153,12 @@ export const CampoEncuestas: React.FC<{ activePromoterName?: string }> = ({
   };
 
   const handleReset = () => {
-    setComentariosCorta('');
     setComentariosLarga('');
     setSubmittedSuccess(false);
   };
 
   return (
     <div className="space-y-4 animate-in fade-in duration-300">
-      
-      {/* ========================================================================= */}
-      {/* SELECTOR SUPERIOR DE PESTAÑAS: ENCUESTA CORTA / ENCUESTA LARGA            */}
-      {/* ========================================================================= */}
-      <div className="grid grid-cols-2 gap-2 bg-[#0d0d0d] p-1.5 rounded-2xl border border-neutral-800">
-        <button
-          type="button"
-          onClick={() => { setSurveyType('corta'); setSubmittedSuccess(false); }}
-          className={`py-3 px-4 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
-            surveyType === 'corta'
-              ? 'bg-[#e60000] text-white shadow-lg shadow-red-600/30'
-              : 'text-neutral-400 hover:text-white bg-transparent'
-          }`}
-        >
-          ENCUESTA CORTA
-        </button>
-
-        <button
-          type="button"
-          onClick={() => { setSurveyType('larga'); setSubmittedSuccess(false); }}
-          className={`py-3 px-4 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
-            surveyType === 'larga'
-              ? 'bg-[#e60000] text-white shadow-lg shadow-red-600/30'
-              : 'text-neutral-400 hover:text-white bg-transparent'
-          }`}
-        >
-          ENCUESTA LARGA
-        </button>
-      </div>
-
       {/* Pantalla de Éxito al Enviar */}
       {submittedSuccess ? (
         <div className="bg-[#0d0d0d] border border-emerald-500/40 rounded-2xl p-6 text-center space-y-4 shadow-xl">
@@ -239,7 +177,7 @@ export const CampoEncuestas: React.FC<{ activePromoterName?: string }> = ({
           <div className="p-3.5 bg-[#171717] rounded-xl border border-neutral-800 text-xs font-mono flex items-center justify-around">
             <div>
               <span className="text-neutral-500 block text-[10px]">Modelo</span>
-              <strong className="text-white uppercase">{surveyType === 'corta' ? 'Encuesta Corta' : 'Encuesta Larga'}</strong>
+              <strong className="text-white uppercase">{surveyType === 'larga' ? 'Encuesta Larga' : 'Encuesta Larga'}</strong>
             </div>
             <div className="h-6 w-px bg-neutral-800" />
             <div>
@@ -260,116 +198,9 @@ export const CampoEncuestas: React.FC<{ activePromoterName?: string }> = ({
             Aplicar Nueva Encuesta
           </button>
         </div>
-      ) : surveyType === 'corta' ? (
-        /* ========================================================================= */
-        /* MODELO 1: ENCUESTA CORTA (EXACTO A IMAGE 1)                                */
-        /* ========================================================================= */
-        <form onSubmit={handleSubmitCorta} className="space-y-3">
-          
-          {/* CARD 1: TIENDA / LOCAL Y PRODUCTO IMPULSADO - CATEGORÍA */}
-          <div className="bg-[#0d0d0d] border border-neutral-800 rounded-2xl p-4 space-y-3 shadow-xl">
-            <CampoStoreSelector
-              value={storeName}
-              onChange={(val) => setStoreName(val)}
-              label="TIENDA / LOCAL"
-            />
-
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <label className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
-                  PRODUCTO IMPULSADO - CATEGORÍA
-                </label>
-                <span className="px-2.5 py-0.5 rounded-lg bg-neutral-800 border border-neutral-700 text-amber-400 text-[10px] font-bold flex items-center gap-1">
-                  <Sparkles className="w-3 h-3 text-amber-400" />
-                  <span>{selectedProduct}</span>
-                </span>
-              </div>
-              <select
-                value={selectedProduct}
-                onChange={(e) => setSelectedProduct(e.target.value)}
-                className="w-full bg-[#000000] border border-neutral-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-red-500 cursor-pointer"
-              >
-                <option value="" disabled>Selecciona una categoría...</option>
-                {AVAILABLE_PRODUCTS.map((prod) => (
-                  <option key={prod} value={prod}>{prod}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {/* CARD 2: CALIFICACIÓN DE SABOR / CALIDAD (1 AL 5) */}
-          <div className="bg-[#0d0d0d] border border-neutral-800 rounded-2xl p-4 space-y-2.5 shadow-xl">
-            <label className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 block">
-              CALIFICACIÓN DE SABOR / CALIDAD (1 AL 5)
-            </label>
-            <div className="grid grid-cols-5 gap-2">
-              {[1, 2, 3, 4, 5].map((num) => (
-                <button
-                  key={num}
-                  type="button"
-                  onClick={() => setSaborCalidadCorta(num)}
-                  className={`py-3 rounded-xl border text-center font-black text-sm transition-all cursor-pointer ${
-                    saborCalidadCorta === num
-                      ? 'bg-[#e60000] border-red-500 text-white shadow-lg shadow-red-950/60 scale-[1.02]'
-                      : 'bg-[#000000] border-neutral-800 text-white hover:border-neutral-700'
-                  }`}
-                >
-                  {num}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* CARD 3: ¿EL CLIENTE COMPRARÍA EL PRODUCTO? */}
-          <div className="bg-[#0d0d0d] border border-neutral-800 rounded-2xl p-4 space-y-2.5 shadow-xl">
-            <label className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 block">
-              ¿EL CLIENTE COMPRARÍA EL PRODUCTO?
-            </label>
-            <div className="grid grid-cols-3 gap-2">
-              {(['Sí, seguro', 'Tal vez', 'No por ahora'] as const).map((opt) => (
-                <button
-                  key={opt}
-                  type="button"
-                  onClick={() => setComprariaCorta(opt)}
-                  className={`py-3 px-1 rounded-xl border text-center text-xs font-black transition-all cursor-pointer ${
-                    comprariaCorta === opt
-                      ? 'bg-[#e60000] border-red-500 text-white shadow-lg shadow-red-950/60'
-                      : 'bg-[#000000] border-neutral-800 text-neutral-300 hover:text-white hover:border-neutral-700'
-                  }`}
-                >
-                  {opt}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* CARD 4: COMENTARIOS DEL CLIENTE (OPCIONAL) */}
-          <div className="bg-[#0d0d0d] border border-neutral-800 rounded-2xl p-4 space-y-2 shadow-xl">
-            <label className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 block">
-              COMENTARIOS DEL CLIENTE (OPCIONAL)
-            </label>
-            <textarea
-              value={comentariosCorta}
-              onChange={(e) => setComentariosCorta(e.target.value)}
-              placeholder="Ej. Le pareció buen sabor, preguntó por presentación de 1kg..."
-              rows={3}
-              className="w-full bg-[#000000] border border-neutral-800 rounded-xl p-3 text-xs text-white placeholder-neutral-600 focus:outline-none focus:border-red-500 resize-none"
-            />
-          </div>
-
-          {/* BOTÓN DE ENVÍO */}
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="w-full py-4 rounded-2xl bg-[#e60000] hover:bg-red-600 text-white font-black text-sm uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-red-600/30 active:scale-[0.98] transition-all cursor-pointer"
-          >
-            <ClipboardList className="w-4 h-4" />
-            <span>{isSubmitting ? 'Enviando...' : 'Enviar Encuesta Corta'}</span>
-          </button>
-        </form>
       ) : (
         /* ========================================================================= */
-        /* MODELO 2: ENCUESTA LARGA (EXACTO A IMAGE 2)                                */
+        /* MODELO: ENCUESTA LARGA                                                    */
         /* ========================================================================= */
         <form onSubmit={handleSubmitLarga} className="space-y-3">
           
@@ -404,14 +235,14 @@ export const CampoEncuestas: React.FC<{ activePromoterName?: string }> = ({
             </div>
           </div>
 
-          {/* CARD 2: 1. SABOR Y TEXTURA (1 AL 5) */}
+          {/* CARD 2A: CALIFICACIÓN DE SABOR (1 AL 5) */}
           <div className="bg-[#0d0d0d] border border-neutral-800 rounded-2xl p-4 space-y-2 shadow-xl">
             <div>
               <label className="text-[10px] font-bold uppercase tracking-wider text-neutral-300 block">
-                1. SABOR Y TEXTURA (1 AL 5)
+                CALIFICACIÓN DE SABOR (1 AL 5)
               </label>
               <p className="text-[11px] text-neutral-500">
-                ¿Cómo califica el sabor y la textura del producto que acaba de probar?
+                ¿Cómo califica el sabor del producto que acaba de probar?
               </p>
             </div>
             <div className="grid grid-cols-5 gap-2 pt-1">
@@ -419,9 +250,37 @@ export const CampoEncuestas: React.FC<{ activePromoterName?: string }> = ({
                 <button
                   key={num}
                   type="button"
-                  onClick={() => setSaborTexturaLarga(num)}
+                  onClick={() => setSaborLarga(num)}
                   className={`py-3 rounded-xl border text-center font-black text-sm transition-all cursor-pointer ${
-                    saborTexturaLarga === num
+                    saborLarga === num
+                      ? 'bg-[#e60000] border-red-500 text-white shadow-lg shadow-red-950/60 scale-[1.02]'
+                      : 'bg-[#000000] border-neutral-800 text-white hover:border-neutral-700'
+                  }`}
+                >
+                  {num}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* CARD 2B: CALIFICACIÓN DE TEXTURA (1 AL 5) */}
+          <div className="bg-[#0d0d0d] border border-neutral-800 rounded-2xl p-4 space-y-2 shadow-xl">
+            <div>
+              <label className="text-[10px] font-bold uppercase tracking-wider text-neutral-300 block">
+                CALIFICACIÓN DE TEXTURA (1 AL 5)
+              </label>
+              <p className="text-[11px] text-neutral-500">
+                ¿Cómo califica la textura del producto que acaba de probar?
+              </p>
+            </div>
+            <div className="grid grid-cols-5 gap-2 pt-1">
+              {[1, 2, 3, 4, 5].map((num) => (
+                <button
+                  key={num}
+                  type="button"
+                  onClick={() => setTexturaLarga(num)}
+                  className={`py-3 rounded-xl border text-center font-black text-sm transition-all cursor-pointer ${
+                    texturaLarga === num
                       ? 'bg-[#e60000] border-red-500 text-white shadow-lg shadow-red-950/60 scale-[1.02]'
                       : 'bg-[#000000] border-neutral-800 text-white hover:border-neutral-700'
                   }`}

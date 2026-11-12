@@ -655,15 +655,23 @@ export function compareMaestraAgainstDatabase(
 
     const hasPurchase =
       Boolean(r.has_azucar) ||
-      Boolean(r.has_leche_vencampo ?? r.has_pollo) ||
-      Boolean(r.has_jamon_asturias ?? r.has_estandar_asturias) ||
-      Boolean(r.has_mortadela_asturias ?? r.has_mortadela_salpicao) ||
-      Boolean(r.has_salpicao ?? r.has_aceite) ||
+      Boolean(r.has_leche_vencampo) ||
+      Boolean(r.has_pollo) ||
+      Boolean(r.has_jamon_asturias) ||
+      Boolean(r.has_estandar_asturias) ||
+      Boolean(r.has_mortadela_asturias) ||
+      Boolean(r.has_mortadela_salpicao) ||
+      Boolean(r.has_salpicao) ||
+      Boolean(r.has_aceite) ||
       (Number(r.cajas_azucar) || 0) > 0 ||
-      (Number(r.cajas_leche_vencampo ?? r.cajas_pollo) || 0) > 0 ||
-      (Number(r.cajas_jamon_asturias ?? r.cajas_estandar_asturias) || 0) > 0 ||
-      (Number(r.cajas_mortadela_asturias ?? r.cajas_mortadela_salpicao) || 0) > 0 ||
-      (Number(r.cajas_salpicao ?? r.cajas_aceite) || 0) > 0 ||
+      (Number(r.cajas_leche_vencampo) || 0) > 0 ||
+      (Number(r.cajas_pollo) || 0) > 0 ||
+      (Number(r.cajas_jamon_asturias) || 0) > 0 ||
+      (Number(r.cajas_estandar_asturias) || 0) > 0 ||
+      (Number(r.cajas_mortadela_asturias) || 0) > 0 ||
+      (Number(r.cajas_mortadela_salpicao) || 0) > 0 ||
+      (Number(r.cajas_salpicao) || 0) > 0 ||
+      (Number(r.cajas_aceite) || 0) > 0 ||
       sanitizeMaestraText(r.status).toUpperCase() === 'ACTIVO';
 
     if (hasPurchase) {
@@ -824,15 +832,23 @@ export function compareMaestraAgainstDatabase(
       const hierarchy = resolveMaestraSellerHierarchy(vRoute);
       const hadPurchases =
         Boolean(r.has_azucar) ||
-        Boolean(r.has_leche_vencampo ?? r.has_pollo) ||
-        Boolean(r.has_jamon_asturias ?? r.has_estandar_asturias) ||
-        Boolean(r.has_mortadela_asturias ?? r.has_mortadela_salpicao) ||
-        Boolean(r.has_salpicao ?? r.has_aceite) ||
+        Boolean(r.has_leche_vencampo) ||
+        Boolean(r.has_pollo) ||
+        Boolean(r.has_jamon_asturias) ||
+        Boolean(r.has_estandar_asturias) ||
+        Boolean(r.has_mortadela_asturias) ||
+        Boolean(r.has_mortadela_salpicao) ||
+        Boolean(r.has_salpicao) ||
+        Boolean(r.has_aceite) ||
         (Number(r.cajas_azucar) || 0) > 0 ||
-        (Number(r.cajas_leche_vencampo ?? r.cajas_pollo) || 0) > 0 ||
-        (Number(r.cajas_jamon_asturias ?? r.cajas_estandar_asturias) || 0) > 0 ||
-        (Number(r.cajas_mortadela_asturias ?? r.cajas_mortadela_salpicao) || 0) > 0 ||
-        (Number(r.cajas_salpicao ?? r.cajas_aceite) || 0) > 0;
+        (Number(r.cajas_leche_vencampo) || 0) > 0 ||
+        (Number(r.cajas_pollo) || 0) > 0 ||
+        (Number(r.cajas_jamon_asturias) || 0) > 0 ||
+        (Number(r.cajas_estandar_asturias) || 0) > 0 ||
+        (Number(r.cajas_mortadela_asturias) || 0) > 0 ||
+        (Number(r.cajas_mortadela_salpicao) || 0) > 0 ||
+        (Number(r.cajas_salpicao) || 0) > 0 ||
+        (Number(r.cajas_aceite) || 0) > 0;
 
       bajasLogicasList.push({
         dbRowId: r.id,

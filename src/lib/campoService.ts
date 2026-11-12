@@ -158,7 +158,8 @@ export const CODIZULCA_PRODUCTS = [
   { id: 'PROD-VEN-ACE-500', name: 'Aceite Vencampo 500gr', defaultPriceUsd: 1.45, category: 'Víveres / Aceites', weight: '500gr' },
   { id: 'PROD-VEN-ACE-900', name: 'Aceite Vencampo 900gr', defaultPriceUsd: 2.35, category: 'Víveres / Aceites', weight: '900gr' },
   { id: 'PROD-VEN-ACE-1000', name: 'Aceite Vencampo 1kg', defaultPriceUsd: 2.60, category: 'Víveres / Aceites', weight: '1kg' },
-  // Línea Vencampo - Leche (400gr, 500gr, 900gr, 1kg)
+  // Línea Vencampo - Leche (125gr, 400gr, 500gr, 900gr, 1kg)
+  { id: 'PROD-VEN-LEC-125', name: 'Leche Vencampo 125gr', defaultPriceUsd: 1.35, category: 'Lácteos / Leche en Polvo', weight: '125gr' },
   { id: 'PROD-VEN-LEC-400', name: 'Leche Vencampo 400gr', defaultPriceUsd: 3.90, category: 'Lácteos / Leche en Polvo', weight: '400gr' },
   { id: 'PROD-VEN-LEC-500', name: 'Leche Vencampo 500gr', defaultPriceUsd: 4.80, category: 'Lácteos / Leche en Polvo', weight: '500gr' },
   { id: 'PROD-VEN-LEC-900', name: 'Leche Vencampo 900gr', defaultPriceUsd: 8.50, category: 'Lácteos / Leche en Polvo', weight: '900gr' },

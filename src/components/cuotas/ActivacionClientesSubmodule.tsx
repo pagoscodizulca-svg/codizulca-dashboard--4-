@@ -38,6 +38,10 @@ import {
   RUBRO_CLIENTE_LABEL,
   RubroClienteCodigo,
 } from './cuotasData';
+import {
+  isClientRubroActive,
+  sanitizePdfCellText,
+} from '../../lib/clientRubroActivationSync';
 
 export { RUBROS_ACTIVACION_CLIENTES, RUBRO_CLIENTE_LABEL };
 export type { RubroClienteCodigo };
@@ -344,22 +348,28 @@ export const ActivacionClientesSubmodule: React.FC<ActivacionClientesSubmodulePr
   const [visibleLimit, setVisibleLimit] = useState<number>(350);
 
   const clientTableRef = useRef<HTMLDivElement | null>(null);
+  const syncPromiseRef = useRef<Promise<void> | null>(null);
 
   const syncFromServer = useCallback(async (force = false) => {
     setIsSyncing(true);
-    try {
-      const res = await fetch(`/api/cuotas/activacion-clientes${force ? '?refresh=true' : ''}`);
-      if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data) && data.length > 0) {
-          setRawActivacion(data);
+    const task = (async () => {
+      try {
+        const res = await fetch(`/api/cuotas/activacion-clientes${force ? '?refresh=true' : ''}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data) && data.length > 0) {
+            setRawActivacion(data);
+          }
         }
+      } catch {
+        // Mantiene datos semilla locales si no hay red
+      } finally {
+        setIsSyncing(false);
+        syncPromiseRef.current = null;
       }
-    } catch {
-      // Mantiene datos semilla locales si no hay red
-    } finally {
-      setIsSyncing(false);
-    }
+    })();
+    syncPromiseRef.current = task;
+    return task;
   }, []);
 
   useEffect(() => {
@@ -780,14 +790,27 @@ export const ActivacionClientesSubmodule: React.FC<ActivacionClientesSubmodulePr
             ((Number(a.cajas?.MORTADELA_ASTURIAS) || 0) + (Number(a.cajas?.SALPICAO) || 0))
         ) || 0;
 
-      if (a.cats?.AZUCAR || a.cats?.AZÚCAR || cAzucar > 0) rubros.add('AZUCAR');
-      if (a.cats?.LECHE_VENCAMPO || cLeche > 0) rubros.add('LECHE_VENCAMPO');
-      if (a.cats?.POLLO || cPollo > 0) rubros.add('POLLO');
+      if (a.cats?.AZUCAR || a.cats?.AZÚCAR || cAzucar > 0 || isClientRubroActive(a as any, 'AZUCAR')) {
+        rubros.add('AZUCAR');
+      }
+      if (
+        a.cats?.LECHE_VENCAMPO ||
+        (a.cats as any)?.ACEITE ||
+        cLeche > 0 ||
+        (Number((a.cajas as any)?.ACEITE) || 0) > 0 ||
+        isClientRubroActive(a as any, 'LECHE_VENCAMPO')
+      ) {
+        rubros.add('LECHE_VENCAMPO');
+      }
+      if (a.cats?.POLLO || cPollo > 0 || isClientRubroActive(a as any, 'POLLO')) {
+        rubros.add('POLLO');
+      }
       if (
         (a.cats?.ESTANDAR_SUPERIOR_ASTURIAS ??
           a.cats?.ESTANDAR_ASTURIAS ??
           a.cats?.JAMON_ASTURIAS) ||
-        cEstandar > 0
+        cEstandar > 0 ||
+        isClientRubroActive(a as any, 'ESTANDAR_SUPERIOR_ASTURIAS')
       ) {
         rubros.add('ESTANDAR_SUPERIOR_ASTURIAS');
       }
@@ -795,7 +818,8 @@ export const ActivacionClientesSubmodule: React.FC<ActivacionClientesSubmodulePr
         (a.cats?.MORTADELA_SALPICAO_ASTURIAS ??
           a.cats?.MORTADELA_SALPICAO ??
           Boolean(a.cats?.MORTADELA_ASTURIAS || a.cats?.SALPICAO)) ||
-        cMortadelaSalpicao > 0
+        cMortadelaSalpicao > 0 ||
+        isClientRubroActive(a as any, 'MORTADELA_SALPICAO_ASTURIAS')
       ) {
         rubros.add('MORTADELA_SALPICAO_ASTURIAS');
       }
@@ -1027,7 +1051,10 @@ export const ActivacionClientesSubmodule: React.FC<ActivacionClientesSubmodulePr
     return displayedClients.slice(0, visibleLimit);
   }, [displayedClients, visibleLimit]);
 
-  const generarPDF = useCallback(() => {
+  const generarPDF = useCallback(async () => {
+    if (syncPromiseRef.current) {
+      await syncPromiseRef.current.catch(() => {});
+    }
     const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
     const vendedorName =
       activeVendedorTitle === 'GLOBAL (TODOS)' ? 'TODOS LOS VENDEDORES' : activeVendedorTitle;
@@ -1144,8 +1171,8 @@ export const ActivacionClientesSubmodule: React.FC<ActivacionClientesSubmodulePr
     const countFaltantesMostrados = Math.max(0, displayedClients.length - countActivosMostrados);
 
     const tableData = displayedClients.map((client) => [
-      client.codigo,
-      client.razonSocial,
+      sanitizePdfCellText(client.codigo),
+      sanitizePdfCellText(client.razonSocial),
       client.cobertura > 0 ? 'ACTIVO' : 'FALTA VENDER',
       client.hasAzucar ? 'SI' : '-',
       client.hasLecheVencampo ? 'SI' : '-',

@@ -46,11 +46,29 @@ export const RUBRO_CLIENTE_LABEL: Record<RubroClienteCodigo, string> = {
  * que alimentan cada una de las 5 categorías foco de activación del mes.
  */
 export const ACTIVATION_CATEGORY_SKU_GROUPS: Record<RubroClienteCodigo, readonly string[]> = {
-  AZUCAR: ['1543'],
-  LECHE_VENCAMPO: ['1574', '1556', '1622'],
+  AZUCAR: ['1543', '1550', '1571', '1248', '1438', '1489', '1502', '1507', '1095'],
+  LECHE_VENCAMPO: ['1574', '1556', '1622', '1536', '1544', '1555', '1579'],
   POLLO: ['1568', '1478', '1142'],
   ESTANDAR_SUPERIOR_ASTURIAS: ['1461', '1463', '1467', '1472'],
-  MORTADELA_SALPICAO_ASTURIAS: ['1496', '1624', '1625', '1519'],
+  MORTADELA_SALPICAO_ASTURIAS: [
+    '1496',
+    '1624',
+    '1625',
+    '1519',
+    '1462',
+    '1464',
+    '1468',
+    '1471',
+    '1511',
+    '1512',
+    '1521',
+    '1522',
+    '1561',
+    '1562',
+    '1563',
+    '1564',
+    '1599',
+  ],
 };
 
 export const RUBROS_CONFIG = [

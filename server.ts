@@ -49,10 +49,15 @@ import {
   buildExternalLookupMapsFromLocalData,
   executeMaestraActivaBatchSync,
   fetchAllSupabaseActivacionRows,
+  getLocalClientRubroSalesIndex,
   loadLocalCarteraRows,
   loadMaestraAuditSnapshot,
   mapSupabaseRowsToClientActivationList,
 } from './src/server/maestraActivaSyncService';
+import {
+  enrichClientActivationsWithSales,
+  normalizeSkuCode,
+} from './src/lib/clientRubroActivationSync';
 import {
   getRuntimeSellerCatalog,
   hydrateRuntimeSellerCatalog,
@@ -1227,7 +1232,7 @@ async function startServer() {
         const octRows = JSON.parse(fs.readFileSync(octPath, 'utf8'));
         if (Array.isArray(octRows)) {
           for (const r of octRows) {
-            const idStr = String(r.id_articulo || '').trim();
+            const idStr = normalizeSkuCode(r.id_articulo);
             const artName = String(r.articulo || '').trim();
             if (!idStr || !artName) continue;
             octProductsMeta.set(idStr, artName);
@@ -1382,13 +1387,14 @@ async function startServer() {
 
       // 2. Enrich the 49 official Google Sheet items with database cajas, monto, clientesCount, and historical data
       for (const item of sheetItems) {
-        if (item.rawCod) {
-          seenProductCodes.add(item.rawCod);
+        const normRawCod = item.rawCod ? normalizeSkuCode(item.rawCod) : '';
+        if (normRawCod) {
+          seenProductCodes.add(normRawCod);
         }
-        const octMap = item.rawCod
-          ? baseAgg.octBySkuSeller.get(item.rawCod)
+        const octMap = normRawCod
+          ? baseAgg.octBySkuSeller.get(normRawCod)
           : baseAgg.octByMacroSeller.get(item.cod);
-        const histMap = item.rawCod ? baseAgg.histBySkuSeller.get(item.rawCod) : undefined;
+        const histMap = normRawCod ? baseAgg.histBySkuSeller.get(normRawCod) : undefined;
 
         let totCajas = 0;
         let totMonto = 0;
@@ -1475,12 +1481,14 @@ async function startServer() {
 
   const loadActivacionClientesFallbackFromDisk = (includeInactive = false): any[] => {
     try {
+      const salesIndex = getLocalClientRubroSalesIndex(process.cwd());
       if (fs.existsSync(activacionClientesSeedPath)) {
         const parsed = JSON.parse(fs.readFileSync(activacionClientesSeedPath, 'utf8'));
         if (Array.isArray(parsed) && parsed.length > 0) {
+          const enriched = enrichClientActivationsWithSales(parsed, salesIndex);
           return includeInactive
-            ? parsed
-            : parsed.filter((r: any) => r.activo !== false && r.status !== 'BAJA_MAESTRA');
+            ? enriched
+            : enriched.filter((r: any) => r.activo !== false && r.status !== 'BAJA_MAESTRA');
         }
       }
       if (fs.existsSync(activacionClientesDiskCachePath)) {
