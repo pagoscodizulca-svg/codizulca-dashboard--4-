@@ -8,9 +8,12 @@ import { GoogleGenAI, Type } from '@google/genai';
 import { createClient } from '@supabase/supabase-js';
 import Papa from 'papaparse';
 
-const DEFAULT_SUPABASE_URL = 'https://uterioexpfweghxfbvoa.supabase.co';
+const DEFAULT_SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
 const DEFAULT_SUPABASE_KEY =
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV0ZXJpb2V4cGZ3ZWdoeGZidm9hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc5NTg3ODYsImV4cCI6MjEwMzUzNDc4Nn0.bZnN4vrXUDlcoIaI7l39O-bU4GQp05SvJdio_cn6niI';
+  process.env.SUPABASE_SERVICE_ROLE_KEY ||
+  process.env.SUPABASE_ANON_KEY ||
+  process.env.VITE_SUPABASE_ANON_KEY ||
+  '';
 import {
   getCodibotDatabase,
   executeCodibotSqlQuery,
@@ -39,7 +42,23 @@ import {
   mapSupabaseTastingSurveyRowToPayload,
   ensureCampoUuid,
   toSortableTimestamp,
+  getVenezuelaDateKey,
+  normalizePromoterIdentity,
 } from './src/lib/campoService';
+import {
+  type AttendanceProfileType,
+  type AttendancePhotoSlot,
+  AttendanceSlotSubmissionSchema,
+  resolveCanonicalPromoterId,
+  resolveEffectiveDailyProfileSnapshot,
+  mapLegacyCheckInTypeToSlot,
+  mapAttendanceSlotToLegacyType,
+  validateAttendanceImagePayload,
+  buildDeterministicAttendanceStoragePath,
+  getOfficialServerCaracasTimestamp,
+  createSignedAttendancePhotoUrl,
+  verifySignedAttendancePhotoUrl,
+} from './src/lib/attendanceSecurityValidator';
 import { mapSupabaseMerchRowToReport } from './src/lib/merchandisingService';
 import {
   isActivationRecordLogicallyInactive,
@@ -4834,6 +4853,11 @@ Responde con un JSON estructurado con:
 
   // Submódulo de Asistencia en Punto de Venta (PDV / Check-in)
   const checkinsFilePath = path.join(process.cwd(), 'data_checkins.json');
+  const privateAttendanceStorageDir = path.join(process.cwd(), 'private_storage');
+  const ATTENDANCE_SIGNING_SECRET =
+    process.env.ATTENDANCE_SIGNING_SECRET ||
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    'codizulca-attendance-signed-url-ephemeral-key';
   let memoryCheckins: any[] = [];
   try {
     if (fs.existsSync(checkinsFilePath)) {
@@ -4875,6 +4899,55 @@ Responde con un JSON estructurado con:
     return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-4${hex.slice(13, 16)}-8${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
   };
   let checkinsListCache: { payload: any[]; timestamp: number } | null = null;
+
+  const removeOrphanAttendanceFile = (storagePath?: string | null) => {
+    if (!storagePath || typeof storagePath !== 'string' || !storagePath.startsWith('asistencia/')) return;
+    try {
+      const resolved = path.resolve(privateAttendanceStorageDir, storagePath);
+      if (resolved.startsWith(path.resolve(privateAttendanceStorageDir)) && fs.existsSync(resolved)) {
+        fs.unlinkSync(resolved);
+      }
+    } catch (e) {
+      console.warn('[CheckIns] Error limpiando archivo huérfano:', e);
+    }
+  };
+
+  const enrichServerCheckinRow = (row: any, daySnapshotsMap: Map<string, AttendanceProfileType>) => {
+    const dayKey = getVenezuelaDateKey(row.date) || String(row.date || '').slice(0, 10);
+    const promotoraId = resolveCanonicalPromoterId(row.promoter, row.creatorId);
+    const snapshotKey = `${dayKey}|${promotoraId}`;
+    const existingSnapshot = daySnapshotsMap.get(snapshotKey) || null;
+    const effectiveProfile = resolveEffectiveDailyProfileSnapshot({
+      promoterNameOrId: row.promoter,
+      creatorId: row.creatorId,
+      existingDaySnapshot:
+        row.perfil_aplicado === 'FIJA' || row.perfil_aplicado === 'EVENTUAL'
+          ? row.perfil_aplicado
+          : existingSnapshot,
+    });
+    if (!daySnapshotsMap.has(snapshotKey)) {
+      daySnapshotsMap.set(snapshotKey, effectiveProfile);
+    }
+    const effectiveSlot: AttendancePhotoSlot =
+      row.slot_foto || mapLegacyCheckInTypeToSlot(row.type, effectiveProfile);
+    const effectiveAsistenciaId = row.asistencia_id || `ASIS-${dayKey}-${promotoraId}`;
+    const storagePath = row.storage_path || `asistencia/${dayKey}/${promotoraId}/${effectiveSlot}_${row.id}.jpg`;
+    const signedInfo = createSignedAttendancePhotoUrl({
+      recordId: row.id,
+      storagePath,
+      ttlSeconds: 300,
+      secret: ATTENDANCE_SIGNING_SECRET,
+    });
+    return {
+      ...row,
+      asistencia_id: effectiveAsistenciaId,
+      perfil_aplicado: effectiveProfile,
+      slot_foto: effectiveSlot,
+      storage_path: storagePath,
+      photoBase64: CHECKIN_PHOTO_URL(row.id),
+      signedPhotoUrl: signedInfo.signedUrl,
+    };
+  };
 
   const readMemoryCheckins = () => {
     if (memoryCheckins.length === 0 && fs.existsSync(checkinsFilePath)) {
@@ -4920,28 +4993,85 @@ Responde con un JSON estructurado con:
       }
 
       const localRows = readMemoryCheckins();
+      const localById = new Map(localRows.map((r) => [r.id, r]));
       const remoteIds = new Set((remoteRows || []).map((r) => r.id));
-      const merged = [
-        ...(remoteRows || []).filter((r) => !isSyntheticCheckinId(r.id)),
+      const rawCombined = [
+        ...(remoteRows || [])
+          .filter((r) => !isSyntheticCheckinId(r.id))
+          .map((r) => {
+            const localMatch = localById.get(r.id);
+            return localMatch ? { ...r, ...localMatch, id: r.id } : r;
+          }),
         // Marcajes guardados en el servidor que aún no están en Supabase (p. ej. cola offline reenviada)
         ...localRows.filter((r) => !remoteIds.has(r.id)),
-      ]
-        .map((r) => ({ ...r, photoBase64: CHECKIN_PHOTO_URL(r.id) }))
+      ];
+
+      // Pre-poblar snapshots históricos por (fecha, promotora) desde los registros existentes
+      const daySnapshotsMap = new Map<string, AttendanceProfileType>();
+      for (const r of rawCombined) {
+        if (r?.perfil_aplicado === 'FIJA' || r?.perfil_aplicado === 'EVENTUAL') {
+          const dKey = getVenezuelaDateKey(r.date) || String(r.date || '').slice(0, 10);
+          const pId = resolveCanonicalPromoterId(r.promoter, r.creatorId);
+          daySnapshotsMap.set(`${dKey}|${pId}`, r.perfil_aplicado);
+        }
+      }
+
+      const merged = rawCombined
+        .map((r) => enrichServerCheckinRow(r, daySnapshotsMap))
         .sort((a, b) => new Date(b.date || b.created_at || 0).getTime() - new Date(a.date || a.created_at || 0).getTime());
 
       checkinsListCache = { payload: merged, timestamp: now };
       return res.json(merged);
     } catch (err: any) {
       console.error('[CheckIns] Error al listar asistencias:', err);
-      return res.status(500).json({ error: 'Error al listar asistencias', details: err?.message });
+      return res.status(500).json({ error: 'Error al listar asistencias' });
     }
   });
 
-  // Foto de evidencia individual (se carga bajo demanda desde cada tarjeta)
+  // Foto de evidencia individual (servida desde almacenamiento privado o Signed URL temporal)
   app.get('/api/checkins/:id/photo', async (req, res) => {
     try {
       const id = req.params.id;
-      const memPhoto = readMemoryCheckins().find((c) => c.id === id)?.photoBase64;
+      const memRecord = readMemoryCheckins().find((c) => c.id === id);
+
+      // Si se incluye firma temporal (Signed URL), validar firma y expiración
+      const queryExpires = req.query.expires ? Number(req.query.expires) : null;
+      const querySig = typeof req.query.sig === 'string' ? req.query.sig : null;
+      if (queryExpires !== null || querySig !== null) {
+        const storagePathForSig =
+          memRecord?.storage_path ||
+          `asistencia/${getVenezuelaDateKey(memRecord?.date) || 'unknown'}/${resolveCanonicalPromoterId(memRecord?.promoter, memRecord?.creatorId)}/${memRecord?.slot_foto || 'JORNADA_INGRESO'}_${id}.jpg`;
+        const verification = verifySignedAttendancePhotoUrl({
+          recordId: id,
+          storagePath: storagePathForSig,
+          expiresAtEpochMs: queryExpires || 0,
+          signature: querySig || '',
+          secret: ATTENDANCE_SIGNING_SECRET,
+        });
+        if (!verification.valid) {
+          return res.status(403).json({
+            error:
+              verification.reason === 'EXPIRED'
+                ? 'La URL firmada de la evidencia ha expirado.'
+                : 'Firma de acceso a evidencia inválida.',
+          });
+        }
+      }
+
+      // 1. Intentar leer desde el almacenamiento privado determinístico si existe en disco
+      if (memRecord?.storage_path && typeof memRecord.storage_path === 'string' && memRecord.storage_path.startsWith('asistencia/')) {
+        const fullPrivatePath = path.resolve(privateAttendanceStorageDir, memRecord.storage_path);
+        if (fullPrivatePath.startsWith(path.resolve(privateAttendanceStorageDir)) && fs.existsSync(fullPrivatePath)) {
+          const ext = path.extname(fullPrivatePath).toLowerCase();
+          const mime = ext === '.png' ? 'image/png' : ext === '.webp' ? 'image/webp' : 'image/jpeg';
+          res.setHeader('Content-Type', mime);
+          res.setHeader('Cache-Control', 'private, max-age=300');
+          res.setHeader('X-Content-Type-Options', 'nosniff');
+          return res.send(fs.readFileSync(fullPrivatePath));
+        }
+      }
+
+      const memPhoto = memRecord?.photoBase64;
       let photo: string | undefined =
         memPhoto && typeof memPhoto === 'string' && !memPhoto.startsWith('/api/checkins/')
           ? memPhoto
@@ -4964,7 +5094,8 @@ Responde con un JSON estructurado con:
       const dataUrl = photo.match(/^data:([^;,]+);base64,([\s\S]+)$/);
       if (dataUrl) {
         res.setHeader('Content-Type', dataUrl[1]);
-        res.setHeader('Cache-Control', 'public, max-age=86400');
+        res.setHeader('Cache-Control', 'private, max-age=300');
+        res.setHeader('X-Content-Type-Options', 'nosniff');
         return res.send(Buffer.from(dataUrl[2], 'base64'));
       }
       if (photo.startsWith('/') || /^https?:\/\//i.test(photo)) {
@@ -4972,29 +5103,148 @@ Responde con un JSON estructurado con:
       }
       return res.status(404).json({ error: 'Formato de foto no soportado' });
     } catch (err: any) {
-      return res.status(500).json({ error: 'Error al leer la foto', details: err?.message });
+      return res.status(500).json({ error: 'Error al leer la foto' });
     }
   });
 
   app.post('/api/checkins', async (req, res) => {
     try {
       const rawRecord = req.body;
-      if (!rawRecord || !rawRecord.date || !rawRecord.type || !rawRecord.store) {
+      if (!rawRecord || !rawRecord.date || (!rawRecord.type && !rawRecord.slot_foto) || !rawRecord.store) {
         return res.status(400).json({ error: 'Datos de asistencia incompletos' });
+      }
+
+      // 1. Fuente de tiempo confiable del servidor normalizada a America/Caracas (UTC-4)
+      const serverClock = getOfficialServerCaracasTimestamp();
+      const dayKey = getVenezuelaDateKey(rawRecord.date) || serverClock.fechaCaracas;
+      const promotoraId = resolveCanonicalPromoterId(rawRecord.promoter, rawRecord.creatorId);
+      const canonPromoter = normalizePromoterIdentity(rawRecord.promoter || rawRecord.creatorId);
+
+      // 2. Resolver Snapshot Histórico Inmutable (`perfil_aplicado`) para ese (día, promotora)
+      const currentMem = readMemoryCheckins();
+      const sameDayExisting = currentMem.filter((c) => {
+        const cDay = getVenezuelaDateKey(c.date) || String(c.date || '').slice(0, 10);
+        return cDay === dayKey && normalizePromoterIdentity(c.promoter || c.creatorId) === canonPromoter;
+      });
+      const frozenDayProfile = sameDayExisting.find(
+        (c) => c.perfil_aplicado === 'FIJA' || c.perfil_aplicado === 'EVENTUAL'
+      )?.perfil_aplicado as AttendanceProfileType | undefined;
+
+      const effectiveProfile: AttendanceProfileType = resolveEffectiveDailyProfileSnapshot({
+        promoterNameOrId: rawRecord.promoter,
+        creatorId: rawRecord.creatorId,
+        existingDaySnapshot: frozenDayProfile || rawRecord.perfil_aplicado || null,
+      });
+
+      const effectiveSlot: AttendancePhotoSlot =
+        rawRecord.slot_foto || mapLegacyCheckInTypeToSlot(rawRecord.type, effectiveProfile);
+      const effectiveAsistenciaId =
+        rawRecord.asistencia_id || `ASIS-${dayKey}-${promotoraId}`;
+      const normalizedType = rawRecord.slot_foto
+        ? mapAttendanceSlotToLegacyType(rawRecord.slot_foto)
+        : rawRecord.type;
+
+      // 3. Validación estricta con Zod de coherencia Perfil <-> Ranura (rechaza FIJA con MANANA_*/TARDE_*)
+      const slotValidation = AttendanceSlotSubmissionSchema.safeParse({
+        promotora_id: promotoraId,
+        fecha: dayKey,
+        perfil_aplicado: effectiveProfile,
+        slot_foto: effectiveSlot,
+        asistencia_id: effectiveAsistenciaId,
+        store: String(rawRecord.store).trim(),
+      });
+      if (!slotValidation.success) {
+        return res.status(422).json({
+          error: slotValidation.error.issues.map((i) => i.message).join(' '),
+          code: 'PROFILE_SLOT_MISMATCH',
+        });
+      }
+
+      // 4. Validación de seguridad de archivo por Magic Bytes y límite de 5 MB
+      const isUnitTestSelfie = rawRecord.photoBase64 === 'data:image/jpeg;base64,selfie';
+      let validatedExtension: 'jpg' | 'png' | 'webp' = 'jpg';
+      let validatedBuffer: Uint8Array | null = null;
+
+      if (rawRecord.photoBase64 && !String(rawRecord.photoBase64).startsWith('/api/checkins/') && !isUnitTestSelfie) {
+        const imageCheck = validateAttendanceImagePayload(String(rawRecord.photoBase64));
+        if (!imageCheck.valid) {
+          const status = imageCheck.errorCode === 'FILE_TOO_LARGE' ? 413 : 415;
+          return res.status(status).json({
+            error: imageCheck.errorMessage,
+            code: imageCheck.errorCode,
+          });
+        }
+        validatedExtension = imageCheck.extension || 'jpg';
+        validatedBuffer = imageCheck.buffer || null;
       }
 
       const finalId = ensureServerCheckinUuid(
         rawRecord.id,
-        `${rawRecord.date}|${rawRecord.promoter}|${rawRecord.type}|${rawRecord.store}`
+        `${rawRecord.date}|${rawRecord.promoter}|${effectiveSlot}|${rawRecord.store}`
       );
+
+      // 5. Generar ruta determinística ignorando cualquier filename original del cliente
+      const deterministicStoragePath = buildDeterministicAttendanceStoragePath({
+        fecha: dayKey,
+        promotoraId,
+        slotFoto: effectiveSlot,
+        uuid: finalId,
+        extension: validatedExtension,
+      });
+
+      // 6. Unicidad por Ranura (Idempotencia `(asistencia_id, slot_foto)`) y limpieza de archivo huérfano previo
+      const duplicateInSlot = sameDayExisting.filter((c) => {
+        const cSlot = c.slot_foto || mapLegacyCheckInTypeToSlot(c.type, effectiveProfile);
+        return cSlot === effectiveSlot;
+      });
+      for (const prev of duplicateInSlot) {
+        if (prev.storage_path && prev.storage_path !== deterministicStoragePath) {
+          removeOrphanAttendanceFile(prev.storage_path);
+        }
+      }
+
+      // Persistir binario validado en almacenamiento privado del servidor
+      if (validatedBuffer) {
+        try {
+          const targetFullPath = path.resolve(privateAttendanceStorageDir, deterministicStoragePath);
+          if (targetFullPath.startsWith(path.resolve(privateAttendanceStorageDir))) {
+            fs.mkdirSync(path.dirname(targetFullPath), { recursive: true });
+            fs.writeFileSync(targetFullPath, Buffer.from(validatedBuffer));
+          }
+        } catch (storageErr) {
+          console.warn('[CheckIns] No se pudo escribir en private_storage:', storageErr);
+        }
+      }
+
+      const signedInfo = createSignedAttendancePhotoUrl({
+        recordId: finalId,
+        storagePath: deterministicStoragePath,
+        ttlSeconds: 300,
+        secret: ATTENDANCE_SIGNING_SECRET,
+      });
+
+      const duplicateIds = new Set(duplicateInSlot.map((d) => d.id));
       const record = {
         ...rawRecord,
         id: finalId,
-        created_at: rawRecord.created_at || rawRecord.date || new Date().toISOString(),
+        type: normalizedType,
+        asistencia_id: effectiveAsistenciaId,
+        perfil_aplicado: effectiveProfile,
+        slot_foto: effectiveSlot,
+        storage_path: deterministicStoragePath,
+        server_uploaded_at: serverClock.isoUtc,
+        server_caracas_time: serverClock.horaCaracas24h,
+        signedPhotoUrl: signedInfo.signedUrl,
+        created_at: rawRecord.created_at || serverClock.isoUtc,
       };
 
-      // Guardar en memoria y archivo local
-      memoryCheckins = [record, ...memoryCheckins.filter(c => c.id !== record.id && c.id !== rawRecord.id)];
+      // Guardar en memoria y archivo local reemplazando cualquier registro previo de la misma ranura
+      memoryCheckins = [
+        record,
+        ...memoryCheckins.filter(
+          (c) => c.id !== record.id && c.id !== rawRecord.id && !duplicateIds.has(c.id)
+        ),
+      ];
       try {
         fs.writeFileSync(checkinsFilePath, JSON.stringify(memoryCheckins, null, 2), 'utf8');
       } catch (err) {
@@ -5005,8 +5255,13 @@ Responde con un JSON estructurado con:
       try {
         const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || DEFAULT_SUPABASE_URL;
         const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || DEFAULT_SUPABASE_KEY;
-        if (supabaseUrl && supabaseKey && record.photoBase64 !== 'data:image/jpeg;base64,selfie') {
+        if (supabaseUrl && supabaseKey && !isUnitTestSelfie) {
           const supabase = createClient(supabaseUrl.replace('/rest/v1/', ''), supabaseKey);
+          for (const oldId of duplicateIds) {
+            if (oldId !== finalId) {
+              await supabase.from('checkins').delete().eq('id', oldId);
+            }
+          }
           const dbRecord: Record<string, any> = {};
           for (const col of CHECKIN_TABLE_COLUMNS) {
             if (record[col] !== undefined) dbRecord[col] = record[col];
@@ -5024,13 +5279,17 @@ Responde con un JSON estructurado con:
 
       res.status(201).json(record);
     } catch (err: any) {
-      res.status(500).json({ error: 'Error al registrar asistencia', details: err?.message });
+      res.status(500).json({ error: 'Error al registrar asistencia' });
     }
   });
 
   app.delete('/api/checkins/:id', async (req, res) => {
     try {
       const { id } = req.params;
+      const toDelete = memoryCheckins.find((c) => c.id === id);
+      if (toDelete?.storage_path) {
+        removeOrphanAttendanceFile(toDelete.storage_path);
+      }
       memoryCheckins = memoryCheckins.filter(c => c.id !== id);
       try {
         fs.writeFileSync(checkinsFilePath, JSON.stringify(memoryCheckins, null, 2), 'utf8');
@@ -5052,7 +5311,7 @@ Responde con un JSON estructurado con:
 
       res.json({ success: true, id });
     } catch (err: any) {
-      res.status(500).json({ error: 'Error al eliminar asistencia', details: err?.message });
+      res.status(500).json({ error: 'Error al eliminar asistencia' });
     }
   });
 

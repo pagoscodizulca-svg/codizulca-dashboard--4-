@@ -31,6 +31,16 @@ import {
   isMerchandisingRoutePromoter,
   resolveStoreByGpsIfGenericDefault,
 } from '../../lib/checkinsService';
+import {
+  type AttendanceProfileType,
+  type AttendancePhotoSlot,
+  FIJA_SLOT_DESCRIPTORS,
+  EVENTUAL_MORNING_SLOT_DESCRIPTORS,
+  EVENTUAL_AFTERNOON_SLOT_DESCRIPTORS,
+  resolveEffectiveDailyProfileSnapshot,
+  mapLegacyCheckInTypeToSlot,
+  evaluateDailyAttendanceCompliance,
+} from '../../lib/attendanceSecurityValidator';
 import { CampoStoreSelector } from '../../components/mobile/CampoStoreSelector';
 import {
   trazabilidadService,
@@ -104,16 +114,21 @@ export const CampoAsistencia: React.FC<{ activePromoterName?: string }> = ({
         );
       const isRouteMerch = isMerchandisingRoutePromoter(canonicalMe, activeProfile.role || activeProfile.email);
       setTodayCheckIns(mineToday);
+      const effectiveProfile = resolveEffectiveDailyProfileSnapshot({
+        promoterNameOrId: canonicalMe,
+        creatorId: activeProfile.email || activeProfile.id,
+        existingDaySnapshot:
+          mineToday.find((m) => m.perfil_aplicado === 'FIJA' || m.perfil_aplicado === 'EVENTUAL')
+            ?.perfil_aplicado || null,
+      });
       if (!isRouteMerch) {
         if (mineToday.length > 0 && mineToday[0].store) {
           setStoreName(mineToday[0].store);
         }
-        const order: Array<CheckinPayload['type']> = [
-          'Ingreso',
-          'Salida a almorzar',
-          'Vuelta a almorzar',
-          'Salida'
-        ];
+        const order: Array<CheckinPayload['type']> =
+          effectiveProfile === 'FIJA'
+            ? ['Ingreso', 'Salida']
+            : ['Ingreso', 'Salida a almorzar', 'Vuelta a almorzar', 'Salida'];
         const firstMissing = order.find((t) => !mineToday.some((m) => m.type === t));
         if (firstMissing) {
           setCheckInType(firstMissing);
@@ -431,36 +446,61 @@ export const CampoAsistencia: React.FC<{ activePromoterName?: string }> = ({
       } catch {}
 
       const isRouteMerch = isMerchandisingRoutePromoter(promoterName, activeProfile?.role || creatorIdentifier);
+      const effectiveProfile: AttendanceProfileType = resolveEffectiveDailyProfileSnapshot({
+        promoterNameOrId: promoterName,
+        creatorId: creatorIdentifier,
+        existingDaySnapshot:
+          todayCheckIns.find((m) => m.perfil_aplicado === 'FIJA' || m.perfil_aplicado === 'EVENTUAL')
+            ?.perfil_aplicado || null,
+      });
       let effectiveType = checkInType;
+      if (
+        effectiveProfile === 'FIJA' &&
+        (effectiveType === 'Salida a almorzar' || effectiveType === 'Vuelta a almorzar')
+      ) {
+        effectiveType = 'Salida';
+      }
 
       // Protección inteligente de horario: si la promotora fija/eventual ya registró su Ingreso hoy
       // y dejó el selector en 'Ingreso' por error en la tarde, asignamos el siguiente hito pendiente.
       if (!isRouteMerch && effectiveType === 'Ingreso' && todayCheckIns.some((c) => c.type === 'Ingreso')) {
         const currentHr = getCaracasHourFloat(nowIso);
-        const hasSalidaAlmuerzo = todayCheckIns.some((c) => c.type === 'Salida a almorzar');
-        const hasVueltaAlmuerzo = todayCheckIns.some((c) => c.type === 'Vuelta a almorzar');
         const hasSalida = todayCheckIns.some((c) => c.type === 'Salida');
-
-        if (currentHr >= 16.5 && !hasSalida) {
-          effectiveType = 'Salida';
-        } else if (!hasSalidaAlmuerzo && currentHr >= 11.25 && currentHr < 14.5) {
-          effectiveType = 'Salida a almorzar';
-        } else if (!hasVueltaAlmuerzo && currentHr >= 12.5 && currentHr < 17.0) {
-          effectiveType = 'Vuelta a almorzar';
-        } else if (!hasSalida && currentHr >= 15.0) {
-          effectiveType = 'Salida';
+        if (effectiveProfile === 'FIJA') {
+          if (!hasSalida && currentHr >= 14.5) {
+            effectiveType = 'Salida';
+          }
+        } else {
+          const hasSalidaAlmuerzo = todayCheckIns.some((c) => c.type === 'Salida a almorzar');
+          const hasVueltaAlmuerzo = todayCheckIns.some((c) => c.type === 'Vuelta a almorzar');
+          if (currentHr >= 16.5 && !hasSalida) {
+            effectiveType = 'Salida';
+          } else if (!hasSalidaAlmuerzo && currentHr >= 11.25 && currentHr < 14.5) {
+            effectiveType = 'Salida a almorzar';
+          } else if (!hasVueltaAlmuerzo && currentHr >= 12.5 && currentHr < 17.0) {
+            effectiveType = 'Vuelta a almorzar';
+          } else if (!hasSalida && currentHr >= 15.0) {
+            effectiveType = 'Salida';
+          }
         }
         if (effectiveType !== checkInType) {
           setCheckInType(effectiveType);
         }
       }
 
-      // Guardar en checkinsService (con UUID válido, sincronización directa a Supabase + Backend y cola offline)
+      const effectiveSlot: AttendancePhotoSlot = mapLegacyCheckInTypeToSlot(
+        effectiveType,
+        effectiveProfile
+      );
+
+      // Guardar en checkinsService (con UUID válido, perfil_aplicado, slot_foto y sincronización directa a Supabase + Backend)
       const checkinResult = await checkinsService.createCheckIn({
         date: nowIso,
         promoter: promoterName,
         store: finalStoreName,
         type: effectiveType,
+        perfil_aplicado: effectiveProfile,
+        slot_foto: effectiveSlot,
         photoBase64: selfieDataUrl,
         location: {
           lat: gpsLocation.lat,
@@ -678,96 +718,128 @@ export const CampoAsistencia: React.FC<{ activePromoterName?: string }> = ({
             );
           })()}
 
-          {/* ESTADO DE MI ASISTENCIA DE HOY (4 HITOS CRONOLÓGICOS) */}
-          <div className="bg-[#0d0d0d] border border-neutral-800 rounded-2xl p-3.5 space-y-2.5 shadow-xl">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-300 flex items-center gap-1.5">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Estado de Mi Jornada de Hoy (4 Hitos):</span>
-              </span>
-              <button
-                type="button"
-                onClick={syncTodayAttendance}
-                disabled={isSyncingToday}
-                className="px-2 py-0.5 rounded-md bg-neutral-800 hover:bg-neutral-700 text-neutral-300 text-[10px] font-mono flex items-center gap-1 cursor-pointer"
-              >
-                <RefreshCw className={`w-3 h-3 text-emerald-400 ${isSyncingToday ? 'animate-spin' : ''}`} />
-                <span>Sincronizar</span>
-              </button>
-            </div>
-            <div className="grid grid-cols-2 gap-1.5">
-              {(
-                [
-                  { step: '1', type: 'Ingreso' as const, label: 'Ingreso' },
-                  { step: '2', type: 'Salida a almorzar' as const, label: 'Salida Almuerzo' },
-                  { step: '3', type: 'Vuelta a almorzar' as const, label: 'Llegada Almuerzo' },
-                  { step: '4', type: 'Salida' as const, label: 'Salida' }
-                ]
-              ).map((slot) => {
-                const matching = todayCheckIns.filter((c) => c.type === slot.type);
-                const found =
-                  slot.type === 'Ingreso' || slot.type === 'Salida a almorzar'
-                    ? matching[0]
-                    : matching[matching.length - 1];
-                const timeStr = found
-                  ? new Date(found.date).toLocaleTimeString('es-VE', {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                      hour12: true,
-                      timeZone: 'America/Caracas'
-                    })
-                  : null;
-                return (
-                  <button
-                    key={slot.type}
-                    type="button"
-                    onClick={() => setCheckInType(slot.type)}
-                    className={`p-2 rounded-xl border text-left transition-all cursor-pointer flex items-center justify-between gap-1 ${
-                      found
-                        ? 'bg-emerald-950/30 border-emerald-500/40 text-emerald-300'
-                        : checkInType === slot.type
-                        ? 'bg-red-950/50 border-red-500/60 text-white'
-                        : 'bg-[#171717] border-neutral-800 text-amber-400/90'
-                    }`}
-                  >
-                    <div className="min-w-0">
-                      <span className="text-[10px] font-black block truncate">
-                        {slot.step}. {slot.label}
+          {/* ESTADO DE MI ASISTENCIA DE HOY Y SELECCIÓN CONDICIONAL POR PERFIL (FIJA 2 FOTOS / EVENTUAL 4 FOTOS) */}
+          {(() => {
+            const activeProfile = campoService.getActivePromoter();
+            const promoterName = resolvePromoterNameFromRaw(
+              activePromoterName || activeProfile.name,
+              activeProfile.email || activeProfile.id
+            );
+            const effectiveProfile: AttendanceProfileType = resolveEffectiveDailyProfileSnapshot({
+              promoterNameOrId: promoterName,
+              creatorId: activeProfile.email || activeProfile.id,
+              existingDaySnapshot:
+                todayCheckIns.find((m) => m.perfil_aplicado === 'FIJA' || m.perfil_aplicado === 'EVENTUAL')
+                  ?.perfil_aplicado || null,
+            });
+            const isFijaProfile = effectiveProfile === 'FIJA';
+            const descriptors = isFijaProfile
+              ? FIJA_SLOT_DESCRIPTORS
+              : [...EVENTUAL_MORNING_SLOT_DESCRIPTORS, ...EVENTUAL_AFTERNOON_SLOT_DESCRIPTORS];
+
+            const uploadedSlots: AttendancePhotoSlot[] = [];
+            for (const desc of descriptors) {
+              const found = todayCheckIns.some(
+                (c) => (c.slot_foto || mapLegacyCheckInTypeToSlot(c.type, effectiveProfile)) === desc.slot
+              );
+              if (found) uploadedSlots.push(desc.slot);
+            }
+            const compliance = evaluateDailyAttendanceCompliance(effectiveProfile, uploadedSlots);
+
+            return (
+              <>
+                <div className="bg-[#0d0d0d] border border-neutral-800 rounded-2xl p-3.5 space-y-2.5 shadow-xl">
+                  <div className="flex items-center justify-between flex-wrap gap-1.5">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-300 flex items-center gap-1.5">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>
+                        Jornada de Hoy ({isFijaProfile ? 'Perfil FIJA • 2 Fotos' : 'Perfil EVENTUAL • 4 Fotos'}):
                       </span>
-                      <span className="text-[9px] font-mono block truncate opacity-80">
-                        {found ? `✓ Sincronizado (${timeStr})` : 'Faltante • Tocar para cargar'}
+                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="px-2 py-0.5 rounded-md bg-emerald-950/60 border border-emerald-500/30 text-emerald-300 text-[10px] font-mono font-bold">
+                        {compliance.badgeText} • {compliance.status}
                       </span>
+                      <button
+                        type="button"
+                        onClick={syncTodayAttendance}
+                        disabled={isSyncingToday}
+                        className="px-2 py-0.5 rounded-md bg-neutral-800 hover:bg-neutral-700 text-neutral-300 text-[10px] font-mono flex items-center gap-1 cursor-pointer"
+                      >
+                        <RefreshCw className={`w-3 h-3 text-emerald-400 ${isSyncingToday ? 'animate-spin' : ''}`} />
+                        <span>Sincronizar</span>
+                      </button>
                     </div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {descriptors.map((desc) => {
+                      const matching = todayCheckIns.filter(
+                        (c) => (c.slot_foto || mapLegacyCheckInTypeToSlot(c.type, effectiveProfile)) === desc.slot
+                      );
+                      const found = matching[matching.length - 1];
+                      const timeStr = found
+                        ? new Date(found.date).toLocaleTimeString('es-VE', {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            hour12: true,
+                            timeZone: 'America/Caracas'
+                          })
+                        : null;
+                      return (
+                        <button
+                          key={desc.slot}
+                          type="button"
+                          aria-label={desc.buildAriaLabel(promoterName, Boolean(found))}
+                          onClick={() => setCheckInType(desc.legacyType)}
+                          className={`p-2 rounded-xl border text-left transition-all cursor-pointer flex items-center justify-between gap-1 ${
+                            found
+                              ? 'bg-emerald-950/30 border-emerald-500/40 text-emerald-300'
+                              : checkInType === desc.legacyType
+                              ? 'bg-red-950/50 border-red-500/60 text-white'
+                              : 'bg-[#171717] border-neutral-800 text-amber-400/90'
+                          }`}
+                        >
+                          <div className="min-w-0">
+                            <span className="text-[10px] font-black block truncate">
+                              {desc.stepNumber}. {desc.label}
+                            </span>
+                            <span className="text-[9px] font-mono block truncate opacity-80">
+                              {found ? `✓ Sincronizado (${timeStr})` : 'Faltante • Tocar para cargar'}
+                            </span>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
 
-          {/* TIPO DE MARCAJE (4 BOTONES TÁCTILES) */}
-          <div className="bg-[#0d0d0d] border border-neutral-800 rounded-2xl p-4 space-y-3 shadow-xl">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-red-400 block">
-              1. Selecciona Tipo de Marcaje:
-            </span>
+                {/* TIPO DE MARCAJE CONDICIONAL POR PERFIL */}
+                <div className="bg-[#0d0d0d] border border-neutral-800 rounded-2xl p-4 space-y-3 shadow-xl">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-red-400 block">
+                    1. Selecciona Hito Fotográfico ({isFijaProfile ? '2 Fotos' : '4 Fotos • Mañana y Tarde'}):
+                  </span>
 
-            <div className="grid grid-cols-2 gap-2">
-              {(['Ingreso', 'Salida a almorzar', 'Vuelta a almorzar', 'Salida'] as const).map((type) => (
-                <button
-                  key={type}
-                  type="button"
-                  onClick={() => setCheckInType(type)}
-                  className={`py-3 px-2 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                    checkInType === type
-                      ? 'bg-red-600 border-red-500 text-white shadow-lg shadow-red-950/60'
-                      : 'bg-[#171717] border-neutral-800 text-neutral-400 hover:text-white'
-                  }`}
-                >
-                  <Clock className="w-3.5 h-3.5" />
-                  <span>{type}</span>
-                </button>
-              ))}
-            </div>
-          </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {descriptors.map((desc) => (
+                      <button
+                        key={desc.slot}
+                        type="button"
+                        onClick={() => setCheckInType(desc.legacyType)}
+                        className={`py-3 px-2 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                          checkInType === desc.legacyType
+                            ? 'bg-red-600 border-red-500 text-white shadow-lg shadow-red-950/60'
+                            : 'bg-[#171717] border-neutral-800 text-neutral-400 hover:text-white'
+                        }`}
+                      >
+                        <Clock className="w-3.5 h-3.5 shrink-0" />
+                        <span className="truncate">{desc.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </>
+            );
+          })()}
 
           {/* 2. VALIDACIÓN GEOGRÁFICA ESTRICTA (GPS) */}
           <div className="bg-[#0d0d0d] border border-neutral-800 rounded-2xl p-4 space-y-3 shadow-xl">

@@ -33,6 +33,10 @@ import {
   STORAGE_KEY_ACTIVE_STORE,
   STORAGE_KEY_ACTIVE_PROMOTER
 } from '../../lib/checkinsService';
+import {
+  resolveEffectiveDailyProfileSnapshot,
+  mapLegacyCheckInTypeToSlot,
+} from '../../lib/attendanceSecurityValidator';
 
 const MARCAJE_OPTIONS: { type: CheckInType; label: string; desc: string; color: string; border: string; bg: string }[] = [
   {
@@ -491,9 +495,21 @@ export const CheckIn: React.FC = () => {
 
     try {
       const nowIso = new Date().toISOString();
+      const effectiveProfile = resolveEffectiveDailyProfileSnapshot({
+        promoterNameOrId: promoterName.trim(),
+        creatorId: profile?.id,
+      });
+      const effectiveType: CheckInType =
+        effectiveProfile === 'FIJA' &&
+        (selectedType === 'Salida a almorzar' || selectedType === 'Vuelta a almorzar')
+          ? 'Salida'
+          : selectedType;
+      const effectiveSlot = mapLegacyCheckInTypeToSlot(effectiveType, effectiveProfile);
       const payload = {
         date: nowIso,
-        type: selectedType,
+        type: effectiveType,
+        perfil_aplicado: effectiveProfile,
+        slot_foto: effectiveSlot,
         store: storeName.trim(),
         photoBase64: photoPreview,
         location: coords,
@@ -668,38 +684,50 @@ export const CheckIn: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* A. TIPOS DE MARCAJE OPERATIVO */}
-      <div>
-        <label className="text-xs font-bold text-gray-700 flex items-center gap-1 mb-1.5 uppercase tracking-wider">
-          <Clock className="h-3.5 w-3.5 text-gray-500" />
-          Tipo de Marcaje Operativo:
-        </label>
-        <div className="grid grid-cols-2 gap-2">
-          {MARCAJE_OPTIONS.map((opt) => {
-            const isSelected = selectedType === opt.type;
-            return (
-              <button
-                key={opt.type}
-                type="button"
-                onClick={() => setSelectedType(opt.type)}
-                className={`p-2.5 rounded-xl border-2 text-left transition flex flex-col justify-between cursor-pointer ${
-                  isSelected
-                    ? `${opt.border} ${opt.bg} shadow-sm ring-1 ring-offset-1 ring-red-400`
-                    : 'border-gray-200 bg-white hover:border-gray-300'
-                }`}
-              >
-                <div className="flex items-center justify-between w-full">
-                  <span className={`text-xs font-black ${isSelected ? opt.color : 'text-gray-800'}`}>
-                    {opt.label}
-                  </span>
-                  {isSelected && <Check className={`h-3.5 w-3.5 ${opt.color}`} />}
-                </div>
-                <span className="text-[10px] text-gray-500 mt-1">{opt.desc}</span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
+      {/* A. TIPOS DE MARCAJE OPERATIVO CONDICIONAL POR PERFIL (FIJA 2 FOTOS / EVENTUAL 4 FOTOS) */}
+      {(() => {
+        const effectiveProfile = resolveEffectiveDailyProfileSnapshot({
+          promoterNameOrId: promoterName.trim(),
+          creatorId: profile?.id,
+        });
+        const visibleOptions =
+          effectiveProfile === 'FIJA'
+            ? MARCAJE_OPTIONS.filter((o) => o.type === 'Ingreso' || o.type === 'Salida')
+            : MARCAJE_OPTIONS;
+        return (
+          <div>
+            <label className="text-xs font-bold text-gray-700 flex items-center gap-1 mb-1.5 uppercase tracking-wider">
+              <Clock className="h-3.5 w-3.5 text-gray-500" />
+              Tipo de Marcaje Operativo ({effectiveProfile === 'FIJA' ? 'FIJA • 2 Fotos' : 'EVENTUAL • 4 Fotos'}):
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              {visibleOptions.map((opt) => {
+                const isSelected = selectedType === opt.type;
+                return (
+                  <button
+                    key={opt.type}
+                    type="button"
+                    onClick={() => setSelectedType(opt.type)}
+                    className={`p-2.5 rounded-xl border-2 text-left transition flex flex-col justify-between cursor-pointer ${
+                      isSelected
+                        ? `${opt.border} ${opt.bg} shadow-sm ring-1 ring-offset-1 ring-red-400`
+                        : 'border-gray-200 bg-white hover:border-gray-300'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between w-full">
+                      <span className={`text-xs font-black ${isSelected ? opt.color : 'text-gray-800'}`}>
+                        {opt.label}
+                      </span>
+                      {isSelected && <Check className={`h-3.5 w-3.5 ${opt.color}`} />}
+                    </div>
+                    <span className="text-[10px] text-gray-500 mt-1">{opt.desc}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* C. VALIDACIÓN DE GEOLOCALIZACIÓN SATELITAL (GPS OBLIGATORIO) */}
       <Card className="border-gray-200 shadow-sm overflow-hidden">

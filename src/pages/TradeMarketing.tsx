@@ -68,6 +68,21 @@ import * as XLSX from 'xlsx';
 import { InventoryProduct } from '../components/inventario/types';
 import { ENRICHED_CLIENTS } from '../data/clientsWithLocation';
 import { checkinsService, CheckInRecord, CheckInType, getCaracasDayKey } from '../lib/checkinsService';
+import {
+  type AttendanceProfileType,
+  type AttendancePhotoSlot,
+  type AttendanceSlotDescriptor,
+  type AttendanceComplianceEvaluation,
+  FIJA_SLOT_DESCRIPTORS,
+  EVENTUAL_MORNING_SLOT_DESCRIPTORS,
+  EVENTUAL_AFTERNOON_SLOT_DESCRIPTORS,
+  resolveCanonicalPromoterId,
+  resolveEffectiveDailyProfileSnapshot,
+  mapLegacyCheckInTypeToSlot,
+  mapAttendanceSlotToLegacyType,
+  evaluateDailyAttendanceCompliance,
+  compressAttendanceImageClient,
+} from '../lib/attendanceSecurityValidator';
 import { merchandisingService, MerchandisingReport } from '../lib/merchandisingService';
 import { staffService, StaffMember } from '../lib/staffService';
 import { campoService } from '../lib/campoService';
@@ -657,6 +672,11 @@ export const TradeMarketing: React.FC = () => {
   const [lastCheckInSync, setLastCheckInSync] = useState<Date>(new Date());
   const [manualSlotModal, setManualSlotModal] = useState<{
     existingId?: string;
+    asistencia_id: string;
+    perfil_aplicado: AttendanceProfileType;
+    slot_foto: AttendancePhotoSlot;
+    slotLabel: string;
+    slotSublabel: string;
     dayKey: string;
     dateFormatted: string;
     promoter: string;
@@ -667,48 +687,42 @@ export const TradeMarketing: React.FC = () => {
     photoBase64: string;
   } | null>(null);
   const [isSavingManualSlot, setIsSavingManualSlot] = useState<boolean>(false);
+  const [isCompressingManualPhoto, setIsCompressingManualPhoto] = useState<boolean>(false);
+  const [manualUploadProgress, setManualUploadProgress] = useState<number>(0);
+  const [manualUploadError, setManualUploadError] = useState<string | null>(null);
 
-  const handleManualSlotPhotoFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleManualSlotPhotoFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !manualSlotModal) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const img = new Image();
-      img.onload = () => {
-        try {
-          const canvas = document.createElement('canvas');
-          const TARGET_WIDTH = 720;
-          const vWidth = img.width || 720;
-          const vHeight = img.height || 960;
-          const TARGET_HEIGHT = Math.round((vHeight / vWidth) * TARGET_WIDTH);
-          canvas.width = TARGET_WIDTH;
-          canvas.height = TARGET_HEIGHT;
-          const ctx = canvas.getContext('2d');
-          if (ctx) {
-            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-            const compressed = canvas.toDataURL('image/jpeg', 0.72);
-            setManualSlotModal((prev) => (prev ? { ...prev, photoBase64: compressed } : null));
-            return;
-          }
-        } catch {}
-        setManualSlotModal((prev) =>
-          prev ? { ...prev, photoBase64: String(ev.target?.result || '') } : null
-        );
-      };
-      img.onerror = () => {
-        setManualSlotModal((prev) =>
-          prev ? { ...prev, photoBase64: String(ev.target?.result || '') } : null
-        );
-      };
-      img.src = String(ev.target?.result || '');
-    };
-    reader.readAsDataURL(file);
+    setManualUploadError(null);
+    setIsCompressingManualPhoto(true);
+    setManualUploadProgress(10);
+    try {
+      const compressed = await compressAttendanceImageClient(file, (pct) => {
+        setManualUploadProgress(pct);
+      });
+      setManualSlotModal((prev) => (prev ? { ...prev, photoBase64: compressed.dataUrl } : null));
+      setManualUploadProgress(100);
+    } catch (err: any) {
+      setManualUploadError(
+        err?.message ||
+          'El archivo seleccionado no es una imagen válida (JPG, PNG o WEBP) o excede los 5 MB permitidos.'
+      );
+      setManualUploadProgress(0);
+    } finally {
+      setIsCompressingManualPhoto(false);
+      e.target.value = '';
+    }
   };
 
   const handleSaveManualCheckInSlot = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!manualSlotModal || !manualSlotModal.photoBase64) return;
+    if (!manualSlotModal || !manualSlotModal.photoBase64 || isSavingManualSlot || isCompressingManualPhoto) {
+      return;
+    }
+    setManualUploadError(null);
     setIsSavingManualSlot(true);
+    setManualUploadProgress(35);
     try {
       const cleanTime = /^\d{2}:\d{2}$/.test(manualSlotModal.time.trim())
         ? manualSlotModal.time.trim()
@@ -723,17 +737,28 @@ export const TradeMarketing: React.FC = () => {
         promoter: manualSlotModal.promoter,
         store: manualSlotModal.store || 'Punto de Venta',
         type: manualSlotModal.type,
+        asistencia_id: manualSlotModal.asistencia_id,
+        perfil_aplicado: manualSlotModal.perfil_aplicado,
+        slot_foto: manualSlotModal.slot_foto,
         photoBase64: manualSlotModal.photoBase64,
         location: manualSlotModal.location || { lat: 10.6542, lng: -71.6241, accuracy: 8 },
         creatorId,
       });
+
+      setManualUploadProgress(100);
 
       if (res.record?.id && manualSlotModal.photoBase64.startsWith('data:')) {
         checkinPhotoMemoryCache.set(res.record.id, manualSlotModal.photoBase64);
       }
 
       setManualSlotModal(null);
+      setManualUploadProgress(0);
       await loadCheckIns(true);
+    } catch (err: any) {
+      setManualUploadError(
+        err?.message || 'Error al sincronizar la evidencia fotográfica con el servidor.'
+      );
+      setManualUploadProgress(0);
     } finally {
       setIsSavingManualSlot(false);
     }
@@ -2093,16 +2118,22 @@ export const TradeMarketing: React.FC = () => {
     });
   }, [checkIns, searchTerm, promoterFilter, checkInTypeFilter]);
 
-  // Organización de Asistencias por Día (Fecha) y Promotora con los 4 hitos cronológicos:
-  // 1. Foto de Ingreso | 2. Salida a Almorzar (Cuando aplique) | 3. Llegada de Almorzar (Cuando aplique) | 4. Salida
+  // Organización de Asistencias por Día (Fecha) y Promotora obedeciendo el snapshot inmutable `perfil_aplicado`:
+  // - Perfil `FIJA` (2 fotos): JORNADA_INGRESO + JORNADA_SALIDA
+  // - Perfil `EVENTUAL` (4 fotos): MANANA_INGRESO + MANANA_SALIDA + TARDE_INGRESO + TARDE_SALIDA
   const dailyGroupedCheckIns = useMemo(() => {
     interface PromoterDailyAttendance {
       key: string;
       dayKey: string;
       dateFormatted: string;
       promoter: string;
+      promotoraId: string;
+      asistencia_id: string;
+      perfil_aplicado: AttendanceProfileType;
       stores: string[];
       primaryLocation: { lat: number; lng: number; accuracy: number };
+      slotsByKey: Partial<Record<AttendancePhotoSlot, CheckInRecord>>;
+      compliance: AttendanceComplianceEvaluation;
       ingreso?: CheckInRecord;
       salidaAlmorzar?: CheckInRecord;
       llegadaAlmorzar?: CheckInRecord;
@@ -2125,25 +2156,42 @@ export const TradeMarketing: React.FC = () => {
       const [yyyy, mm, dd] = dayKey.split('-');
       const dateFormatted = dd && mm && yyyy ? `${dd}/${mm}/${yyyy}` : dayKey;
       const promoterKey = (item.promoter || 'Promotora').trim().toUpperCase();
+      const promotoraId = resolveCanonicalPromoterId(item.promoter, item.creatorId);
 
       if (!dayMap.has(dayKey)) {
         dayMap.set(dayKey, new Map());
       }
       const pMap = dayMap.get(dayKey)!;
       if (!pMap.has(promoterKey)) {
+        const initialProfile = resolveEffectiveDailyProfileSnapshot({
+          promoterNameOrId: item.promoter,
+          creatorId: item.creatorId,
+          existingDaySnapshot: item.perfil_aplicado || null,
+        });
         pMap.set(promoterKey, {
           key: `${dayKey}|${promoterKey}`,
           dayKey,
           dateFormatted,
           promoter: item.promoter || 'Promotora',
+          promotoraId,
+          asistencia_id: item.asistencia_id || `ASIS-${dayKey}-${promotoraId}`,
+          perfil_aplicado: initialProfile,
           stores: [],
           primaryLocation: item.location || { lat: 0, lng: 0, accuracy: 0 },
+          slotsByKey: {},
+          compliance: evaluateDailyAttendanceCompliance(initialProfile, []),
           recordsCount: 0,
         });
       }
 
       const entry = pMap.get(promoterKey)!;
-      entry.recordsCount += 1;
+      // Preservar snapshot explícito si el registro histórico lo trae
+      if (item.perfil_aplicado === 'FIJA' || item.perfil_aplicado === 'EVENTUAL') {
+        entry.perfil_aplicado = item.perfil_aplicado;
+      }
+      if (item.asistencia_id) {
+        entry.asistencia_id = item.asistencia_id;
+      }
 
       const storeClean = (item.store || '').trim();
       if (storeClean && !entry.stores.some((s) => s.toLowerCase() === storeClean.toLowerCase())) {
@@ -2160,6 +2208,29 @@ export const TradeMarketing: React.FC = () => {
       }
 
       const itemTimeMs = new Date(item.date).getTime();
+      const resolvedSlot: AttendancePhotoSlot =
+        item.slot_foto || mapLegacyCheckInTypeToSlot(item.type, entry.perfil_aplicado);
+
+      // Si una promotora FIJA tuviera un registro heredado de almuerzo sin slot explícito, sólo aceptamos las ranuras válidas de su perfil
+      const isValidForProfile =
+        entry.perfil_aplicado === 'FIJA'
+          ? resolvedSlot === 'JORNADA_INGRESO' || resolvedSlot === 'JORNADA_SALIDA'
+          : resolvedSlot === 'MANANA_INGRESO' ||
+            resolvedSlot === 'MANANA_SALIDA' ||
+            resolvedSlot === 'TARDE_INGRESO' ||
+            resolvedSlot === 'TARDE_SALIDA';
+
+      if (isValidForProfile) {
+        const prevSlotRec = entry.slotsByKey[resolvedSlot];
+        if (!prevSlotRec || itemTimeMs >= new Date(prevSlotRec.date).getTime()) {
+          entry.slotsByKey[resolvedSlot] = {
+            ...item,
+            asistencia_id: entry.asistencia_id,
+            perfil_aplicado: entry.perfil_aplicado,
+            slot_foto: resolvedSlot,
+          };
+        }
+      }
 
       if (item.type === 'Ingreso') {
         if (!entry.ingreso || itemTimeMs <= new Date(entry.ingreso.date).getTime()) {
@@ -2177,6 +2248,44 @@ export const TradeMarketing: React.FC = () => {
         if (!entry.salida || itemTimeMs >= new Date(entry.salida.date).getTime()) {
           entry.salida = item;
         }
+      }
+    }
+
+    // Si hay una promotora seleccionada en el filtro y aún no tiene marcajes hoy,
+    // proyectar su ficha diaria con estado 0/2 (FIJA) o 0/4 (EVENTUAL) "Sin registro" para permitir carga directa
+    if (promoterFilter !== 'todos' && checkInTypeFilter === 'todos' && searchTerm.trim() === '') {
+      const todayKey = getCaracasDayKey(new Date().toISOString());
+      const [yyyy, mm, dd] = todayKey.split('-');
+      const todayFormatted = dd && mm && yyyy ? `${dd}/${mm}/${yyyy}` : todayKey;
+      const promoterUpper = promoterFilter.trim().toUpperCase();
+      const promotoraId = resolveCanonicalPromoterId(promoterFilter);
+      const profileSnapshot = resolveEffectiveDailyProfileSnapshot({
+        promoterNameOrId: promoterFilter,
+      });
+
+      const alreadyPresentInAnyDay = Array.from(dayMap.values()).some((m) =>
+        Array.from(m.keys()).some((k) => matchPromoterName(k, promoterFilter))
+      );
+
+      if (!alreadyPresentInAnyDay) {
+        if (!dayMap.has(todayKey)) {
+          dayMap.set(todayKey, new Map());
+        }
+        const tMap = dayMap.get(todayKey)!;
+        tMap.set(promoterUpper, {
+          key: `${todayKey}|${promoterUpper}`,
+          dayKey: todayKey,
+          dateFormatted: todayFormatted,
+          promoter: promoterFilter,
+          promotoraId,
+          asistencia_id: `ASIS-${todayKey}-${promotoraId}`,
+          perfil_aplicado: profileSnapshot,
+          stores: ['Punto de Venta Asignado'],
+          primaryLocation: { lat: 0, lng: 0, accuracy: 0 },
+          slotsByKey: {},
+          compliance: evaluateDailyAttendanceCompliance(profileSnapshot, []),
+          recordsCount: 0,
+        });
       }
     }
 
@@ -2199,9 +2308,17 @@ export const TradeMarketing: React.FC = () => {
       } catch {}
 
       const pMap = dayMap.get(dayKey)!;
-      const promoters = Array.from(pMap.values()).sort((a, b) =>
-        a.promoter.localeCompare(b.promoter, 'es')
-      );
+      const promoters = Array.from(pMap.values())
+        .map((p) => {
+          const uploadedSlots = Object.keys(p.slotsByKey) as AttendancePhotoSlot[];
+          const compliance = evaluateDailyAttendanceCompliance(p.perfil_aplicado, uploadedSlots);
+          return {
+            ...p,
+            compliance,
+            recordsCount: compliance.uploadedCount,
+          };
+        })
+        .sort((a, b) => a.promoter.localeCompare(b.promoter, 'es'));
       const totalCheckIns = promoters.reduce((acc, p) => acc + p.recordsCount, 0);
 
       return {
@@ -2214,7 +2331,7 @@ export const TradeMarketing: React.FC = () => {
     });
 
     return sections;
-  }, [filteredCheckIns]);
+  }, [filteredCheckIns, promoterFilter, checkInTypeFilter, searchTerm]);
 
   // Filtrado de Informes de Merchandising Certificados & Evaluados con IA
   const filteredMerchandisingReports = useMemo(() => {
@@ -2359,7 +2476,7 @@ export const TradeMarketing: React.FC = () => {
     const wsInv = XLSX.utils.json_to_sheet(invRows);
     XLSX.utils.book_append_sheet(wb, wsInv, 'Inventario en Campo');
 
-    // Hoja 6: Asistencias en PDV (Organizadas por Fecha y Promotora: Ingreso, Salida Almorzar, Llegada Almorzar y Salida)
+    // Hoja 6: Asistencias en PDV (Obedeciendo `perfil_aplicado`: FIJA 2/2 vs EVENTUAL 4/4)
     const formatCheckInHour = (rec?: CheckInRecord) =>
       rec
         ? new Date(rec.date).toLocaleTimeString('es-VE', {
@@ -2374,20 +2491,31 @@ export const TradeMarketing: React.FC = () => {
       daySection.promoters.map((p) => {
         const staffMatch = resolvePromoterIdentity(p.promoter);
         const hasGps = p.primaryLocation && p.primaryLocation.lat !== 0 && p.primaryLocation.lng !== 0;
+        const isFija = p.perfil_aplicado === 'FIJA';
         return {
           Fecha: daySection.dateFormatted,
           Promotora: p.promoter,
+          Perfil_Aplicado: p.perfil_aplicado,
+          Cumplimiento: `${p.compliance.badgeText} (${p.compliance.status})`,
           Rol: staffMatch?.role || 'Impulsadora',
           PDV_Tienda: p.stores.join(' / ') || 'Punto de Venta',
           Zona: staffMatch?.zone || 'Zulia / Falcón',
-          Hora_Ingreso: formatCheckInHour(p.ingreso),
-          Salida_Almorzar: formatCheckInHour(p.salidaAlmorzar),
-          Llegada_Almorzar: formatCheckInHour(p.llegadaAlmorzar),
-          Hora_Salida: p.salida ? formatCheckInHour(p.salida) : 'Pendiente / En Curso',
+          Hora_Ingreso_Manana_o_Jornada: formatCheckInHour(
+            isFija ? p.slotsByKey.JORNADA_INGRESO : p.slotsByKey.MANANA_INGRESO
+          ),
+          Salida_Jornada_Manana: isFija
+            ? 'No aplica (Perfil FIJA 2 fotos)'
+            : formatCheckInHour(p.slotsByKey.MANANA_SALIDA),
+          Ingreso_Jornada_Tarde: isFija
+            ? 'No aplica (Perfil FIJA 2 fotos)'
+            : formatCheckInHour(p.slotsByKey.TARDE_INGRESO),
+          Hora_Salida_Tarde_o_Jornada: formatCheckInHour(
+            isFija ? p.slotsByKey.JORNADA_SALIDA : p.slotsByKey.TARDE_SALIDA
+          ),
           Coordenadas_GPS: hasGps
             ? `${p.primaryLocation.lat.toFixed(6)}, ${p.primaryLocation.lng.toFixed(6)} (±${Math.round(p.primaryLocation.accuracy || 0)}m)`
             : 'Sin GPS',
-          Estado: p.ingreso && p.salida ? 'JORNADA COMPLETA' : 'EN GUARDIA ACTIVA',
+          Estado: p.compliance.status.toUpperCase(),
         };
       })
     );
@@ -4736,7 +4864,7 @@ export const TradeMarketing: React.FC = () => {
                 </div>
               </div>
 
-              {/* VISTA 1: ASISTENCIA ORGANIZADA POR FECHA (DÍA) Y PROMOTORA CON LOS 4 HITOS CRONOLÓGICOS */}
+              {/* VISTA 1: ASISTENCIA ORGANIZADA POR FECHA (DÍA) Y PROMOTORA CON LÓGICA CONDICIONAL POR PERFIL (FIJA 2 FOTOS / EVENTUAL 4 FOTOS) */}
               {checkInViewMode === 'gallery' && (
                 <div>
                   {dailyGroupedCheckIns.length === 0 ? (
@@ -4780,7 +4908,7 @@ export const TradeMarketing: React.FC = () => {
                                   </span>
                                 </div>
                                 <p className="text-[11px] text-zinc-400">
-                                  Secuencia diaria certificada: 1. Foto de Ingreso • 2. Salida a Almorzar (Cuando aplique) • 3. Llegada de Almorzar (Cuando aplique) • 4. Salida
+                                  Control fotográfico diario por modalidad contractual: Promotoras Fijas (2 evidencias: Ingreso y Salida) • Promotoras Eventuales (4 evidencias: Mañana y Tarde)
                                 </p>
                               </div>
                             </div>
@@ -4790,7 +4918,7 @@ export const TradeMarketing: React.FC = () => {
                                 {daySection.promoters.length} promotora(s)
                               </span>
                               <span className="px-2.5 py-1 rounded-lg bg-emerald-950/70 border border-emerald-500/30 text-emerald-400 font-bold">
-                                {daySection.totalCheckIns} marcaje(s)
+                                {daySection.totalCheckIns} evidencia(s)
                               </span>
                             </div>
                           </div>
@@ -4805,71 +4933,13 @@ export const TradeMarketing: React.FC = () => {
                               const mapsUrl = hasValidGps
                                 ? `https://www.google.com/maps/search/?api=1&query=${pRow.primaryLocation.lat},${pRow.primaryLocation.lng}`
                                 : null;
-                              const isCompleteDay = Boolean(pRow.ingreso && pRow.salida);
-
-                              const slots: Array<{
-                                key: string;
-                                stepNumber: string;
-                                label: string;
-                                sublabel: string;
-                                checkInType: CheckInType;
-                                defaultTime: string;
-                                record?: CheckInRecord;
-                                badgeBg: string;
-                                emptyText: string;
-                              }> = [
-                                {
-                                  key: 'ingreso',
-                                  stepNumber: '1',
-                                  label: 'Foto de Ingreso',
-                                  sublabel: 'Apertura de jornada en PDV',
-                                  checkInType: 'Ingreso',
-                                  defaultTime: '08:30',
-                                  record: pRow.ingreso,
-                                  badgeBg: 'bg-emerald-600/90 border-emerald-400/40 text-white',
-                                  emptyText: 'Sin registro de ingreso',
-                                },
-                                {
-                                  key: 'salida_almorzar',
-                                  stepNumber: '2',
-                                  label: 'Salida a Almorzar',
-                                  sublabel: 'Cuando aplique',
-                                  checkInType: 'Salida a almorzar',
-                                  defaultTime: '12:00',
-                                  record: pRow.salidaAlmorzar,
-                                  badgeBg: 'bg-amber-600/90 border-amber-400/40 text-white',
-                                  emptyText: 'No aplica / Sin salida a almorzar',
-                                },
-                                {
-                                  key: 'llegada_almorzar',
-                                  stepNumber: '3',
-                                  label: 'Llegada de Almorzar',
-                                  sublabel: 'Cuando aplique',
-                                  checkInType: 'Vuelta a almorzar',
-                                  defaultTime: '14:00',
-                                  record: pRow.llegadaAlmorzar,
-                                  badgeBg: 'bg-blue-600/90 border-blue-400/40 text-white',
-                                  emptyText: 'No aplica / Sin llegada de almorzar',
-                                },
-                                {
-                                  key: 'salida',
-                                  stepNumber: '4',
-                                  label: 'Salida',
-                                  sublabel: 'Cierre de guardia en PDV',
-                                  checkInType: 'Salida',
-                                  defaultTime: '17:00',
-                                  record: pRow.salida,
-                                  badgeBg: 'bg-red-600/90 border-red-400/40 text-white',
-                                  emptyText: 'Pendiente / Sin registro de salida',
-                                },
-                              ];
+                              const isFijaProfile = pRow.perfil_aplicado === 'FIJA';
 
                               const openSlotUploadModal = (
-                                checkInType: CheckInType,
-                                defaultTime: string,
+                                descriptor: AttendanceSlotDescriptor,
                                 existingRec?: CheckInRecord
                               ) => {
-                                let initialTime = defaultTime;
+                                let initialTime = descriptor.defaultTime;
                                 if (existingRec?.date) {
                                   try {
                                     const d = new Date(existingRec.date);
@@ -4879,13 +4949,20 @@ export const TradeMarketing: React.FC = () => {
                                     initialTime = `${hh}:${mm}`;
                                   } catch {}
                                 }
+                                setManualUploadError(null);
+                                setManualUploadProgress(0);
                                 setManualSlotModal({
                                   existingId: existingRec?.id,
+                                  asistencia_id: pRow.asistencia_id,
+                                  perfil_aplicado: pRow.perfil_aplicado,
+                                  slot_foto: descriptor.slot,
+                                  slotLabel: descriptor.label,
+                                  slotSublabel: descriptor.sublabel,
                                   dayKey: pRow.dayKey,
                                   dateFormatted: pRow.dateFormatted,
                                   promoter: pRow.promoter,
                                   store: existingRec?.store || pRow.stores[0] || 'Punto de Venta',
-                                  type: checkInType,
+                                  type: descriptor.legacyType,
                                   time: initialTime,
                                   location:
                                     pRow.primaryLocation &&
@@ -4897,9 +4974,141 @@ export const TradeMarketing: React.FC = () => {
                                 });
                               };
 
+                              const renderEvidenceSlotCard = (descriptor: AttendanceSlotDescriptor) => {
+                                const rec = pRow.slotsByKey[descriptor.slot];
+                                const timeStr = rec
+                                  ? new Date(rec.date).toLocaleTimeString('es-VE', {
+                                      hour: '2-digit',
+                                      minute: '2-digit',
+                                      hour12: true,
+                                      timeZone: 'America/Caracas',
+                                    })
+                                  : null;
+                                const ariaUploadLabel = descriptor.buildAriaLabel(pRow.promoter, Boolean(rec));
+
+                                return (
+                                  <div
+                                    key={descriptor.slot}
+                                    data-slot-foto={descriptor.slot}
+                                    className={`rounded-xl border overflow-hidden flex flex-col ${
+                                      rec
+                                        ? 'bg-[#121316] border-white/15 shadow-md'
+                                        : 'bg-zinc-900/40 border-white/5 opacity-85'
+                                    }`}
+                                  >
+                                    {/* Encabezado de la Ranura Fotográfica */}
+                                    <div className="px-3 py-2 bg-zinc-900/90 border-b border-white/10 flex items-center justify-between gap-1">
+                                      <div>
+                                        <span className="text-[11px] font-black text-white uppercase tracking-wider block">
+                                          {descriptor.stepNumber}. {descriptor.label}
+                                        </span>
+                                        <span className="text-[10px] text-zinc-400 block">
+                                          {descriptor.sublabel}
+                                        </span>
+                                      </div>
+                                      {timeStr ? (
+                                        <span className={`px-2 py-0.5 rounded-md text-[10px] font-mono font-black border shrink-0 ${descriptor.badgeBg}`}>
+                                          {timeStr}
+                                        </span>
+                                      ) : (
+                                        <span className="px-2 py-0.5 rounded-md text-[10px] font-mono text-zinc-500 bg-zinc-800/70 shrink-0">
+                                          —
+                                        </span>
+                                      )}
+                                    </div>
+
+                                    {/* Cuerpo Fotográfico o Estado Vacío */}
+                                    {rec ? (
+                                      <div
+                                        className="relative aspect-[3/4] w-full bg-zinc-950 overflow-hidden cursor-pointer group"
+                                        onClick={() => setInspectCheckIn(rec)}
+                                      >
+                                        <CheckInPhoto
+                                          src={rec.signedPhotoUrl || rec.photoBase64}
+                                          checkInId={rec.id}
+                                          alt={`${descriptor.label} - ${pRow.promoter}`}
+                                          className="w-full h-full object-contain bg-zinc-950 group-hover:scale-105 transition-transform duration-300"
+                                        />
+
+                                        <div className="absolute top-2.5 right-2.5 z-10 flex items-center gap-1 opacity-90 group-hover:opacity-100 transition-opacity">
+                                          <button
+                                            type="button"
+                                            aria-label={ariaUploadLabel}
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              openSlotUploadModal(descriptor, rec);
+                                            }}
+                                            className="p-2 min-w-[36px] min-h-[36px] flex items-center justify-center rounded-lg bg-black/75 hover:bg-black text-emerald-400 border border-emerald-500/30 backdrop-blur-sm transition-colors cursor-pointer"
+                                            title={ariaUploadLabel}
+                                          >
+                                            <Camera className="w-3.5 h-3.5" />
+                                          </button>
+                                          <button
+                                            type="button"
+                                            aria-label={`Ampliar evidencia de ${descriptor.label.toLowerCase()} para ${pRow.promoter}`}
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              setInspectCheckIn(rec);
+                                            }}
+                                            className="p-2 min-w-[36px] min-h-[36px] flex items-center justify-center rounded-lg bg-black/75 hover:bg-black text-white border border-white/20 backdrop-blur-sm transition-colors cursor-pointer"
+                                            title="Ver Evidencia en Tamaño Completo"
+                                          >
+                                            <Maximize2 className="w-3.5 h-3.5" />
+                                          </button>
+                                          <button
+                                            type="button"
+                                            aria-label={`Eliminar evidencia de ${descriptor.label.toLowerCase()} para ${pRow.promoter}`}
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              setDeleteConfirmCheckIn(rec);
+                                            }}
+                                            className="p-2 min-w-[36px] min-h-[36px] flex items-center justify-center rounded-lg bg-red-950/85 hover:bg-red-800 text-red-200 border border-red-500/40 backdrop-blur-sm transition-colors cursor-pointer"
+                                            title="Eliminar Marcaje (Auditoría)"
+                                          >
+                                            <Trash2 className="w-3.5 h-3.5" />
+                                          </button>
+                                        </div>
+
+                                        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/95 via-black/75 to-transparent pt-8 pb-2.5 px-3 text-white">
+                                          <div className="text-[11px] font-bold text-zinc-100 line-clamp-1 flex items-center gap-1">
+                                            <Store className="w-3 h-3 text-red-400 shrink-0" />
+                                            <span>{rec.store}</span>
+                                          </div>
+                                          <div className="flex items-center justify-between text-[10px] font-mono text-zinc-300 mt-1">
+                                            <span>{pRow.dateFormatted}</span>
+                                            <span className="text-emerald-400 font-bold">
+                                              {rec.location?.lat
+                                                ? `±${Math.round(rec.location.accuracy || 5)}m GPS`
+                                                : 'Verificado'}
+                                            </span>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <div className="aspect-[3/4] w-full flex flex-col items-center justify-center p-4 text-center bg-zinc-950/50 text-zinc-500 gap-2.5">
+                                        <Clock className="w-6 h-6 text-zinc-700" />
+                                        <span className="text-[11px] font-semibold text-zinc-500">
+                                          {descriptor.emptyText}
+                                        </span>
+                                        <button
+                                          type="button"
+                                          aria-label={ariaUploadLabel}
+                                          onClick={() => openSlotUploadModal(descriptor)}
+                                          className="mt-1 min-h-[40px] px-3.5 py-2 rounded-xl bg-zinc-900 hover:bg-red-600/90 border border-white/15 hover:border-red-400 text-zinc-200 hover:text-white text-[11px] font-bold inline-flex items-center gap-1.5 transition-all cursor-pointer shadow-sm"
+                                        >
+                                          <Camera className="w-3.5 h-3.5 text-red-400 shrink-0" />
+                                          <span>Cargar / Sincronizar Foto</span>
+                                        </button>
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              };
+
                               return (
                                 <div
                                   key={pRow.key}
+                                  data-promoter-profile={pRow.perfil_aplicado}
                                   className="bg-zinc-950/90 border border-white/10 hover:border-white/20 rounded-2xl overflow-hidden shadow-lg transition-all"
                                 >
                                   {/* Cabecera de la Promotora en ese Día */}
@@ -4913,14 +5122,27 @@ export const TradeMarketing: React.FC = () => {
                                           <span className="font-black text-sm text-white tracking-tight">
                                             {pRow.promoter}
                                           </span>
+                                          {/* Insignia del Snapshot Histórico de Perfil */}
                                           <span
                                             className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider border ${
-                                              isCompleteDay
-                                                ? 'bg-emerald-950/80 border-emerald-500/40 text-emerald-400'
-                                                : 'bg-amber-950/80 border-amber-500/40 text-amber-400'
+                                              isFijaProfile
+                                                ? 'bg-sky-950/80 border-sky-500/40 text-sky-300'
+                                                : 'bg-purple-950/80 border-purple-500/40 text-purple-300'
                                             }`}
                                           >
-                                            {isCompleteDay ? 'Jornada Completa' : 'En Guardia / Marcaje Parcial'}
+                                            {isFijaProfile ? 'Perfil: FIJA (2 Fotos)' : 'Perfil: EVENTUAL (4 Fotos)'}
+                                          </span>
+                                          {/* Insignia de Progreso y Estado de Cumplimiento */}
+                                          <span
+                                            className={`px-2.5 py-0.5 rounded-md text-[10px] font-mono font-black uppercase tracking-wider border ${
+                                              pRow.compliance.isComplete
+                                                ? 'bg-emerald-950/80 border-emerald-500/40 text-emerald-400'
+                                                : pRow.compliance.uploadedCount > 0
+                                                ? 'bg-amber-950/80 border-amber-500/40 text-amber-400'
+                                                : 'bg-zinc-900 border-white/15 text-zinc-400'
+                                            }`}
+                                          >
+                                            {pRow.compliance.badgeText} • {pRow.compliance.status}
                                           </span>
                                         </div>
                                         <div className="text-xs text-zinc-300 font-semibold flex items-center gap-1.5 mt-0.5">
@@ -4952,133 +5174,52 @@ export const TradeMarketing: React.FC = () => {
                                     </div>
                                   </div>
 
-                                  {/* Cuadrícula de los 4 Hitos del Día */}
-                                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 p-3.5">
-                                    {slots.map((slot) => {
-                                      const rec = slot.record;
-                                      const timeStr = rec
-                                        ? new Date(rec.date).toLocaleTimeString('es-VE', {
-                                            hour: '2-digit',
-                                            minute: '2-digit',
-                                            hour12: true,
-                                            timeZone: 'America/Caracas',
-                                          })
-                                        : null;
-
-                                      return (
-                                        <div
-                                          key={slot.key}
-                                          className={`rounded-xl border overflow-hidden flex flex-col ${
-                                            rec
-                                              ? 'bg-[#121316] border-white/15 shadow-md'
-                                              : 'bg-zinc-900/40 border-white/5 opacity-75'
-                                          }`}
-                                        >
-                                          {/* Encabezado del Hito */}
-                                          <div className="px-3 py-2 bg-zinc-900/90 border-b border-white/10 flex items-center justify-between gap-1">
-                                            <div>
-                                              <span className="text-[11px] font-black text-white uppercase tracking-wider block">
-                                                {slot.stepNumber}. {slot.label}
-                                              </span>
-                                              <span className="text-[10px] text-zinc-400 block">
-                                                {slot.sublabel}
-                                              </span>
-                                            </div>
-                                            {timeStr ? (
-                                              <span className={`px-2 py-0.5 rounded-md text-[10px] font-mono font-black border ${slot.badgeBg}`}>
-                                                {timeStr}
-                                              </span>
-                                            ) : (
-                                              <span className="px-2 py-0.5 rounded-md text-[10px] font-mono text-zinc-500 bg-zinc-800/70">
-                                                —
-                                              </span>
-                                            )}
-                                          </div>
-
-                                          {/* Cuerpo Fotográfico o Estado Vacío */}
-                                          {rec ? (
-                                            <div
-                                              className="relative aspect-[3/4] w-full bg-zinc-950 overflow-hidden cursor-pointer group"
-                                              onClick={() => setInspectCheckIn(rec)}
-                                            >
-                                              <CheckInPhoto
-                                                src={rec.photoBase64}
-                                                checkInId={rec.id}
-                                                alt={`${slot.label} - ${pRow.promoter}`}
-                                                className="w-full h-full object-contain bg-zinc-950 group-hover:scale-105 transition-transform duration-300"
-                                              />
-
-                                              <div className="absolute top-2.5 right-2.5 z-10 flex items-center gap-1 opacity-90 group-hover:opacity-100 transition-opacity">
-                                                <button
-                                                  type="button"
-                                                  onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    openSlotUploadModal(slot.checkInType, slot.defaultTime, rec);
-                                                  }}
-                                                  className="p-1.5 rounded-lg bg-black/75 hover:bg-black text-emerald-400 border border-emerald-500/30 backdrop-blur-sm transition-colors cursor-pointer"
-                                                  title="Actualizar / Reemplazar Fotografía"
-                                                >
-                                                  <Camera className="w-3.5 h-3.5" />
-                                                </button>
-                                                <button
-                                                  type="button"
-                                                  onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    setInspectCheckIn(rec);
-                                                  }}
-                                                  className="p-1.5 rounded-lg bg-black/75 hover:bg-black text-white border border-white/20 backdrop-blur-sm transition-colors cursor-pointer"
-                                                  title="Ver Evidencia en Tamaño Completo"
-                                                >
-                                                  <Maximize2 className="w-3.5 h-3.5" />
-                                                </button>
-                                                <button
-                                                  type="button"
-                                                  onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    setDeleteConfirmCheckIn(rec);
-                                                  }}
-                                                  className="p-1.5 rounded-lg bg-red-950/85 hover:bg-red-800 text-red-200 border border-red-500/40 backdrop-blur-sm transition-colors cursor-pointer"
-                                                  title="Eliminar Marcaje (Auditoría)"
-                                                >
-                                                  <Trash2 className="w-3.5 h-3.5" />
-                                                </button>
-                                              </div>
-
-                                              <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/95 via-black/75 to-transparent pt-8 pb-2.5 px-3 text-white">
-                                                <div className="text-[11px] font-bold text-zinc-100 line-clamp-1 flex items-center gap-1">
-                                                  <Store className="w-3 h-3 text-red-400 shrink-0" />
-                                                  <span>{rec.store}</span>
-                                                </div>
-                                                <div className="flex items-center justify-between text-[10px] font-mono text-zinc-300 mt-1">
-                                                  <span>{pRow.dateFormatted}</span>
-                                                  <span className="text-emerald-400 font-bold">
-                                                    {rec.location?.lat
-                                                      ? `±${Math.round(rec.location.accuracy || 5)}m GPS`
-                                                      : 'Verificado'}
-                                                  </span>
-                                                </div>
-                                              </div>
-                                            </div>
-                                          ) : (
-                                            <div className="aspect-[3/4] w-full flex flex-col items-center justify-center p-4 text-center bg-zinc-950/50 text-zinc-500 gap-2.5">
-                                              <Clock className="w-6 h-6 text-zinc-700" />
-                                              <span className="text-[11px] font-semibold text-zinc-500">
-                                                {slot.emptyText}
-                                              </span>
-                                              <button
-                                                type="button"
-                                                onClick={() => openSlotUploadModal(slot.checkInType, slot.defaultTime)}
-                                                className="mt-1 px-3 py-1.5 rounded-xl bg-zinc-900 hover:bg-red-600/90 border border-white/15 hover:border-red-400 text-zinc-200 hover:text-white text-[10px] font-bold inline-flex items-center gap-1.5 transition-all cursor-pointer shadow-sm"
-                                              >
-                                                <Camera className="w-3 h-3 text-red-400" />
-                                                <span>Cargar / Sincronizar Foto</span>
-                                              </button>
-                                            </div>
+                                  {/* RENDERIZADO CONDICIONAL ESTRICTO SEGÚN `perfil_aplicado` */}
+                                  {isFijaProfile ? (
+                                    /* PERFIL FIJA: Contenedor limpio de 2 tarjetas (Ingreso y Salida). Sin referencias a turnos de mañana/tarde ni almuerzo */
+                                    <div className="p-3.5">
+                                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 max-w-2xl">
+                                        {FIJA_SLOT_DESCRIPTORS.map((descriptor) =>
+                                          renderEvidenceSlotCard(descriptor)
+                                        )}
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    /* PERFIL EVENTUAL: 2 secciones visuales diferenciadas ("Jornada de la Mañana" y "Jornada de la Tarde") con 2 tarjetas cada una (total 4) */
+                                    <div className="p-3.5 grid grid-cols-1 lg:grid-cols-2 gap-4">
+                                      <div className="rounded-xl border border-amber-500/20 bg-zinc-900/30 p-3 space-y-2.5">
+                                        <div className="flex items-center justify-between border-b border-white/10 pb-2">
+                                          <span className="text-[11px] font-black uppercase tracking-wider text-amber-300">
+                                            Jornada de la Mañana
+                                          </span>
+                                          <span className="text-[10px] font-mono text-zinc-400">
+                                            {[pRow.slotsByKey.MANANA_INGRESO, pRow.slotsByKey.MANANA_SALIDA].filter(Boolean).length}/2 fotos
+                                          </span>
+                                        </div>
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                          {EVENTUAL_MORNING_SLOT_DESCRIPTORS.map((descriptor) =>
+                                            renderEvidenceSlotCard(descriptor)
                                           )}
                                         </div>
-                                      );
-                                    })}
-                                  </div>
+                                      </div>
+
+                                      <div className="rounded-xl border border-blue-500/20 bg-zinc-900/30 p-3 space-y-2.5">
+                                        <div className="flex items-center justify-between border-b border-white/10 pb-2">
+                                          <span className="text-[11px] font-black uppercase tracking-wider text-blue-300">
+                                            Jornada de la Tarde
+                                          </span>
+                                          <span className="text-[10px] font-mono text-zinc-400">
+                                            {[pRow.slotsByKey.TARDE_INGRESO, pRow.slotsByKey.TARDE_SALIDA].filter(Boolean).length}/2 fotos
+                                          </span>
+                                        </div>
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                          {EVENTUAL_AFTERNOON_SLOT_DESCRIPTORS.map((descriptor) =>
+                                            renderEvidenceSlotCard(descriptor)
+                                          )}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  )}
                                 </div>
                               );
                             })}
@@ -5090,7 +5231,7 @@ export const TradeMarketing: React.FC = () => {
                 </div>
               )}
 
-              {/* VISTA 2: TABLA DE CONTROL HORARIO ORGANIZADA POR DÍA (FECHA) Y PROMOTORA */}
+              {/* VISTA 2: TABLA DE CONTROL HORARIO ORGANIZADA POR DÍA (FECHA), PROMOTORA Y PERFIL APLICADO */}
               {checkInViewMode === 'table' && (
                 <div className="bg-[#121316] border border-white/10 rounded-2xl shadow-xl overflow-hidden">
                   <div className="overflow-x-auto">
@@ -5098,12 +5239,10 @@ export const TradeMarketing: React.FC = () => {
                       <thead>
                         <tr className="bg-zinc-900/90 text-zinc-400 font-bold uppercase tracking-wider border-b border-white/10 text-[11px] select-none">
                           <th className="p-3.5 border-r border-white/10 min-w-[110px]">Fecha</th>
-                          <th className="p-3.5 border-r border-white/10 min-w-[175px]">Promotora</th>
-                          <th className="p-3.5 border-r border-white/10 min-w-[210px]">Punto de Venta / PDV</th>
-                          <th className="p-3.5 border-r border-white/10 min-w-[145px]">1. Foto Ingreso</th>
-                          <th className="p-3.5 border-r border-white/10 min-w-[155px]">2. Salida Almorzar</th>
-                          <th className="p-3.5 border-r border-white/10 min-w-[155px]">3. Llegada Almorzar</th>
-                          <th className="p-3.5 border-r border-white/10 min-w-[145px]">4. Salida</th>
+                          <th className="p-3.5 border-r border-white/10 min-w-[185px]">Promotora / Perfil</th>
+                          <th className="p-3.5 border-r border-white/10 min-w-[200px]">Punto de Venta / PDV</th>
+                          <th className="p-3.5 border-r border-white/10 min-w-[280px]">Evidencias Fotográficas del Día</th>
+                          <th className="p-3.5 border-r border-white/10 min-w-[160px]">Cumplimiento</th>
                           <th className="p-3.5 text-center min-w-[150px]">Geolocalización GPS</th>
                         </tr>
                       </thead>
@@ -5117,91 +5256,10 @@ export const TradeMarketing: React.FC = () => {
                             const mapsUrl = hasValidGps
                               ? `https://www.google.com/maps/search/?api=1&query=${pRow.primaryLocation.lat},${pRow.primaryLocation.lng}`
                               : null;
-
-                            const renderMilestoneCell = (
-                              rec: CheckInRecord | undefined,
-                              badgeCls: string,
-                              emptyLabel: string,
-                              slotType: CheckInType,
-                              defaultTime: string
-                            ) => {
-                              if (!rec) {
-                                return (
-                                  <div className="space-y-1">
-                                    <span className="text-[11px] text-zinc-500 font-mono block">{emptyLabel}</span>
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        setManualSlotModal({
-                                          dayKey: pRow.dayKey,
-                                          dateFormatted: pRow.dateFormatted,
-                                          promoter: pRow.promoter,
-                                          store: pRow.stores[0] || 'Punto de Venta',
-                                          type: slotType,
-                                          time: defaultTime,
-                                          location:
-                                            pRow.primaryLocation &&
-                                            pRow.primaryLocation.lat !== 0 &&
-                                            pRow.primaryLocation.lng !== 0
-                                              ? pRow.primaryLocation
-                                              : { lat: 10.621332, lng: -71.660643, accuracy: 8 },
-                                          photoBase64: '',
-                                        })
-                                      }
-                                      className="text-[10px] text-red-400 hover:text-red-300 font-bold underline cursor-pointer"
-                                    >
-                                      + Cargar foto
-                                    </button>
-                                  </div>
-                                );
-                              }
-                              const timeStr = new Date(rec.date).toLocaleTimeString('es-VE', {
-                                hour: '2-digit',
-                                minute: '2-digit',
-                                hour12: true,
-                                timeZone: 'America/Caracas',
-                              });
-                              return (
-                                <div className="flex items-center gap-2.5">
-                                  <div
-                                    onClick={() => setInspectCheckIn(rec)}
-                                    className="w-10 h-13 rounded-lg overflow-hidden bg-zinc-950 border border-white/15 shrink-0 cursor-pointer hover:border-red-400 transition"
-                                    title="Clic para ampliar foto de evidencia"
-                                  >
-                                    <CheckInPhoto
-                                      src={rec.photoBase64}
-                                      checkInId={rec.id}
-                                      alt={rec.promoter}
-                                      className="w-full h-full object-contain bg-zinc-950"
-                                    />
-                                  </div>
-                                  <div className="space-y-1">
-                                    <span
-                                      className={`px-2 py-0.5 rounded-md border text-[11px] font-mono font-bold inline-block ${badgeCls}`}
-                                    >
-                                      {timeStr}
-                                    </span>
-                                    <div className="flex items-center gap-1">
-                                      <button
-                                        type="button"
-                                        onClick={() => setInspectCheckIn(rec)}
-                                        className="text-[10px] text-zinc-400 hover:text-white underline cursor-pointer"
-                                      >
-                                        Ver foto
-                                      </button>
-                                      <span className="text-zinc-600">•</span>
-                                      <button
-                                        type="button"
-                                        onClick={() => setDeleteConfirmCheckIn(rec)}
-                                        className="text-[10px] text-red-400 hover:text-red-300 underline cursor-pointer"
-                                      >
-                                        Borrar
-                                      </button>
-                                    </div>
-                                  </div>
-                                </div>
-                              );
-                            };
+                            const isFijaProfile = pRow.perfil_aplicado === 'FIJA';
+                            const descriptorsForRow = isFijaProfile
+                              ? FIJA_SLOT_DESCRIPTORS
+                              : [...EVENTUAL_MORNING_SLOT_DESCRIPTORS, ...EVENTUAL_AFTERNOON_SLOT_DESCRIPTORS];
 
                             return (
                               <tr key={pRow.key} className="hover:bg-white/[0.02] transition-colors">
@@ -5210,8 +5268,14 @@ export const TradeMarketing: React.FC = () => {
                                 </td>
                                 <td className="p-3.5 border-r border-white/10">
                                   <div className="font-bold text-white text-sm">{pRow.promoter}</div>
-                                  <span className="text-[10px] text-zinc-400 font-mono">
-                                    {pRow.ingreso && pRow.salida ? 'Jornada Completa' : 'En Guardia'}
+                                  <span
+                                    className={`mt-1 inline-block px-2 py-0.5 rounded text-[10px] font-black uppercase border ${
+                                      isFijaProfile
+                                        ? 'bg-sky-950/70 border-sky-500/30 text-sky-300'
+                                        : 'bg-purple-950/70 border-purple-500/30 text-purple-300'
+                                    }`}
+                                  >
+                                    {isFijaProfile ? 'FIJA (2 fotos)' : 'EVENTUAL (4 fotos)'}
                                   </span>
                                 </td>
                                 <td className="p-3.5 border-r border-white/10">
@@ -5220,40 +5284,91 @@ export const TradeMarketing: React.FC = () => {
                                   </div>
                                 </td>
                                 <td className="p-3.5 border-r border-white/10">
-                                  {renderMilestoneCell(
-                                    pRow.ingreso,
-                                    'bg-emerald-950/70 border-emerald-500/40 text-emerald-400',
-                                    'Sin ingreso',
-                                    'Ingreso',
-                                    '08:30'
-                                  )}
+                                  <div className="flex flex-wrap gap-2">
+                                    {descriptorsForRow.map((descriptor) => {
+                                      const rec = pRow.slotsByKey[descriptor.slot];
+                                      const ariaLabel = descriptor.buildAriaLabel(pRow.promoter, Boolean(rec));
+                                      if (!rec) {
+                                        return (
+                                          <button
+                                            key={descriptor.slot}
+                                            type="button"
+                                            aria-label={ariaLabel}
+                                            onClick={() => {
+                                              setManualUploadError(null);
+                                              setManualUploadProgress(0);
+                                              setManualSlotModal({
+                                                asistencia_id: pRow.asistencia_id,
+                                                perfil_aplicado: pRow.perfil_aplicado,
+                                                slot_foto: descriptor.slot,
+                                                slotLabel: descriptor.label,
+                                                slotSublabel: descriptor.sublabel,
+                                                dayKey: pRow.dayKey,
+                                                dateFormatted: pRow.dateFormatted,
+                                                promoter: pRow.promoter,
+                                                store: pRow.stores[0] || 'Punto de Venta',
+                                                type: descriptor.legacyType,
+                                                time: descriptor.defaultTime,
+                                                location:
+                                                  pRow.primaryLocation &&
+                                                  pRow.primaryLocation.lat !== 0 &&
+                                                  pRow.primaryLocation.lng !== 0
+                                                    ? pRow.primaryLocation
+                                                    : { lat: 10.621332, lng: -71.660643, accuracy: 8 },
+                                                photoBase64: '',
+                                              });
+                                            }}
+                                            className="px-2.5 py-1.5 rounded-lg bg-zinc-900 hover:bg-red-950/60 border border-white/10 hover:border-red-500/40 text-zinc-400 hover:text-red-300 text-[10px] font-bold transition cursor-pointer"
+                                          >
+                                            + {descriptor.label}
+                                          </button>
+                                        );
+                                      }
+                                      const timeStr = new Date(rec.date).toLocaleTimeString('es-VE', {
+                                        hour: '2-digit',
+                                        minute: '2-digit',
+                                        hour12: true,
+                                        timeZone: 'America/Caracas',
+                                      });
+                                      return (
+                                        <div
+                                          key={descriptor.slot}
+                                          className="flex items-center gap-2 p-1.5 rounded-lg bg-zinc-900/80 border border-white/10"
+                                        >
+                                          <div
+                                            onClick={() => setInspectCheckIn(rec)}
+                                            className="w-8 h-10 rounded overflow-hidden bg-zinc-950 border border-white/15 shrink-0 cursor-pointer"
+                                          >
+                                            <CheckInPhoto
+                                              src={rec.signedPhotoUrl || rec.photoBase64}
+                                              checkInId={rec.id}
+                                              alt={rec.promoter}
+                                              className="w-full h-full object-contain bg-zinc-950"
+                                            />
+                                          </div>
+                                          <div>
+                                            <div className="text-[10px] font-bold text-white leading-tight">
+                                              {descriptor.label}
+                                            </div>
+                                            <div className="text-[10px] font-mono text-emerald-400">{timeStr}</div>
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
                                 </td>
                                 <td className="p-3.5 border-r border-white/10">
-                                  {renderMilestoneCell(
-                                    pRow.salidaAlmorzar,
-                                    'bg-amber-950/70 border-amber-500/40 text-amber-400',
-                                    'No aplica',
-                                    'Salida a almorzar',
-                                    '12:00'
-                                  )}
-                                </td>
-                                <td className="p-3.5 border-r border-white/10">
-                                  {renderMilestoneCell(
-                                    pRow.llegadaAlmorzar,
-                                    'bg-blue-950/70 border-blue-500/40 text-blue-400',
-                                    'No aplica',
-                                    'Vuelta a almorzar',
-                                    '14:00'
-                                  )}
-                                </td>
-                                <td className="p-3.5 border-r border-white/10">
-                                  {renderMilestoneCell(
-                                    pRow.salida,
-                                    'bg-red-950/70 border-red-500/40 text-red-400',
-                                    'Pendiente',
-                                    'Salida',
-                                    '17:00'
-                                  )}
+                                  <span
+                                    className={`px-2.5 py-1 rounded-lg text-[11px] font-mono font-black inline-block border ${
+                                      pRow.compliance.isComplete
+                                        ? 'bg-emerald-950/80 border-emerald-500/40 text-emerald-400'
+                                        : pRow.compliance.uploadedCount > 0
+                                        ? 'bg-amber-950/80 border-amber-500/40 text-amber-400'
+                                        : 'bg-zinc-900 border-white/15 text-zinc-400'
+                                    }`}
+                                  >
+                                    {pRow.compliance.badgeText} • {pRow.compliance.status}
+                                  </span>
                                 </td>
                                 <td className="p-3.5 text-center">
                                   {mapsUrl ? (
@@ -5300,7 +5415,7 @@ export const TradeMarketing: React.FC = () => {
                     <div className="p-3 rounded-xl bg-zinc-900 border border-white/5 text-xs text-zinc-300 space-y-1">
                       <p><strong>Promotora:</strong> {deleteConfirmCheckIn.promoter}</p>
                       <p><strong>Punto de Venta:</strong> {deleteConfirmCheckIn.store}</p>
-                      <p><strong>Marcaje:</strong> {deleteConfirmCheckIn.type} • {new Date(deleteConfirmCheckIn.date).toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'America/Caracas' })}</p>
+                      <p><strong>Marcaje:</strong> {deleteConfirmCheckIn.slot_foto || deleteConfirmCheckIn.type} • {new Date(deleteConfirmCheckIn.date).toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'America/Caracas' })}</p>
                     </div>
 
                     <div className="flex items-center justify-end gap-3 pt-2">
@@ -5324,17 +5439,19 @@ export const TradeMarketing: React.FC = () => {
                 </div>
               )}
 
-              {/* MODAL 2: INSPECCIÓN COMPLETA DE EVIDENCIA FOTOGRÁFICA Y GEOLOCALIZACIÓN */}
+              {/* MODAL 2: LIGHTBOX DE INSPECCIÓN COMPLETA DE EVIDENCIA FOTOGRÁFICA Y GEOLOCALIZACIÓN */}
               {inspectCheckIn && (
                 <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
                   <div className="bg-[#121316] border border-white/15 rounded-3xl max-w-2xl w-full p-6 space-y-4 shadow-2xl max-h-[92vh] overflow-y-auto">
                     <div className="flex items-center justify-between pb-3 border-b border-white/10">
                       <div>
-                        <span className="text-[10px] font-mono text-zinc-400 uppercase tracking-wider block">Certificación de Marcaje en PDV</span>
-                        <h4 className="font-black text-white text-lg flex items-center gap-2 mt-0.5">
+                        <span className="text-[10px] font-mono text-zinc-400 uppercase tracking-wider block">
+                          Certificación de Marcaje en PDV • Snapshot: {inspectCheckIn.perfil_aplicado || 'FIJA'}
+                        </span>
+                        <h4 className="font-black text-white text-lg flex items-center gap-2 mt-0.5 flex-wrap">
                           <span>{inspectCheckIn.promoter}</span>
                           <span className="px-2 py-0.5 rounded-lg text-xs font-bold bg-red-600 text-white">
-                            {inspectCheckIn.type}
+                            {inspectCheckIn.slot_foto || inspectCheckIn.type}
                           </span>
                         </h4>
                       </div>
@@ -5351,13 +5468,13 @@ export const TradeMarketing: React.FC = () => {
                       {/* Fotografía 3:4 */}
                       <div className="aspect-[3/4] rounded-2xl overflow-hidden bg-black border border-white/10 shadow-lg relative">
                         <CheckInPhoto
-                          src={inspectCheckIn.photoBase64}
+                          src={inspectCheckIn.signedPhotoUrl || inspectCheckIn.photoBase64}
                           checkInId={inspectCheckIn.id}
                           alt={inspectCheckIn.promoter}
                           className="w-full h-full object-contain bg-zinc-950"
                         />
                         <div className="absolute top-2 left-2 px-2 py-0.5 rounded bg-black/70 backdrop-blur-sm text-white text-[10px] font-mono">
-                          Evidencia Inalterable
+                          Evidencia Inalterable (Bucket Privado)
                         </div>
                       </div>
 
@@ -5369,7 +5486,9 @@ export const TradeMarketing: React.FC = () => {
                         </div>
 
                         <div className="p-3.5 rounded-2xl bg-zinc-900 border border-white/5 space-y-2">
-                          <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider block">Marca de Tiempo Oficial</span>
+                          <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider block">
+                            Marca de Tiempo Oficial (America/Caracas UTC-4)
+                          </span>
                           <p className="font-mono text-emerald-400 font-bold text-sm">
                             {new Date(inspectCheckIn.date).toLocaleDateString('es-VE', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric', timeZone: 'America/Caracas' })}
                           </p>
@@ -5414,7 +5533,7 @@ export const TradeMarketing: React.FC = () => {
                 </div>
               )}
 
-              {/* MODAL 3: SINCRONIZAR / CARGAR SOPORTE FOTOGRÁFICO FALTANTE EN HITO DE ASISTENCIA */}
+              {/* MODAL 3: SINCRONIZAR / CARGAR SOPORTE FOTOGRÁFICO CON COMPRESIÓN EN CLIENTE Y BARRA DE PROGRESO */}
               {manualSlotModal && (
                 <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
                   <form
@@ -5424,23 +5543,63 @@ export const TradeMarketing: React.FC = () => {
                     <div className="flex items-center justify-between pb-3 border-b border-white/10">
                       <div>
                         <span className="text-[10px] font-mono text-emerald-400 uppercase tracking-wider block">
-                          Sincronización de Soporte de Asistencia en Nube
+                          Sincronización de Evidencia ({manualSlotModal.perfil_aplicado} • {manualSlotModal.slot_foto})
                         </span>
-                        <h4 className="font-black text-white text-base flex items-center gap-2 mt-0.5">
+                        <h4 className="font-black text-white text-base flex items-center gap-2 mt-0.5 flex-wrap">
                           <span>{manualSlotModal.promoter}</span>
                           <span className="px-2 py-0.5 rounded-lg text-xs font-bold bg-red-600 text-white">
-                            {manualSlotModal.type}
+                            {manualSlotModal.slotLabel}
                           </span>
                         </h4>
+                        <span className="text-[11px] text-zinc-400 block mt-0.5">
+                          {manualSlotModal.slotSublabel}
+                        </span>
                       </div>
                       <button
                         type="button"
-                        onClick={() => setManualSlotModal(null)}
+                        onClick={() => {
+                          if (!isSavingManualSlot && !isCompressingManualPhoto) {
+                            setManualSlotModal(null);
+                            setManualUploadError(null);
+                            setManualUploadProgress(0);
+                          }
+                        }}
                         className="p-2 rounded-xl bg-zinc-900 text-zinc-400 hover:text-white hover:bg-zinc-800 transition cursor-pointer"
                       >
                         <X className="w-5 h-5" />
                       </button>
                     </div>
+
+                    {manualUploadError && (
+                      <div
+                        role="alert"
+                        className="p-3 rounded-xl bg-red-950/80 border border-red-500/40 text-red-200 text-xs flex items-start gap-2"
+                      >
+                        <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                        <span>{manualUploadError}</span>
+                      </div>
+                    )}
+
+                    {(isCompressingManualPhoto || isSavingManualSlot || manualUploadProgress > 0) && (
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between text-[10px] font-mono text-zinc-300">
+                          <span>
+                            {isCompressingManualPhoto
+                              ? 'Comprimiendo imagen (máx. 1600px, calidad 0.80)...'
+                              : isSavingManualSlot
+                              ? 'Subiendo y verificando Magic Bytes en servidor...'
+                              : 'Imagen optimizada y lista para sincronizar'}
+                          </span>
+                          <span className="text-emerald-400 font-bold">{manualUploadProgress}%</span>
+                        </div>
+                        <div className="w-full h-2 rounded-full bg-zinc-800 overflow-hidden">
+                          <div
+                            className="h-full bg-emerald-500 transition-all duration-200"
+                            style={{ width: `${Math.min(100, Math.max(0, manualUploadProgress))}%` }}
+                          />
+                        </div>
+                      </div>
+                    )}
 
                     <div className="space-y-3 text-xs">
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -5481,7 +5640,7 @@ export const TradeMarketing: React.FC = () => {
 
                       <div className="space-y-2">
                         <span className="text-[10px] text-zinc-400 font-bold uppercase block">
-                          Fotografía de Evidencia ({manualSlotModal.type})
+                          Fotografía de Evidencia ({manualSlotModal.slotLabel})
                         </span>
                         {manualSlotModal.photoBase64 ? (
                           <div className="relative aspect-[3/4] max-h-64 mx-auto rounded-2xl overflow-hidden bg-black border border-emerald-500/40">
@@ -5492,9 +5651,11 @@ export const TradeMarketing: React.FC = () => {
                             />
                             <button
                               type="button"
-                              onClick={() =>
-                                setManualSlotModal((prev) => (prev ? { ...prev, photoBase64: '' } : null))
-                              }
+                              disabled={isSavingManualSlot || isCompressingManualPhoto}
+                              onClick={() => {
+                                setManualSlotModal((prev) => (prev ? { ...prev, photoBase64: '' } : null));
+                                setManualUploadProgress(0);
+                              }}
                               className="absolute top-2 right-2 px-2.5 py-1 rounded-lg bg-black/80 text-red-300 hover:text-white text-[10px] font-bold border border-white/15 cursor-pointer"
                             >
                               Cambiar foto
@@ -5504,14 +5665,16 @@ export const TradeMarketing: React.FC = () => {
                           <label className="flex flex-col items-center justify-center gap-2 p-6 rounded-2xl border-2 border-dashed border-white/20 hover:border-red-500/60 bg-zinc-900/60 hover:bg-zinc-900 cursor-pointer transition-all text-center">
                             <Camera className="w-8 h-8 text-red-500" />
                             <span className="text-xs font-bold text-white">
-                              Seleccionar fotografía de {manualSlotModal.type}
+                              Seleccionar fotografía de {manualSlotModal.slotLabel}
                             </span>
                             <span className="text-[10px] text-zinc-400">
-                              Formatos soportados: JPG, PNG, WEBP (se sincronizará en Supabase y Render)
+                              Formatos permitidos: JPG, PNG, WEBP (máx. 5 MB • compresión automática 1600px)
                             </span>
                             <input
                               type="file"
-                              accept="image/*"
+                              accept="image/jpeg,image/png,image/webp"
+                              aria-label={`Subir ${manualSlotModal.slotLabel.toLowerCase()} para ${manualSlotModal.promoter}`}
+                              disabled={isSavingManualSlot || isCompressingManualPhoto}
                               onChange={handleManualSlotPhotoFile}
                               className="hidden"
                             />
@@ -5523,18 +5686,29 @@ export const TradeMarketing: React.FC = () => {
                     <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-white/10">
                       <button
                         type="button"
-                        onClick={() => setManualSlotModal(null)}
-                        className="px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold text-xs cursor-pointer"
+                        disabled={isSavingManualSlot || isCompressingManualPhoto}
+                        onClick={() => {
+                          setManualSlotModal(null);
+                          setManualUploadError(null);
+                          setManualUploadProgress(0);
+                        }}
+                        className="px-4 py-2 min-h-[40px] rounded-xl bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50 text-zinc-300 font-bold text-xs cursor-pointer"
                       >
                         Cancelar
                       </button>
                       <button
                         type="submit"
-                        disabled={!manualSlotModal.photoBase64 || isSavingManualSlot}
-                        className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white font-bold text-xs flex items-center gap-1.5 shadow-lg shadow-red-600/30 cursor-pointer"
+                        disabled={!manualSlotModal.photoBase64 || isSavingManualSlot || isCompressingManualPhoto}
+                        className="px-4 py-2 min-h-[40px] rounded-xl bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white font-bold text-xs flex items-center gap-1.5 shadow-lg shadow-red-600/30 cursor-pointer"
                       >
                         <CheckCircle2 className="w-3.5 h-3.5" />
-                        <span>{isSavingManualSlot ? 'Sincronizando...' : 'Guardar & Sincronizar Foto'}</span>
+                        <span>
+                          {isCompressingManualPhoto
+                            ? 'Comprimiendo...'
+                            : isSavingManualSlot
+                            ? 'Sincronizando...'
+                            : 'Guardar & Sincronizar Foto'}
+                        </span>
                       </button>
                     </div>
                   </form>

@@ -9,8 +9,20 @@ import {
   evaluateEntryPunctuality,
   EntryPunctualityEvaluation,
 } from './campoService';
+import {
+  AttendanceProfileType,
+  AttendancePhotoSlot,
+  AttendanceSlotSubmissionSchema,
+  resolveCanonicalPromoterId,
+  resolveEffectiveDailyProfileSnapshot,
+  mapLegacyCheckInTypeToSlot,
+  mapSlotToLegacyCheckInType,
+  isSlotAllowedForProfile,
+  getOfficialServerCaracasTimestamp,
+} from './attendanceSecurityValidator';
 
 export type CheckInType = 'Ingreso' | 'Salida a almorzar' | 'Vuelta a almorzar' | 'Salida';
+export type { AttendanceProfileType, AttendancePhotoSlot };
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -101,19 +113,29 @@ export function normalizeCheckInType(rawType?: string, fallbackDateIso?: string)
     if (hr < 16) return 'Vuelta a almorzar';
     return 'Salida';
   }
-  if (clean === 'ingreso' || clean.includes('entrada')) return 'Ingreso';
-  if (clean.includes('salida a almorzar') || clean.includes('salida almorzar') || clean.includes('salida almuerzo')) {
+  if (clean === 'ingreso' || clean.includes('entrada') || clean === 'jornada_ingreso' || clean === 'manana_ingreso') {
+    return 'Ingreso';
+  }
+  if (
+    clean.includes('salida a almorzar') ||
+    clean.includes('salida almorzar') ||
+    clean.includes('salida almuerzo') ||
+    clean === 'manana_salida'
+  ) {
     return 'Salida a almorzar';
   }
   if (
     clean.includes('vuelta a almorzar') ||
     clean.includes('llegada de almorzar') ||
     clean.includes('llegada almorzar') ||
-    clean.includes('regreso')
+    clean.includes('regreso') ||
+    clean === 'tarde_ingreso'
   ) {
     return 'Vuelta a almorzar';
   }
-  if (clean === 'salida' || clean.includes('cierre')) return 'Salida';
+  if (clean === 'salida' || clean.includes('cierre') || clean === 'jornada_salida' || clean === 'tarde_salida') {
+    return 'Salida';
+  }
   return null;
 }
 
@@ -306,48 +328,99 @@ export function normalizeAndDeduplicateCheckIns(records: CheckInRecord[]): Check
   }
 
   for (const [, dayList] of byPromoterDay.entries()) {
+    const dayKey = getCaracasDayKey(dayList[0].date);
+    const canonicalPromotoraId = resolveCanonicalPromoterId(
+      dayList[0].promoter,
+      dayList[0].creatorId
+    );
+    const effectiveProfile = resolveEffectiveDailyProfileSnapshot({
+      dayRecords: dayList,
+      promoterNameOrEmailOrId: dayList[0].promoter,
+      creatorIdHint: dayList[0].creatorId,
+    });
+    const asistenciaId = `ASIS-${dayKey}-${canonicalPromotoraId}`;
+
+    for (const item of dayList) {
+      item.perfil_aplicado = effectiveProfile;
+      item.asistencia_id = item.asistencia_id || asistenciaId;
+    }
+
     if (dayList.length <= 1) continue;
     dayList.sort(
       (a, b) => new Date(a.date || a.created_at || 0).getTime() - new Date(b.date || b.created_at || 0).getTime()
     );
 
-    // 1. Si marcó 'Salida' al mediodía (11:30 AM - 3:30 PM) pero hay registros posteriores y falta 'Salida a almorzar'
-    for (let i = 0; i < dayList.length; i++) {
-      const item = dayList[i];
-      const hr = getCaracasHourFloat(item.date);
-      if (item.type === 'Salida' && hr >= 11.5 && hr <= 15.5) {
-        const hasLaterActivity = dayList.slice(i + 1).some((x) => getCaracasHourFloat(x.date) > hr + 0.25);
-        const hasSalidaAlmuerzo = dayList.some((x) => x.type === 'Salida a almorzar');
-        if (hasLaterActivity && !hasSalidaAlmuerzo) {
-          item.type = 'Salida a almorzar';
+    if (effectiveProfile === 'EVENTUAL') {
+      // 1. Si marcó 'Salida' al mediodía (11:30 AM - 3:30 PM) pero hay registros posteriores y falta 'Salida a almorzar' (MANANA_SALIDA)
+      for (let i = 0; i < dayList.length; i++) {
+        const item = dayList[i];
+        const hr = getCaracasHourFloat(item.date);
+        if (item.type === 'Salida' && hr >= 11.5 && hr <= 15.5) {
+          const hasLaterActivity = dayList.slice(i + 1).some((x) => getCaracasHourFloat(x.date) > hr + 0.25);
+          const hasSalidaAlmuerzo = dayList.some((x) => x.type === 'Salida a almorzar');
+          if (hasLaterActivity && !hasSalidaAlmuerzo) {
+            item.type = 'Salida a almorzar';
+          }
+        }
+      }
+
+      // 2. Si ya tiene un 'Ingreso' temprano y marcó un segundo 'Ingreso' horas después (almuerzo o salida)
+      const firstIngreso = dayList.find((x) => x.type === 'Ingreso');
+      if (firstIngreso) {
+        const firstHr = getCaracasHourFloat(firstIngreso.date);
+        for (const item of dayList) {
+          if (item === firstIngreso || item.type !== 'Ingreso') continue;
+          const hr = getCaracasHourFloat(item.date);
+          // Ignorar dobles toques inmediatos (< 25 min de diferencia) para que se dedupliquen como el mismo Ingreso
+          if (hr - firstHr < 0.42) continue;
+
+          const hasSalidaAlmuerzo = dayList.some((x) => x.type === 'Salida a almorzar');
+          const hasVueltaAlmuerzo = dayList.some((x) => x.type === 'Vuelta a almorzar');
+          const hasSalida = dayList.some((x) => x.type === 'Salida');
+
+          if (hr >= 17.0 && !hasSalida) {
+            item.type = 'Salida';
+          } else if (hr >= 11.5 && hr < 14.5 && !hasSalidaAlmuerzo && hasVueltaAlmuerzo) {
+            item.type = 'Salida a almorzar';
+          } else if (hr >= 12.5 && hr < 17.25 && !hasVueltaAlmuerzo) {
+            item.type = 'Vuelta a almorzar';
+          } else if (hr >= 15.5 && hasVueltaAlmuerzo && !hasSalida) {
+            item.type = 'Salida';
+          }
+        }
+      }
+    } else {
+      // Perfil FIJA (2 fotos: JORNADA_INGRESO y JORNADA_SALIDA):
+      // Si tiene un primer Ingreso matutino y un segundo Ingreso vespertino (>= 3:00 PM) sin Salida, se asigna a Salida de jornada.
+      const firstIngreso = dayList.find((x) => x.type === 'Ingreso');
+      if (firstIngreso) {
+        const firstHr = getCaracasHourFloat(firstIngreso.date);
+        for (const item of dayList) {
+          if (item === firstIngreso || item.type !== 'Ingreso') continue;
+          const hr = getCaracasHourFloat(item.date);
+          if (hr - firstHr >= 0.42 && hr >= 15.0 && !dayList.some((x) => x.type === 'Salida')) {
+            item.type = 'Salida';
+          }
         }
       }
     }
+  }
 
-    // 2. Si ya tiene un 'Ingreso' temprano y marcó un segundo 'Ingreso' horas después (almuerzo o salida)
-    const firstIngreso = dayList.find((x) => x.type === 'Ingreso');
-    if (firstIngreso) {
-      const firstHr = getCaracasHourFloat(firstIngreso.date);
-      for (const item of dayList) {
-        if (item === firstIngreso || item.type !== 'Ingreso') continue;
-        const hr = getCaracasHourFloat(item.date);
-        // Ignorar dobles toques inmediatos (< 25 min de diferencia) para que se dedupliquen como el mismo Ingreso
-        if (hr - firstHr < 0.42) continue;
-
-        const hasSalidaAlmuerzo = dayList.some((x) => x.type === 'Salida a almorzar');
-        const hasVueltaAlmuerzo = dayList.some((x) => x.type === 'Vuelta a almorzar');
-        const hasSalida = dayList.some((x) => x.type === 'Salida');
-
-        if (hr >= 17.0 && !hasSalida) {
-          item.type = 'Salida';
-        } else if (hr >= 11.5 && hr < 14.5 && !hasSalidaAlmuerzo && hasVueltaAlmuerzo) {
-          item.type = 'Salida a almorzar';
-        } else if (hr >= 12.5 && hr < 17.25 && !hasVueltaAlmuerzo) {
-          item.type = 'Vuelta a almorzar';
-        } else if (hr >= 15.5 && hasVueltaAlmuerzo && !hasSalida) {
-          item.type = 'Salida';
-        }
-      }
+  for (const rec of validNormalized) {
+    const dayKey = getCaracasDayKey(rec.date);
+    const canonicalPromotoraId = resolveCanonicalPromoterId(rec.promoter, rec.creatorId);
+    const prof =
+      rec.perfil_aplicado ||
+      resolveEffectiveDailyProfileSnapshot({
+        dayRecords: [rec],
+        promoterNameOrEmailOrId: rec.promoter,
+        creatorIdHint: rec.creatorId,
+      });
+    rec.perfil_aplicado = prof;
+    rec.asistencia_id = rec.asistencia_id || `ASIS-${dayKey}-${canonicalPromotoraId}`;
+    const mappedSlot = mapLegacyCheckInTypeToSlot(rec.type, prof, rec.slot_foto);
+    if (mappedSlot) {
+      rec.slot_foto = mappedSlot;
     }
   }
 
@@ -444,8 +517,15 @@ export interface CheckInRecord {
   photoBase64: string;
   location: CheckInLocation;
   promoter: string;
-  creatorId: string;
-  created_at: string;
+  creatorId?: string;
+  created_at?: string;
+  // Campos de integridad de perfil y seguridad de ranuras (Informes > Asistencia)
+  asistencia_id?: string;
+  perfil_aplicado?: AttendanceProfileType;
+  slot_foto?: AttendancePhotoSlot;
+  storage_path?: string;
+  server_uploaded_at?: string;
+  signedPhotoUrl?: string;
   // Campos de apoyo operativo
   offlinePending?: boolean;
   batteryLevel?: string;
@@ -3182,20 +3262,11 @@ export const checkinsService = {
   async createCheckIn(record: Omit<CheckInRecord, 'id' | 'created_at'> & { id?: string }): Promise<{ record: CheckInRecord; isOffline: boolean }> {
     const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
     const nowIso = record.date || new Date().toISOString();
-    const recordUuid = ensureValidCheckInUuid(
-      record.id,
-      `${nowIso}|${record.promoter}|${record.type}|${record.store}|${Math.random()}`
-    );
-    const newRecord: CheckInRecord = {
-      ...record,
-      id: recordUuid,
-      date: nowIso,
-      created_at: new Date().toISOString(),
-      // Se mantiene como pendiente hasta confirmar que fue guardado en Supabase o en el servidor
-      offlinePending: true
-    };
+    const dayKey = getCaracasDayKey(nowIso) || nowIso.slice(0, 10);
+    const promotoraId = resolveCanonicalPromoterId(record.promoter, record.creatorId);
+    const canonPromoter = (resolvePromoterNameFromRaw(record.promoter, record.creatorId) || record.promoter || '').trim().toUpperCase();
 
-    // Actualizar almacenamiento local de inmediato de forma síncrona conservando la fotografía original
+    // Leer almacenamiento local para resolver snapshot inmutable del día
     let existing: CheckInRecord[] = [];
     try {
       const rawLocal = localStorage.getItem(STORAGE_KEY_CHECKINS);
@@ -3204,7 +3275,79 @@ export const checkinsService = {
         if (Array.isArray(parsed)) existing = parsed;
       }
     } catch {}
-    const updated = [newRecord, ...existing.filter((r) => r && r.id !== newRecord.id)];
+
+    const sameDayRecords = existing.filter((r) => {
+      if (!r) return false;
+      const rDay = getCaracasDayKey(r.date) || String(r.date || '').slice(0, 10);
+      const rPromoter = (resolvePromoterNameFromRaw(r.promoter, r.creatorId) || r.promoter || '').trim().toUpperCase();
+      return rDay === dayKey && rPromoter === canonPromoter;
+    });
+
+    const existingDaySnapshot = sameDayRecords.find(
+      (r) => r.perfil_aplicado === 'FIJA' || r.perfil_aplicado === 'EVENTUAL'
+    )?.perfil_aplicado;
+
+    const effectiveProfile: AttendanceProfileType = resolveEffectiveDailyProfileSnapshot({
+      promoterNameOrId: record.promoter,
+      creatorId: record.creatorId,
+      existingDaySnapshot: existingDaySnapshot || record.perfil_aplicado || null,
+    });
+
+    const effectiveAsistenciaId =
+      record.asistencia_id || `ASIS-${dayKey}-${promotoraId}`;
+    const effectiveSlot: AttendancePhotoSlot =
+      record.slot_foto || mapLegacyCheckInTypeToSlot(record.type, effectiveProfile);
+    const normalizedType = record.slot_foto
+      ? mapSlotToLegacyCheckInType(record.slot_foto)
+      : normalizeCheckInType(record.type, effectiveSlot);
+
+    if (record.slot_foto || record.perfil_aplicado) {
+      const parsedValidation = AttendanceSlotSubmissionSchema.safeParse({
+        promotora_id: promotoraId,
+        fecha: dayKey,
+        perfil_aplicado: effectiveProfile,
+        slot_foto: effectiveSlot,
+        asistencia_id: effectiveAsistenciaId,
+        store: record.store,
+      });
+      if (!parsedValidation.success) {
+        const msg = parsedValidation.error.issues.map((i) => i.message).join(' ');
+        throw new Error(msg || 'Ranura fotográfica inválida para el perfil de la promotora.');
+      }
+    }
+
+    const recordUuid = ensureValidCheckInUuid(
+      record.id,
+      `${nowIso}|${record.promoter}|${normalizedType}|${effectiveSlot}|${record.store}|${Math.random()}`
+    );
+    const newRecord: CheckInRecord = {
+      ...record,
+      id: recordUuid,
+      date: nowIso,
+      type: normalizedType,
+      asistencia_id: effectiveAsistenciaId,
+      perfil_aplicado: effectiveProfile,
+      slot_foto: effectiveSlot,
+      created_at: new Date().toISOString(),
+      // Se mantiene como pendiente hasta confirmar que fue guardado en Supabase o en el servidor
+      offlinePending: true
+    };
+
+    // Reemplazo idempotente por (asistencia_id, slot_foto) en estado local
+    const withoutReplacedSlot = existing.filter((r) => {
+      if (!r) return false;
+      if (r.id === newRecord.id) return false;
+      const rDay = getCaracasDayKey(r.date) || String(r.date || '').slice(0, 10);
+      const rPromoter = (resolvePromoterNameFromRaw(r.promoter, r.creatorId) || r.promoter || '').trim().toUpperCase();
+      const samePromoterDay = rDay === dayKey && rPromoter === canonPromoter;
+      if (!samePromoterDay) return true;
+      const rSlot = r.slot_foto || mapLegacyCheckInTypeToSlot(r.type, effectiveProfile);
+      if (record.slot_foto && rSlot === effectiveSlot) {
+        return false;
+      }
+      return true;
+    });
+    const updated = [newRecord, ...withoutReplacedSlot];
     this.persistLocalCheckIns(updated);
 
     // Si está offline, guardar en la cola de sincronización
@@ -3254,6 +3397,21 @@ export const checkinsService = {
         if (response.ok) {
           const serverRecord = await response.json();
           newRecord.offlinePending = false;
+          if (serverRecord.signedPhotoUrl) {
+            newRecord.signedPhotoUrl = serverRecord.signedPhotoUrl;
+          }
+          if (serverRecord.storage_path) {
+            newRecord.storage_path = serverRecord.storage_path;
+          }
+          if (serverRecord.server_uploaded_at) {
+            newRecord.server_uploaded_at = serverRecord.server_uploaded_at;
+          }
+          if (serverRecord.perfil_aplicado) {
+            newRecord.perfil_aplicado = serverRecord.perfil_aplicado;
+          }
+          if (serverRecord.slot_foto) {
+            newRecord.slot_foto = serverRecord.slot_foto;
+          }
           const refreshed = updated.map((r) =>
             r.id === newRecord.id
               ? {
@@ -3266,6 +3424,17 @@ export const checkinsService = {
               : r
           );
           this.persistLocalCheckIns(refreshed);
+        } else if ([400, 413, 415, 422].includes(response.status)) {
+          // Rechazo de seguridad o esquema en el servidor: revertir estado optimista y propagar error
+          this.persistLocalCheckIns(existing);
+          let errMessage = `Error de validación (${response.status})`;
+          try {
+            const errJson = await response.json();
+            if (errJson?.error) errMessage = errJson.error;
+          } catch {}
+          const validationError = new Error(errMessage) as Error & { isValidationReject?: boolean };
+          validationError.isValidationReject = true;
+          throw validationError;
         } else if (syncedToCloud) {
           const refreshed = updated.map((r) =>
             r.id === newRecord.id ? { ...newRecord, offlinePending: false } : r
@@ -3282,7 +3451,10 @@ export const checkinsService = {
       } else {
         this.enqueueOfflineCheckIn(newRecord);
       }
-    } catch {
+    } catch (err: any) {
+      if (err?.isValidationReject) {
+        throw err;
+      }
       if (syncedToCloud) {
         const refreshed = updated.map((r) =>
           r.id === newRecord.id ? { ...newRecord, offlinePending: false } : r
