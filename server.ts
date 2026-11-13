@@ -784,6 +784,54 @@ async function startServer() {
     return 'NELSON FINOL';
   };
 
+  // Persistent on-disk snapshot for the 6 authorized Google Sheet tabs (ensures zero 502s / zero KPIs in cloud environments)
+  const sheetsDiskCachePath = path.join(process.cwd(), 'data_google_sheets_cache.json');
+  let sheetsDiskCache: {
+    updatedAt?: string;
+    sheetId?: string;
+    tabs: Partial<Record<(typeof ALLOWED_GOOGLE_SHEET_TABS)[number], string>>;
+  } = { tabs: {} };
+
+  if (fs.existsSync(sheetsDiskCachePath)) {
+    try {
+      const parsed = JSON.parse(fs.readFileSync(sheetsDiskCachePath, 'utf8'));
+      if (parsed && typeof parsed === 'object') {
+        sheetsDiskCache = {
+          updatedAt: parsed.updatedAt,
+          sheetId: typeof parsed.sheetId === 'string' ? parsed.sheetId.trim() : undefined,
+          tabs: parsed.tabs && typeof parsed.tabs === 'object' ? parsed.tabs : {},
+        };
+      }
+    } catch (e: any) {
+      console.warn('[Sheets Disk Cache] Could not read data_google_sheets_cache.json:', e?.message);
+    }
+  }
+
+  const getServerConfiguredSheetId = (): string => {
+    return getConfiguredGoogleSheetId() || sheetsDiskCache.sheetId || '';
+  };
+
+  const getDiskCachedSheetTab = (tabName: (typeof ALLOWED_GOOGLE_SHEET_TABS)[number]): string => {
+    return sheetsDiskCache.tabs?.[tabName] || '';
+  };
+
+  const persistDiskCachedSheetTab = (
+    tabName: (typeof ALLOWED_GOOGLE_SHEET_TABS)[number],
+    csvText: string,
+    sheetId?: string
+  ) => {
+    if (!csvText || !csvText.trim()) return;
+    sheetsDiskCache.updatedAt = new Date().toISOString();
+    if (sheetId) sheetsDiskCache.sheetId = sheetId;
+    if (!sheetsDiskCache.tabs) sheetsDiskCache.tabs = {};
+    sheetsDiskCache.tabs[tabName] = csvText;
+    try {
+      fs.writeFileSync(sheetsDiskCachePath, JSON.stringify(sheetsDiskCache, null, 2));
+    } catch (e: any) {
+      console.warn('[Sheets Disk Cache] Could not persist data_google_sheets_cache.json:', e?.message);
+    }
+  };
+
   const syncSellersMonthlyVolumeFromSupabase = async () => {
     const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || DEFAULT_SUPABASE_URL;
     const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || DEFAULT_SUPABASE_KEY;
@@ -897,48 +945,55 @@ async function startServer() {
       }
     }
 
-    // Sincronizar lo que va del mes en curso (Noviembre 2026) desde Google Sheets (vía process.env.GOOGLE_SHEET_ID)
+    // Sincronizar lo que va del mes en curso (Noviembre 2026) desde Google Sheets (vía process.env.GOOGLE_SHEET_ID o snapshot en disco)
     try {
-      const sheetId = getConfiguredGoogleSheetId();
+      let sheetCsv = '';
+      const sheetId = getServerConfiguredSheetId();
       if (sheetId) {
         const sheetsUrl = buildGoogleSheetRawExportUrl('Ventas', sheetId);
         const sheetRes = await fetch(sheetsUrl);
         if (sheetRes.ok) {
-          const sheetCsv = await sheetRes.text();
-          const novAudit = calculateNovember2026CommercialMetrics({
-            ventasCsv: sheetCsv,
-            targetYear: 2026,
-            targetMonth: 11,
-          });
-          if (novAudit.sellers.length > 0) {
-            for (const [k, v] of Array.from(sellerMonthMap.entries())) {
-              if (v.mes === 'NOVIEMBRE') {
-                sellerMonthMap.delete(k);
-              }
+          sheetCsv = await sheetRes.text();
+          persistDiskCachedSheetTab('Ventas', sheetCsv, sheetId);
+        }
+      }
+      if (!sheetCsv) {
+        sheetCsv = getDiskCachedSheetTab('Ventas');
+      }
+      if (sheetCsv) {
+        const novAudit = calculateNovember2026CommercialMetrics({
+          ventasCsv: sheetCsv,
+          targetYear: 2026,
+          targetMonth: 11,
+        });
+        if (novAudit.sellers.length > 0) {
+          for (const [k, v] of Array.from(sellerMonthMap.entries())) {
+            if (v.mes === 'NOVIEMBRE') {
+              sellerMonthMap.delete(k);
             }
-            for (const sMetric of novAudit.sellers) {
-              if (!isValidVolumeSeller(sMetric.vendedor)) continue;
-              const key = `${sMetric.vendedor}|||NOVIEMBRE`;
-              sellerMonthMap.set(key, {
-                vendedor: sMetric.vendedor,
-                mes: 'NOVIEMBRE',
-                ano: 2026,
-                cajas: sMetric.cajasNetas,
-                kgs: sMetric.volumenNetoKg,
-                kgsBrutos: sMetric.volumenBrutoKg,
-                kgsDevoluciones: sMetric.devolucionesKg,
-                montoNeto: sMetric.montoNeto,
-                montoFA: sMetric.montoBruto,
-                montoDV: sMetric.montoDevoluciones,
-                cajasFA: sMetric.cajasBrutas,
-                cajasDV: sMetric.cajasDevoluciones,
-                facturasCount: sMetric.filasValidasNoviembre,
-                clientesActivadosNetos: sMetric.clientesActivadosNetos,
-                skusActivadosNetos: sMetric.skusActivadosNetos,
-              });
-            }
-            sheetRowsCount = novAudit.rowCounts.validNovember2026Rows;
           }
+          for (const sMetric of novAudit.sellers) {
+            if (!isValidVolumeSeller(sMetric.vendedor)) continue;
+            const key = `${sMetric.vendedor}|||NOVIEMBRE`;
+            sellerMonthMap.set(key, {
+              vendedor: sMetric.vendedor,
+              mes: 'NOVIEMBRE',
+              ano: 2026,
+              cajas: sMetric.cajasNetas,
+              kgs: sMetric.volumenNetoKg,
+              kgsBrutos: sMetric.volumenBrutoKg,
+              kgsDevoluciones: sMetric.devolucionesKg,
+              montoNeto: sMetric.montoNeto,
+              montoFA: sMetric.montoBruto,
+              montoDV: sMetric.montoDevoluciones,
+              cajasFA: sMetric.cajasBrutas,
+              cajasDV: sMetric.cajasDevoluciones,
+              facturasCount: sMetric.filasValidasNoviembre,
+              clientesActivadosNetos: sMetric.clientesActivadosNetos,
+              skusActivadosNetos: sMetric.skusActivadosNetos,
+            });
+          }
+          sheetRowsCount = novAudit.rowCounts.validNovember2026Rows;
         }
       }
     } catch (sheetErr: any) {
@@ -1058,9 +1113,10 @@ async function startServer() {
       });
     }
 
-    // Revalidar Noviembre 2026 en vivo desde Google Sheets (vía process.env.GOOGLE_SHEET_ID)
+    // Revalidar Noviembre 2026 en vivo desde Google Sheets (vía process.env.GOOGLE_SHEET_ID o snapshot en disco)
     try {
-      const sheetId = getConfiguredGoogleSheetId();
+      let sheetCsv = '';
+      const sheetId = getServerConfiguredSheetId();
       if (sheetId) {
         const sheetsUrl = buildGoogleSheetRawExportUrl('Ventas', sheetId);
         const controller = new AbortController();
@@ -1068,39 +1124,45 @@ async function startServer() {
         const sheetRes = await fetch(sheetsUrl, { signal: controller.signal });
         clearTimeout(timeout);
         if (sheetRes.ok) {
-          const sheetCsv = await sheetRes.text();
-          const novAudit = calculateNovember2026CommercialMetrics({
-            ventasCsv: sheetCsv,
-            targetYear: 2026,
-            targetMonth: 11,
-          });
-          if (novAudit.sellers.length > 0) {
-            for (const [k, v] of Array.from(mergedMap.entries())) {
-              if (v.mes === 'NOVIEMBRE') {
-                mergedMap.delete(k);
-              }
+          sheetCsv = await sheetRes.text();
+          persistDiskCachedSheetTab('Ventas', sheetCsv, sheetId);
+        }
+      }
+      if (!sheetCsv) {
+        sheetCsv = getDiskCachedSheetTab('Ventas');
+      }
+      if (sheetCsv) {
+        const novAudit = calculateNovember2026CommercialMetrics({
+          ventasCsv: sheetCsv,
+          targetYear: 2026,
+          targetMonth: 11,
+        });
+        if (novAudit.sellers.length > 0) {
+          for (const [k, v] of Array.from(mergedMap.entries())) {
+            if (v.mes === 'NOVIEMBRE') {
+              mergedMap.delete(k);
             }
-            for (const sMetric of novAudit.sellers) {
-              if (!isValidVolumeSeller(sMetric.vendedor)) continue;
-              const key = `${sMetric.vendedor}|||NOVIEMBRE`;
-              mergedMap.set(key, {
-                vendedor: sMetric.vendedor,
-                mes: 'NOVIEMBRE',
-                ano: 2026,
-                cajas: sMetric.cajasNetas,
-                kgs: sMetric.volumenNetoKg,
-                kgsBrutos: sMetric.volumenBrutoKg,
-                kgsDevoluciones: sMetric.devolucionesKg,
-                montoNeto: sMetric.montoNeto,
-                montoFA: sMetric.montoBruto,
-                montoDV: sMetric.montoDevoluciones,
-                cajasFA: sMetric.cajasBrutas,
-                cajasDV: sMetric.cajasDevoluciones,
-                facturasCount: sMetric.filasValidasNoviembre,
-                clientesActivadosNetos: sMetric.clientesActivadosNetos,
-                skusActivadosNetos: sMetric.skusActivadosNetos,
-              });
-            }
+          }
+          for (const sMetric of novAudit.sellers) {
+            if (!isValidVolumeSeller(sMetric.vendedor)) continue;
+            const key = `${sMetric.vendedor}|||NOVIEMBRE`;
+            mergedMap.set(key, {
+              vendedor: sMetric.vendedor,
+              mes: 'NOVIEMBRE',
+              ano: 2026,
+              cajas: sMetric.cajasNetas,
+              kgs: sMetric.volumenNetoKg,
+              kgsBrutos: sMetric.volumenBrutoKg,
+              kgsDevoluciones: sMetric.devolucionesKg,
+              montoNeto: sMetric.montoNeto,
+              montoFA: sMetric.montoBruto,
+              montoDV: sMetric.montoDevoluciones,
+              cajasFA: sMetric.cajasBrutas,
+              cajasDV: sMetric.cajasDevoluciones,
+              facturasCount: sMetric.filasValidasNoviembre,
+              clientesActivadosNetos: sMetric.clientesActivadosNetos,
+              skusActivadosNetos: sMetric.skusActivadosNetos,
+            });
           }
         }
       }
@@ -1446,10 +1508,10 @@ async function startServer() {
         return res.json(skuVolumeResponseCache.payload);
       }
 
-      // 1. Obtain Cuotas Volumen CSV (live from Google Sheets via process.env.GOOGLE_SHEET_ID or seed fallback)
-      let csvText = CUOTAS_VOLUMEN_CSV_SEED;
+      // 1. Obtain Cuotas Volumen CSV (live from Google Sheets via process.env.GOOGLE_SHEET_ID, disk snapshot, or seed fallback)
+      let csvText = getDiskCachedSheetTab('Cuotas Volumen') || CUOTAS_VOLUMEN_CSV_SEED;
       try {
-        const sheetId = getConfiguredGoogleSheetId();
+        const sheetId = getServerConfiguredSheetId();
         if (sheetId) {
           const sheetUrl = buildGoogleSheetRawExportUrl('Cuotas Volumen', sheetId);
           const controller = new AbortController();
@@ -1465,11 +1527,12 @@ async function startServer() {
                 liveCsv.includes('Articulo'))
             ) {
               csvText = liveCsv;
+              persistDiskCachedSheetTab('Cuotas Volumen', liveCsv, sheetId);
             }
           }
         }
       } catch {
-        // Use CUOTAS_VOLUMEN_CSV_SEED fallback silently
+        // Use disk snapshot or CUOTAS_VOLUMEN_CSV_SEED fallback silently
       }
 
       const sheetItems = parseCuotasVolumenCsv(csvText);
@@ -7598,7 +7661,7 @@ Responde con un JSON estructurado con:
     return res.json(bcvCache);
   });
 
-  // Google Sheets Proxy with in-memory caching and strict 6-tab allowlist (Data Minimization)
+  // Google Sheets Proxy with in-memory + disk-backed caching and strict 6-tab allowlist (Data Minimization)
   const sheetCache = new Map<string, { data: string; timestamp: number }>();
   const SHEET_CACHE_TTL_MS = 120_000;
   const CANONICAL_TAB_LOOKUP: Record<string, (typeof ALLOWED_GOOGLE_SHEET_TABS)[number]> = {
@@ -7610,8 +7673,18 @@ Responde con un JSON estructurado con:
     supervisores: 'Supervisores',
   };
 
+  // Pre-warm sheetCache from data_google_sheets_cache.json on server startup
+  for (const tab of ALLOWED_GOOGLE_SHEET_TABS) {
+    const diskCsv = getDiskCachedSheetTab(tab);
+    if (diskCsv) {
+      const initTs = Date.now();
+      sheetCache.set(`sheet::${tab}::raw`, { data: diskCsv, timestamp: initTs });
+      sheetCache.set(`sheet::${tab}::std`, { data: diskCsv, timestamp: initTs });
+    }
+  }
+
   const resolveConfiguredSheetId = (): string => {
-    return getConfiguredGoogleSheetId();
+    return getServerConfiguredSheetId();
   };
 
   const fetchAllowedTabCsvServerSide = async (
@@ -7620,15 +7693,19 @@ Responde con un JSON estructurado con:
     preferRawMatrix = true
   ): Promise<string> => {
     const allowedTab = assertAllowedSheetTab(tabName);
-    const sheetId = resolveConfiguredSheetId();
-    if (!sheetId) {
-      throw new Error('Missing server configuration: process.env.GOOGLE_SHEET_ID is not set');
-    }
     const cacheKey = `sheet::${allowedTab}::${preferRawMatrix ? 'raw' : 'std'}`;
     const cached = sheetCache.get(cacheKey);
+    const diskFallback = getDiskCachedSheetTab(allowedTab);
     const now = Date.now();
     if (!forceRefresh && cached && now - cached.timestamp < SHEET_CACHE_TTL_MS) {
       return cached.data;
+    }
+
+    const sheetId = resolveConfiguredSheetId();
+    if (!sheetId) {
+      if (cached?.data) return cached.data;
+      if (diskFallback) return diskFallback;
+      throw new Error('Missing server configuration: process.env.GOOGLE_SHEET_ID is not set');
     }
 
     const tabGid = GOOGLE_SHEET_TAB_GIDS[allowedTab];
@@ -7636,16 +7713,23 @@ Responde con un JSON estructurado con:
       ? `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${tabGid}`
       : `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(allowedTab)}`;
 
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 12000);
-    const response = await fetch(url, { signal: controller.signal });
-    clearTimeout(timeout);
+    let csvText = '';
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 12000);
+      const response = await fetch(url, { signal: controller.signal });
+      clearTimeout(timeout);
 
-    if (!response.ok) {
-      throw new Error(`Google Sheets responded with status ${response.status}`);
+      if (!response.ok) {
+        throw new Error(`Google Sheets responded with status ${response.status}`);
+      }
+      csvText = await response.text();
+    } catch (fetchErr: any) {
+      if (cached?.data) return cached.data;
+      if (diskFallback) return diskFallback;
+      throw fetchErr;
     }
 
-    let csvText = await response.text();
     if (allowedTab === 'Productos' && Array.isArray(historicalAllCache) && historicalAllCache.length > 0) {
       const extraMap = new Map<string, string>();
       for (const r of historicalAllCache) {
@@ -7667,6 +7751,7 @@ Responde con un JSON estructurado con:
     }
 
     sheetCache.set(cacheKey, { data: csvText, timestamp: now });
+    persistDiskCachedSheetTab(allowedTab, csvText, sheetId);
     return csvText;
   };
 
@@ -7684,6 +7769,7 @@ Responde con un JSON estructurado con:
     const preferRawMatrix = req.query.raw === 'true' || canonicalTab === 'Cuotas Volumen' || canonicalTab === 'Cuotas de Activacion';
     const cacheKey = `sheet::${canonicalTab}::${preferRawMatrix ? 'raw' : 'std'}`;
     const cached = sheetCache.get(cacheKey);
+    const diskFallback = getDiskCachedSheetTab(canonicalTab);
 
     try {
       const csvText = await fetchAllowedTabCsvServerSide(canonicalTab, forceRefresh, preferRawMatrix);
@@ -7694,9 +7780,9 @@ Responde con un JSON estructurado con:
         return res.status(403).json({ error: err.message, allowedTabs: ALLOWED_GOOGLE_SHEET_TABS });
       }
       console.warn('Warning: Google Sheet fetch issue, serving cached fallback if available:', err?.message);
-      if (cached) {
+      if (cached?.data || diskFallback) {
         res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-        return res.send(cached.data);
+        return res.send(cached?.data || diskFallback);
       }
       return res.status(502).json({ error: 'Failed to fetch from Google Sheets' });
     }
@@ -7745,8 +7831,20 @@ Responde con un JSON estructurado con:
       sellersVolumeMemoryCache = null;
       skuVolumeResponseCache = null;
       console.log('[Sheets Sync] Cache limpiado. Sincronizando las 6 pestañas autorizadas desde Google Sheets...');
-      const csvText = await fetchAllowedTabCsvServerSide('Ventas', true, true);
-      res.json({ success: true, message: 'Google Sheets sincronizado exitosamente', length: csvText.length });
+      const [ventasCsv] = await Promise.all([
+        fetchAllowedTabCsvServerSide('Ventas', true, true),
+        fetchAllowedTabCsvServerSide('Cuotas Volumen', true, true),
+        fetchAllowedTabCsvServerSide('Cuotas de Activacion', true, true),
+        fetchAllowedTabCsvServerSide('Productos', true, true),
+        fetchAllowedTabCsvServerSide('Clientes', true, true),
+        fetchAllowedTabCsvServerSide('Supervisores', true, true),
+      ]);
+      res.json({
+        success: true,
+        message: 'Google Sheets sincronizado exitosamente (6 pestañas autorizadas)',
+        length: ventasCsv.length,
+        updatedAt: sheetsDiskCache.updatedAt,
+      });
     } catch (err: any) {
       console.error('Error sincronizando Google Sheets:', err?.message);
       res.status(500).json({ error: 'Error al sincronizar con Google Sheets' });

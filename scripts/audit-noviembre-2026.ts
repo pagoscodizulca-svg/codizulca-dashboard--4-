@@ -74,6 +74,23 @@ async function main() {
     fetchTabCsv('Supervisores', sheetId),
   ]);
 
+  // Persistir snapshot completo de las 6 pestañas autorizadas en disco para el servidor (local y Render)
+  const sheetsDiskCachePath = path.join(process.cwd(), 'data_google_sheets_cache.json');
+  const sheetsDiskCachePayload = {
+    updatedAt: new Date().toISOString(),
+    sheetId,
+    tabs: {
+      Ventas: ventasCsv,
+      'Cuotas Volumen': cuotasVolumenCsv,
+      'Cuotas de Activacion': cuotasActivacionCsv,
+      Productos: productosCsv,
+      Clientes: clientesCsv,
+      Supervisores: supervisoresCsv,
+    },
+  };
+  fs.writeFileSync(sheetsDiskCachePath, JSON.stringify(sheetsDiskCachePayload, null, 2));
+  console.log(`[Sync] Snapshot de las 6 pestañas guardado en data_google_sheets_cache.json (${sheetsDiskCachePayload.updatedAt})`);
+
   const report = calculateNovember2026CommercialMetrics({
     ventasCsv,
     cuotasVolumenCsv,
