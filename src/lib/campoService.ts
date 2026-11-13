@@ -519,6 +519,36 @@ export function resolvePromoterNameFromRaw(rawPromoter?: string, creatorId?: str
   return cleanRaw || 'Promotora';
 }
 
+export function normalizePromoterIdentity(rawPromoter?: string, creatorId?: string): string {
+  return resolvePromoterNameFromRaw(rawPromoter, creatorId)
+    .trim()
+    .toUpperCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ');
+}
+
+export function getVenezuelaDateKey(dateInput?: Date | string): string {
+  if (!dateInput) {
+    const nowCaracas = new Date(Date.now() - 4 * 60 * 60 * 1000);
+    return nowCaracas.toISOString().slice(0, 10);
+  }
+  if (typeof dateInput === 'string') {
+    const trimmed = dateInput.trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed;
+    const dmy = /^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/.exec(trimmed);
+    if (dmy) {
+      return `${dmy[3]}-${dmy[2].padStart(2, '0')}-${dmy[1].padStart(2, '0')}`;
+    }
+  }
+  const parsed = dateInput instanceof Date ? dateInput : new Date(dateInput);
+  if (Number.isNaN(parsed.getTime())) {
+    return typeof dateInput === 'string' ? dateInput.slice(0, 10) : '';
+  }
+  const caracasTime = new Date(parsed.getTime() - 4 * 60 * 60 * 1000);
+  return caracasTime.toISOString().slice(0, 10);
+}
+
 export function toSortableTimestamp(dateVal?: string, createdAtVal?: string): number {
   const parseStr = (s?: string): number => {
     if (!s) return 0;

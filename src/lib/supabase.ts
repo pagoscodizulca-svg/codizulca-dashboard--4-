@@ -2,8 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 import type { Database } from '../types/database';
 
 const nodeEnv = (typeof process !== 'undefined' && process?.env) || {};
-const viteEnv =
-  (typeof import.meta !== 'undefined' && (import.meta as any)?.env) || {};
+const viteEnv = import.meta.env || ({} as Record<string, string | undefined>);
 
 let supabaseUrl =
   viteEnv.VITE_SUPABASE_URL ||

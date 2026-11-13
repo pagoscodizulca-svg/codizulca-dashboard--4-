@@ -54,10 +54,10 @@ function buildViteEnv() {
   return env;
 }
 
-async function runBuild() {
+export async function runBuild(options = {}) {
   const args = new Set(process.argv.slice(2));
-  const force = args.has('--force');
-  const ifNeeded = args.has('--if-needed') || (process.env.RENDER === 'true' && !force);
+  const force = Boolean(options.force || args.has('--force'));
+  const ifNeeded = Boolean(options.ifNeeded || args.has('--if-needed') || (process.env.RENDER === 'true' && !force));
 
   if (ifNeeded && isDistUpToDate(rootDir)) {
     console.log('[Build] dist/ ya está sincronizado con el código fuente (SHA-256 verificado). Omitiendo recompilación.');
@@ -83,6 +83,9 @@ async function runBuild() {
     format: 'cjs',
     packages: 'external',
     minify: true,
+    define: {
+      'import.meta.env': 'process.env',
+    },
     outfile: path.join(rootDir, 'dist', 'server.cjs'),
   });
 
