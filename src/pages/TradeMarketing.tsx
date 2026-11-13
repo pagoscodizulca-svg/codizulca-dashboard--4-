@@ -103,6 +103,7 @@ import {
   getWeekInfo
 } from '../lib/degustacionesService';
 import { TradeGeneralReportModal } from '../components/trade-marketing/TradeGeneralReportModal';
+import { TradeAttendanceTab } from '../components/trade-marketing/TradeAttendanceTab';
 
 export {
   getWeekBounds,
@@ -475,8 +476,8 @@ const initialMerchandising: MerchandisingItem[] = [];
 const initialPersonal: PersonalItem[] = [];
 
 export const TradeMarketing: React.FC = () => {
-  // Navegación de Submódulos: Degustaciones, Informes, Merchandising, Personal
-  const [activeSubmodule, setActiveSubmodule] = useState<'degustaciones' | 'informes' | 'merchandising' | 'personal'>('degustaciones');
+  // Navegación de Submódulos: Degustaciones, Asistencia, Informes, Merchandising, Personal
+  const [activeSubmodule, setActiveSubmodule] = useState<'degustaciones' | 'asistencia' | 'informes' | 'merchandising' | 'personal'>('degustaciones');
 
   // SUBMÓDULO EN DEGUSTACIONES: "Cronograma Actual" vs "Historial" (EXACTO A LA IMAGEN)
   const [degustacionSubtab, setDegustacionSubtab] = useState<'actual' | 'historial'>('actual');
@@ -2725,6 +2726,19 @@ export const TradeMarketing: React.FC = () => {
 
               <button
                 type="button"
+                onClick={() => setActiveSubmodule('asistencia')}
+                className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                  activeSubmodule === 'asistencia'
+                    ? 'bg-red-600 text-white shadow-md'
+                    : 'text-zinc-400 hover:text-white'
+                }`}
+              >
+                <UserCheck className="w-3.5 h-3.5" />
+                <span>Asistencia</span>
+              </button>
+
+              <button
+                type="button"
                 onClick={() => setActiveSubmodule('informes')}
                 className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                   activeSubmodule === 'informes'
@@ -2893,6 +2907,11 @@ export const TradeMarketing: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* ========================================================================= */}
+      {/* 3.5. PESTAÑA ASISTENCIA (CONTROL DIARIO 4 TURNOS FOTOGRÁFICOS: FIJA / EV.) */}
+      {/* ========================================================================= */}
+      {activeSubmodule === 'asistencia' && <TradeAttendanceTab />}
 
       {/* ========================================================================= */}
       {/* 4. SUBMÓDULO DEGUSTACIONES: CRONOGRAMA ACTUAL vs HISTORIAL               */}

@@ -271,6 +271,63 @@ export interface Database {
         Insert: Omit<Database['public']['Tables']['system_settings']['Row'], 'id' | 'updated_at'> & { id?: string, updated_at?: string }
         Update: Partial<Database['public']['Tables']['system_settings']['Insert']>
       }
+      trade_promotoras: {
+        Row: {
+          id: string
+          codigo: string | null
+          cedula: string
+          nombre_completo: string
+          telefono: string | null
+          tipo_promotora: 'fija' | 'eventual'
+          zona: string | null
+          supervisor_nombre: string | null
+          cliente_habitual_id: string | null
+          punto_venta_habitual: string | null
+          activa: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: Omit<Database['public']['Tables']['trade_promotoras']['Row'], 'id' | 'created_at' | 'updated_at'> & {
+          id?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: Partial<Database['public']['Tables']['trade_promotoras']['Insert']>
+      }
+      trade_asistencia_jornadas: {
+        Row: {
+          id: string
+          promotora_id: string
+          fecha_jornada: string
+          tipo_promotora_snapshot: 'fija' | 'eventual'
+          cliente_id: string | null
+          punto_venta: string
+          zona: string | null
+          foto_manana_entrada_path: string | null
+          hora_manana_entrada: string | null
+          usuario_manana_entrada: string | null
+          foto_manana_salida_path: string | null
+          hora_manana_salida: string | null
+          usuario_manana_salida: string | null
+          foto_tarde_entrada_path: string | null
+          hora_tarde_entrada: string | null
+          usuario_tarde_entrada: string | null
+          foto_tarde_salida_path: string | null
+          hora_tarde_salida: string | null
+          usuario_tarde_salida: string | null
+          marcajes_completados: number
+          estado_jornada: 'pendiente' | 'en_progreso' | 'parcial_justificada' | 'completa' | 'incidencia'
+          observaciones: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: Omit<Database['public']['Tables']['trade_asistencia_jornadas']['Row'], 'id' | 'marcajes_completados' | 'created_at' | 'updated_at'> & {
+          id?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: Partial<Database['public']['Tables']['trade_asistencia_jornadas']['Insert']>
+      }
     }
     Views: {
       vw_quota_progress: {
@@ -352,6 +409,19 @@ export interface Database {
         Args: {
           p_period: string
           p_zone?: string
+        }
+        Returns: Json
+      }
+      rpc_registrar_turno_asistencia_trade: {
+        Args: {
+          p_promotora_id: string
+          p_fecha: string
+          p_turno: 'manana_entrada' | 'manana_salida' | 'tarde_entrada' | 'tarde_salida'
+          p_storage_path: string
+          p_punto_venta: string
+          p_cliente_id?: string | null
+          p_zona?: string | null
+          p_observaciones?: string | null
         }
         Returns: Json
       }
