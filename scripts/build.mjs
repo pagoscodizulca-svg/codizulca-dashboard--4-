@@ -4,7 +4,7 @@ import os from 'os';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import * as esbuild from 'esbuild';
-import { isDistUpToDate, writeBuildManifest } from './build-manifest.mjs';
+import { computeSourceHash, isDistUpToDate, writeBuildManifest } from './build-manifest.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -33,23 +33,29 @@ export function detectMemoryLimitMB() {
   return Math.floor(os.totalmem() / (1024 * 1024));
 }
 
-function buildViteEnv() {
+function buildViteEnv(buildHash) {
   const env = {
     ...process.env,
     NODE_ENV: 'production',
+    CODIZULCA_BUILD_HASH: buildHash,
   };
 
-  const existingNodeOpts = env.NODE_OPTIONS || '';
-  if (!existingNodeOpts.includes('--max-old-space-size')) {
-    const memLimitMB = detectMemoryLimitMB();
-    const heapMB =
-      memLimitMB >= 2500
-        ? 2048
-        : memLimitMB >= 1024
-          ? Math.floor(memLimitMB * 0.78)
-          : Math.max(384, Math.floor(memLimitMB * 0.8));
-    env.NODE_OPTIONS = `${existingNodeOpts} --max-old-space-size=${heapMB}`.trim();
-  }
+  // Render runtime free plan sets NODE_OPTIONS=--max-old-space-size=384, which can starve Vite
+  // during builds on Render's larger build container (~2 GB+). Compute a safe build heap based
+  // on actual container RAM instead of inheriting the tight runtime cap.
+  const memLimitMB = detectMemoryLimitMB();
+  const safeBuildHeapMB =
+    memLimitMB >= 2500
+      ? 2048
+      : memLimitMB >= 1024
+        ? Math.floor(memLimitMB * 0.78)
+        : Math.max(384, Math.floor(memLimitMB * 0.8));
+
+  const cleanedNodeOpts = (env.NODE_OPTIONS || '')
+    .replace(/--max-old-space-size=\d+/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  env.NODE_OPTIONS = `${cleanedNodeOpts} --max-old-space-size=${safeBuildHeapMB}`.trim();
 
   return env;
 }
@@ -65,10 +71,12 @@ export async function runBuild(options = {}) {
   }
 
   const t0 = Date.now();
+  const sourceHash = computeSourceHash(rootDir);
+  const buildHash = sourceHash.slice(0, 12);
   const viteBin = path.join(rootDir, 'node_modules', 'vite', 'bin', 'vite.js');
-  const viteEnv = buildViteEnv();
+  const viteEnv = buildViteEnv(buildHash);
 
-  console.log(`[Build] Compilando frontend con Vite (${viteEnv.NODE_OPTIONS || 'default heap'})...`);
+  console.log(`[Build] Compilando frontend con Vite (hash: ${buildHash}, ${viteEnv.NODE_OPTIONS || 'default heap'})...`);
   execFileSync(process.execPath, [viteBin, 'build'], {
     cwd: rootDir,
     stdio: 'inherit',
@@ -89,9 +97,9 @@ export async function runBuild(options = {}) {
     outfile: path.join(rootDir, 'dist', 'server.cjs'),
   });
 
-  const manifest = writeBuildManifest(rootDir);
+  const manifest = writeBuildManifest(rootDir, sourceHash);
   const elapsedSec = ((Date.now() - t0) / 1000).toFixed(2);
-  console.log(`[Build] Compilación completada en ${elapsedSec}s (hash: ${manifest.sourceHash.slice(0, 12)}).`);
+  console.log(`[Build] Compilación completada en ${elapsedSec}s (hash: ${manifest.buildHash}).`);
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === __filename) {

@@ -3,7 +3,9 @@ services:
     name: codizulca-dashboard
     runtime: node
     plan: free
-    buildCommand: npm install && npm run build
+    autoDeploy: true
+    healthCheckPath: /api/health
+    buildCommand: SKIP_POSTINSTALL_BUILD=1 npm install --no-audit --no-fund && npm run build
     startCommand: node start.mjs
     envVars:
       - key: NODE_ENV

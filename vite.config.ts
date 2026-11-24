@@ -4,6 +4,8 @@ import fs from 'fs';
 import path from 'path';
 import {defineConfig, type Plugin} from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
+// @ts-ignore - ESM build manifest helper
+import { computeSourceHash } from './scripts/build-manifest.mjs';
 
 /**
  * Rewrites named imports from `lucide-react` directly to their individual ESM icon modules
@@ -110,11 +112,37 @@ function stubUnusedJspdfOptionalDepsPlugin(): Plugin {
   };
 }
 
-export default defineConfig(() => {
+/**
+ * Automatically injects a deterministic build fingerprint into `index.html` on every
+ * production build so Render deployments invalidate stale browser & SW caches with zero manual bumps.
+ */
+function injectBuildVersionPlugin(command: 'serve' | 'build'): Plugin {
+  let resolvedHash = 'dev';
+  return {
+    name: 'inject-build-version',
+    configResolved() {
+      if (command === 'build') {
+        const envHash = (process.env.CODIZULCA_BUILD_HASH || '').trim();
+        resolvedHash = envHash || computeSourceHash(__dirname).slice(0, 12);
+      } else {
+        resolvedHash = 'dev';
+      }
+    },
+    transformIndexHtml(html) {
+      const version = resolvedHash === 'dev' ? 'dev' : `v5.2-${resolvedHash}`;
+      return html
+        .replace(/__CODIZULCA_BUILD_HASH__/g, resolvedHash)
+        .replace(/__CODIZULCA_BUILD_VERSION__/g, version);
+    },
+  };
+}
+
+export default defineConfig(({ command }) => {
   return {
     plugins: [
-      react(), 
+      react(),
       tailwindcss(),
+      injectBuildVersionPlugin(command),
       optimizeLucideImportsPlugin(),
       stubUnusedJspdfOptionalDepsPlugin(),
       VitePWA({
@@ -174,6 +202,9 @@ export default defineConfig(() => {
       target: 'es2020',
       sourcemap: false,
       reportCompressedSize: false,
+      // Express already mounts `public/` directly in both dev and production (server.ts),
+      // so skipping duplicate copying avoids ~22.8 MB / 331 duplicated JSON & image files in `dist/` and Git pushes.
+      copyPublicDir: false,
       chunkSizeWarningLimit: 1200,
       rollupOptions: {
         cache: false,

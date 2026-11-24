@@ -121,11 +121,75 @@ async function startServer() {
     next();
   });
 
-  app.use(express.static(path.join(process.cwd(), 'public')));
+  // Static public assets with smart cache-control:
+  // JSON snapshots under /data/ always revalidate via ETag so Render deploys reflect immediately,
+  // while images/avatars cache safely for 24h.
+  app.use(
+    express.static(path.join(process.cwd(), 'public'), {
+      etag: true,
+      setHeaders: (res, filePath) => {
+        if (filePath.endsWith('.json') || filePath.endsWith('.csv')) {
+          res.setHeader('Cache-Control', 'no-cache, must-revalidate');
+          res.setHeader('Pragma', 'no-cache');
+        } else {
+          res.setHeader('Cache-Control', 'public, max-age=86400, must-revalidate');
+        }
+      },
+    })
+  );
 
-  // Health check endpoint
-  app.get('/api/health', (req, res) => {
-    res.json({ status: 'ok' });
+  // Build & deploy metadata (read once at startup from dist/.build-manifest.json)
+  const serverStartedAt = Date.now();
+  const serverBuildMeta = (() => {
+    const manifestPath = path.join(process.cwd(), 'dist', '.build-manifest.json');
+    let sourceHash = '';
+    let buildHash = '';
+    let builtAt: string | null = null;
+    try {
+      if (fs.existsSync(manifestPath)) {
+        const parsed = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+        sourceHash = typeof parsed?.sourceHash === 'string' ? parsed.sourceHash : '';
+        buildHash =
+          typeof parsed?.buildHash === 'string' && parsed.buildHash
+            ? parsed.buildHash
+            : sourceHash.slice(0, 12);
+        builtAt = typeof parsed?.builtAt === 'string' ? parsed.builtAt : null;
+      }
+    } catch {
+      // ignore unreadable manifest
+    }
+    const gitCommit = (process.env.RENDER_GIT_COMMIT || process.env.GIT_COMMIT || '').trim() || null;
+    return {
+      buildHash: buildHash || 'dev',
+      buildVersion: buildHash ? `v5.2-${buildHash}` : 'dev',
+      builtAt,
+      gitCommit,
+    };
+  })();
+
+  // Health check endpoint (used by Render zero-downtime health checks)
+  app.get('/api/health', (_req, res) => {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+    res.json({
+      status: 'ok',
+      buildHash: serverBuildMeta.buildHash,
+      buildVersion: serverBuildMeta.buildVersion,
+      gitCommit: serverBuildMeta.gitCommit,
+      uptimeSec: Math.floor((Date.now() - serverStartedAt) / 1000),
+    });
+  });
+
+  // Deployment version endpoint (used by Render frontend tabs to detect fresh deploys automatically)
+  app.get('/api/version', (_req, res) => {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Surrogate-Control', 'no-store');
+    res.json({
+      buildHash: serverBuildMeta.buildHash,
+      buildVersion: serverBuildMeta.buildVersion,
+      builtAt: serverBuildMeta.builtAt,
+      gitCommit: serverBuildMeta.gitCommit,
+      env: process.env.NODE_ENV || 'development',
+    });
   });
 
   // API Routes

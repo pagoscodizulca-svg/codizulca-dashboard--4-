@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "tsx server.ts",
     "build": "node scripts/build.mjs",
+    "deploy:prepare": "node scripts/build.mjs && node scripts/predeploy-check.mjs",
+    "deploy:verify": "node scripts/predeploy-check.mjs",
     "postinstall": "node scripts/postinstall.mjs",
     "start": "node start.mjs",
     "preview": "vite preview",

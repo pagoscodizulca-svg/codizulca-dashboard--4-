@@ -33,13 +33,16 @@
           }
         }, true);
 
-        // Auto-invalidate stale Service Worker, Workbox, and legacy seller caches when version updates
+        // Auto-invalidate stale Service Worker, Workbox, and volatile KPI caches on every Render deploy
         try {
-          var APP_BUILD_VERSION = 'v5.1-20261124-victoria-vargas';
+          var APP_BUILD_HASH = '__CODIZULCA_BUILD_HASH__';
+          var APP_BUILD_VERSION = '__CODIZULCA_BUILD_VERSION__';
+          window.__CODIZULCA_BUILD_HASH__ = APP_BUILD_HASH;
+          window.__CODIZULCA_BUILD_VERSION__ = APP_BUILD_VERSION;
           var prevVersion = localStorage.getItem('codizulca_app_build_version');
-          if (prevVersion !== APP_BUILD_VERSION) {
+          if (APP_BUILD_HASH !== 'dev' && prevVersion !== APP_BUILD_VERSION) {
             localStorage.setItem('codizulca_app_build_version', APP_BUILD_VERSION);
-            // Purge volatile KPI/historical/sheets caches so VICTORIA VARGAS appears immediately
+            // Purge volatile KPI/historical/sheets caches so every Render deploy reflects immediately
             [
               'app_kpi_cache',
               'app_historical_sales_cache',

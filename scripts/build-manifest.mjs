@@ -12,6 +12,13 @@ const TEXT_EXTENSIONS = new Set([
   '.json',
   '.css',
   '.html',
+  '.csv',
+  '.svg',
+  '.md',
+  '.yml',
+  '.yaml',
+  '.sql',
+  '.txt',
 ]);
 
 const IGNORED_DIRS = new Set([
@@ -78,12 +85,14 @@ export function getManifestPath(rootDir) {
   return path.join(rootDir, 'dist', '.build-manifest.json');
 }
 
-export function writeBuildManifest(rootDir) {
-  const sourceHash = computeSourceHash(rootDir);
+export function writeBuildManifest(rootDir, precomputedHash = null) {
+  const sourceHash = precomputedHash || computeSourceHash(rootDir);
   const manifestPath = getManifestPath(rootDir);
   const payload = {
     version: 1,
     sourceHash,
+    buildHash: sourceHash.slice(0, 12),
+    gitCommit: process.env.RENDER_GIT_COMMIT || process.env.GIT_COMMIT || null,
     builtAt: new Date().toISOString(),
   };
   fs.mkdirSync(path.dirname(manifestPath), { recursive: true });

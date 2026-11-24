@@ -3,9 +3,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { Suspense, lazy } from 'react';
+import React, { Suspense, lazy, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './lib/auth';
+import { startBuildVersionWatcher } from './lib/buildVersionWatcher';
 import { AuthGuard } from './components/layout/AuthGuard';
 import { MainLayout } from './components/layout/MainLayout';
 import { Login } from './pages/Login';
@@ -134,6 +135,8 @@ class AppErrorBoundary extends React.Component<
 }
 
 export default function App() {
+  useEffect(() => startBuildVersionWatcher(), []);
+
   return (
     <AppErrorBoundary>
       <AuthProvider>
