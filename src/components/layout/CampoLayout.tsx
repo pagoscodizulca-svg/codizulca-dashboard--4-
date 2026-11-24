@@ -29,9 +29,11 @@ class CampoSubViewErrorBoundary extends React.Component<
   { resetKey: string; children: React.ReactNode },
   { hasError: boolean }
 > {
+  declare props: { resetKey: string; children: React.ReactNode };
+  state = { hasError: false };
+
   constructor(props: { resetKey: string; children: React.ReactNode }) {
     super(props);
-    this.state = { hasError: false };
   }
 
   static getDerivedStateFromError() {
@@ -40,7 +42,7 @@ class CampoSubViewErrorBoundary extends React.Component<
 
   componentDidUpdate(prevProps: { resetKey: string }) {
     if (prevProps.resetKey !== this.props.resetKey && this.state.hasError) {
-      this.setState({ hasError: false });
+      (this as any).setState({ hasError: false });
     }
   }
 
@@ -63,7 +65,7 @@ class CampoSubViewErrorBoundary extends React.Component<
           </div>
           <button
             type="button"
-            onClick={() => this.setState({ hasError: false })}
+            onClick={() => (this as any).setState({ hasError: false })}
             className="w-full py-3 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs uppercase tracking-wider cursor-pointer"
           >
             Continuar Cargando

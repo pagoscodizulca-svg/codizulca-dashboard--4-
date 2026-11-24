@@ -594,7 +594,7 @@ export function applyAtomicTurnoUpdate(params: {
 
 function buildSeedPromotorasFromStaff(): TradePromotora[] {
   const staffList: StaffMember[] =
-    typeof staffService?.getStaff === 'function' ? staffService.getStaff() : INITIAL_STAFF_SEED;
+    typeof (staffService as any)?.getStaff === 'function' ? (staffService as any).getStaff() : INITIAL_STAFF_SEED;
 
   const nowIso = new Date().toISOString();
   const filtered = staffList.filter(
@@ -765,8 +765,7 @@ export const tradeAttendanceService = {
     };
 
     try {
-      const { data, error } = await supabase
-        .from('trade_promotoras')
+      const { data, error } = await (supabase.from('trade_promotoras') as any)
         .upsert(
           {
             id: record.id,
@@ -918,7 +917,7 @@ export const tradeAttendanceService = {
     let previousStoragePath: string | null = null;
 
     try {
-      const { data: rpcData, error: rpcError } = await supabase.rpc(
+      const { data: rpcData, error: rpcError } = await (supabase as any).rpc(
         'rpc_registrar_turno_asistencia_trade',
         {
           p_promotora_id: params.promotora.id,

@@ -226,7 +226,6 @@ describe('Visitas de Zioreli Grangger (Lunes 26/10 a Miércoles 28/10) y Sincron
         resolveStoreByGpsIfGenericDefault('ALKOSTO DONDE COMPRAR ES GANAR, C.A.', {
           lat: 10.683202,
           lng: -71.680169,
-          accuracy: 8,
         }).store
       ).toBe('Fiorella La Curva');
 
@@ -234,7 +233,6 @@ describe('Visitas de Zioreli Grangger (Lunes 26/10 a Miércoles 28/10) y Sincron
         resolveStoreByGpsIfGenericDefault('ALKOSTO DONDE COMPRAR ES GANAR, C.A.', {
           lat: 10.657365,
           lng: -71.66221,
-          accuracy: 7,
         }).store
       ).toBe('Fiorella Cumbre');
 
@@ -242,7 +240,6 @@ describe('Visitas de Zioreli Grangger (Lunes 26/10 a Miércoles 28/10) y Sincron
         resolveStoreByGpsIfGenericDefault('ALKOSTO DONDE COMPRAR ES GANAR, C.A.', {
           lat: 10.639101,
           lng: -71.663374,
-          accuracy: 6,
         }).store
       ).toBe('Farma Express C2');
 
@@ -251,7 +248,6 @@ describe('Visitas de Zioreli Grangger (Lunes 26/10 a Miércoles 28/10) y Sincron
         resolveStoreByGpsIfGenericDefault('Supermercado De Candido', {
           lat: 10.683202,
           lng: -71.680169,
-          accuracy: 8,
         }).store
       ).toBe('Supermercado De Candido');
     });
@@ -424,7 +420,7 @@ describe('Visitas de Zioreli Grangger (Lunes 26/10 a Miércoles 28/10) y Sincron
           competitorFacings: 12,
           totalFacings: 28,
           shareOfShelfPercent: 57,
-          shelfLevel: 'Nivel Ojos / Manos',
+          shelfLevel: 'MIXTO',
           outOfStockDetected: false,
           popDetected: true,
         },

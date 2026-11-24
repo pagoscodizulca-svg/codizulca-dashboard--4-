@@ -18,6 +18,8 @@ import { CampoInventario } from './pages/mobile/CampoInventario';
 import { CampoPrecios } from './pages/mobile/CampoPrecios';
 import { CampoMerchandising } from './pages/mobile/CampoMerchandising';
 import { PortalPerfil } from './pages/mobile/PortalPerfil';
+import { SHOW_LEGACY_PORTAL_LINK } from './lib/portalMigrationConfig';
+import { PortalMigrationRedirect } from './components/layout/PortalMigrationRedirect';
 
 function lazyWithRetry<T extends React.ComponentType<any>>(
   factory: () => Promise<{ default: T }>
@@ -78,9 +80,11 @@ class AppErrorBoundary extends React.Component<
   { children: React.ReactNode },
   { hasError: boolean; errorMsg: string }
 > {
+  declare props: { children: React.ReactNode };
+  state = { hasError: false, errorMsg: '' };
+
   constructor(props: { children: React.ReactNode }) {
     super(props);
-    this.state = { hasError: false, errorMsg: '' };
   }
 
   static getDerivedStateFromError(error: Error) {
@@ -98,7 +102,7 @@ class AppErrorBoundary extends React.Component<
         caches.keys().then((names) => Promise.all(names.map((n) => caches.delete(n))));
       }
     } catch {}
-    this.setState({ hasError: false, errorMsg: '' });
+    (this as any).setState({ hasError: false, errorMsg: '' });
     window.location.reload();
   };
 
@@ -138,9 +142,6 @@ export default function App() {
             <Routes>
               {/* Login de Administración / Gerencia */}
               <Route path="/login" element={<Login />} />
-              
-              {/* Login Móvil Oficial para Promotoras e Impulsadoras de Campo */}
-              <Route path="/portal/login" element={<PortalLogin />} />
 
               <Route element={<AuthGuard />}>
                 <Route path="/dashboard" element={<MainLayout />}>
@@ -157,18 +158,28 @@ export default function App() {
                 </Route>
               </Route>
 
-              {/* Codizulca Campo PWA Mobile Portal Routes (CampoLayout valida su propia sesión y redirige a /portal/login) */}
-              <Route path="/portal" element={<CampoLayout />}>
-                <Route index element={<Navigate to="/portal/ruta" replace />} />
-                <Route path="ruta" element={<CampoRuta />} />
-                <Route path="checkin" element={<CampoAsistencia />} />
-                <Route path="asistencia" element={<CampoAsistencia />} />
-                <Route path="encuestas" element={<CampoEncuestas />} />
-                <Route path="precios" element={<CampoPrecios />} />
-                <Route path="inventario" element={<CampoInventario />} />
-                <Route path="merchandising" element={<CampoMerchandising />} />
-                <Route path="perfil" element={<PortalPerfil />} />
-              </Route>
+              {/* Rutas de /portal y /portal/* (Redirección Segura hacia Programa de Trade Marketing) */}
+              {SHOW_LEGACY_PORTAL_LINK ? (
+                <>
+                  <Route path="/portal/login" element={<PortalLogin />} />
+                  <Route path="/portal" element={<CampoLayout />}>
+                    <Route index element={<Navigate to="/portal/ruta" replace />} />
+                    <Route path="ruta" element={<CampoRuta />} />
+                    <Route path="checkin" element={<CampoAsistencia />} />
+                    <Route path="asistencia" element={<CampoAsistencia />} />
+                    <Route path="encuestas" element={<CampoEncuestas />} />
+                    <Route path="precios" element={<CampoPrecios />} />
+                    <Route path="inventario" element={<CampoInventario />} />
+                    <Route path="merchandising" element={<CampoMerchandising />} />
+                    <Route path="perfil" element={<PortalPerfil />} />
+                  </Route>
+                </>
+              ) : (
+                <>
+                  <Route path="/portal" element={<PortalMigrationRedirect />} />
+                  <Route path="/portal/*" element={<PortalMigrationRedirect />} />
+                </>
+              )}
 
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
               <Route path="*" element={<Navigate to="/dashboard" replace />} />

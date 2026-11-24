@@ -181,7 +181,8 @@ export const TradeAttendanceTab: React.FC = () => {
       if (r.puntoVentaEfectivo) set.add(r.puntoVentaEfectivo);
     });
     ENRICHED_CLIENTS.slice(0, 60).forEach((c) => {
-      if (c.name) set.add(c.name.trim().toUpperCase());
+      const clientName = (c as any).nombre || (c as any).name;
+      if (clientName) set.add(String(clientName).trim().toUpperCase());
     });
     return Array.from(set).sort((a, b) => a.localeCompare(b, 'es'));
   }, [rows]);

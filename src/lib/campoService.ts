@@ -812,11 +812,11 @@ const notifyCampoDataChanged = () => {
 };
 
 // Almacenamiento local
-const QUEUE_STORAGE_KEY = 'portal_sync_queue';
-const ACTIVE_USER_KEY = 'portal_active_promoter_obj';
-const AUTH_TOKEN_KEY = 'portal_auth_token';
-const AUTH_USER_ID_KEY = 'portal_authenticated_user_id';
-const BYPASS_HOURS_KEY = 'codizulca_bypass_hours';
+export const QUEUE_STORAGE_KEY = 'portal_sync_queue';
+export const ACTIVE_USER_KEY = 'portal_active_promoter_obj';
+export const AUTH_TOKEN_KEY = 'portal_auth_token';
+export const AUTH_USER_ID_KEY = 'portal_authenticated_user_id';
+export const BYPASS_HOURS_KEY = 'codizulca_bypass_hours';
 
 function safePersistLocalStorage(key: string, jsonValue: string): void {
   try {
@@ -1830,7 +1830,7 @@ export const campoService = {
           creatorId: log.creatorId || normalized.promoter || '',
           promoter: normalized.promoter,
         };
-        const { error } = await withNetworkTimeout(
+        const { error } = await withNetworkTimeout<{ error?: any }>(
           (supabase.from('inventory') as any).upsert(dbRow),
           6000
         );

@@ -87,6 +87,7 @@ import { merchandisingService, MerchandisingReport } from '../lib/merchandisingS
 import { staffService, StaffMember } from '../lib/staffService';
 import { campoService } from '../lib/campoService';
 import { supabase } from '../lib/supabase';
+import { SHOW_LEGACY_PORTAL_LINK } from '../lib/portalMigrationConfig';
 import {
   degustacionesService,
   DegustacionItem,
@@ -2639,6 +2640,7 @@ export const TradeMarketing: React.FC = () => {
       {/* ========================================================================= */}
       {/* 2. BLOQUE DE ENLACE DE ACCESO MÓVIL EXACTO (IMAGEN 1)                     */}
       {/* ========================================================================= */}
+      {SHOW_LEGACY_PORTAL_LINK && (
       <div className="bg-[#121316] border border-white/10 rounded-2xl p-5 shadow-xl flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         {/* Contenido Izquierdo */}
         <div className="flex items-start gap-4">
@@ -2697,6 +2699,7 @@ export const TradeMarketing: React.FC = () => {
           </button>
         </div>
       </div>
+      )}
 
       {/* ========================================================================= */}
       {/* 3. BARRA DE SUBMÓDULOS "CRONOGRAMA DE CAMPO"                              */}
@@ -4781,6 +4784,7 @@ export const TradeMarketing: React.FC = () => {
                       <RefreshCw className={`w-3.5 h-3.5 text-emerald-400 ${isRefreshingCheckIns ? 'animate-spin' : ''}`} />
                       <span>{isRefreshingCheckIns ? 'Sincronizando...' : 'Sincronizar Asistencias'}</span>
                     </button>
+                    {SHOW_LEGACY_PORTAL_LINK && (
                     <a
                       href="/portal/checkin"
                       target="_blank"
@@ -4790,6 +4794,7 @@ export const TradeMarketing: React.FC = () => {
                       <Smartphone className="w-4 h-4" />
                       <span>Abrir App Promotora</span>
                     </a>
+                    )}
                   </div>
                 </div>
 
@@ -5778,6 +5783,7 @@ export const TradeMarketing: React.FC = () => {
                   <RefreshCw className={`w-3.5 h-3.5 text-emerald-400 ${isRefreshingMerch ? 'animate-spin' : ''}`} />
                   <span>Sincronizar</span>
                 </button>
+                {SHOW_LEGACY_PORTAL_LINK && (
                 <a
                   href="/portal/merchandising"
                   target="_blank"
@@ -5787,6 +5793,7 @@ export const TradeMarketing: React.FC = () => {
                   <Smartphone className="w-4 h-4" />
                   <span>App Móvil (Mercaderista)</span>
                 </a>
+                )}
               </div>
             </div>
 
@@ -7021,6 +7028,7 @@ export const TradeMarketing: React.FC = () => {
                               </div>
 
                               {/* Botón de Acceso Personalizado a la App Móvil */}
+                              {SHOW_LEGACY_PORTAL_LINK && (
                               <div className="pt-2 border-t border-white/5 flex items-center gap-2">
                                 <button
                                   type="button"
@@ -7055,6 +7063,7 @@ export const TradeMarketing: React.FC = () => {
                                   <ExternalLink className="w-3.5 h-3.5" />
                                 </a>
                               </div>
+                              )}
                             </div>
                           );
                         })}
@@ -8462,7 +8471,7 @@ export const TradeMarketing: React.FC = () => {
       {/* ========================================================================= */}
       {/* MODAL: CREDENCIALES DE ACCESO A LA APP DE PROMOTORAS                      */}
       {/* ========================================================================= */}
-      {isCredentialsModalOpen && (
+      {SHOW_LEGACY_PORTAL_LINK && isCredentialsModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in-50">
           <div className="bg-[#121316] border border-white/10 rounded-3xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh] animate-in zoom-in-95 duration-200">
             {/* Header del Modal */}

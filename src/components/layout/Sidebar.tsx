@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { Badge } from '../ui/badge';
+import { SHOW_LEGACY_PORTAL_LINK } from '../../lib/portalMigrationConfig';
 
 export const Sidebar: React.FC = () => {
   const { signOut, canAccessTrazabilidad, corporateProfile } = useAuth();
@@ -29,7 +30,9 @@ export const Sidebar: React.FC = () => {
     { to: '/dashboard/clientes', icon: Users, label: 'Clientes & Geocercas' },
     { to: '/dashboard/productos', icon: Box, label: 'Catálogo de Productos' },
     { to: '/dashboard/trade', icon: MapPin, label: 'Trade Marketing (IA)' },
-    { to: '/portal', icon: Smartphone, label: 'Portal Móvil PWA', badge: { text: 'OFFLINE', color: 'text-zinc-300', bg: 'bg-zinc-800/80 border-zinc-700' } },
+    ...(SHOW_LEGACY_PORTAL_LINK
+      ? [{ to: '/portal', icon: Smartphone, label: 'Portal Móvil PWA', badge: { text: 'OFFLINE', color: 'text-zinc-300', bg: 'bg-zinc-800/80 border-zinc-700' } }]
+      : []),
     ...(canAccessTrazabilidad
       ? [{ to: '/dashboard/trazabilidad', icon: Activity, label: 'Trazabilidad', badge: { text: 'EN VIVO', color: 'text-emerald-400', bg: 'bg-emerald-950/50 border-emerald-900/50' } }]
       : []),
