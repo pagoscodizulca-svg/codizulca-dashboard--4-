@@ -344,7 +344,7 @@ async function startServer() {
             id_cliente: r.id_cliente,
             cliente: String(r.cliente || '').trim(),
             id_vendedor: r.id_vendedor ?? 0,
-            vendedor: String(r.vendedor || '').trim(),
+            vendedor: normalizeSellerName(String(r.vendedor || '').trim()) || String(r.vendedor || '').trim(),
             id_articulo: r.id_articulo,
             articulo: String(r.articulo || '').trim(),
             cajas: Number(r.cajas) || 0,
@@ -467,7 +467,10 @@ async function startServer() {
           return false;
         }
         return true;
-      });
+      }).map((r: any) => ({
+        ...r,
+        vendedor: normalizeSellerName(String(r.vendedor || '').trim()) || String(r.vendedor || '').trim(),
+      }));
 
       return res.json({
         rows: cleanRows,
@@ -600,7 +603,11 @@ async function startServer() {
               .order('id', { ascending: true })
               .range(from, to);
             if (!error && Array.isArray(data) && data.length > 0) {
-              return res.json({ rows: data, from, to, source: 'supabase' });
+              const normalizedData = data.map((r: any) => ({
+                ...r,
+                vendedor: normalizeSellerName(String(r.vendedor || '').trim()) || String(r.vendedor || '').trim(),
+              }));
+              return res.json({ rows: normalizedData, from, to, source: 'supabase' });
             }
           }
         } catch (supErr) {
@@ -649,7 +656,7 @@ async function startServer() {
     'EDUARDO PIÑA',
     'LEONARDO RIOS',
     'MARYERY GARCIA',
-    'LUIS GUANIPA',
+    'VICTORIA VARGAS',
     'PEDRO ABREU',
     'OSCAR ORTIZ',
   ];
@@ -721,6 +728,21 @@ async function startServer() {
     if (n === 'ALI PEREZ' || n === 'ANGEL NAVARRO') {
       return 'ANGEL NAVARRO';
     }
+    // Interceptor anti-regresión: reasignación integral Luis Guanipa (id 40) -> VICTORIA VARGAS
+    if (
+      n === 'VICTORIA VARGAS' ||
+      n === 'LUIS GUANIPA' ||
+      n === 'GUANIPA' ||
+      n.includes('LUIS GUANIPA') ||
+      n.includes('VICTORIA VARGAS') ||
+      n === 'LUISGUANIPA@CODIZULCA.COM' ||
+      n === 'GUANIPALUIS28@GMAIL.COM' ||
+      n === 'LUISGUSTAVO127@GMAIL.COM' ||
+      n === 'LUISAMMV.1990@GMAIL.COM' ||
+      n === 'VICTORIA.VARGAS@CODIZULCA.COM'
+    ) {
+      return 'VICTORIA VARGAS';
+    }
     if (
       n === 'OSCAR ORTIZ' ||
       n === 'OSCAR ORTIZ - CORO' ||
@@ -769,7 +791,7 @@ async function startServer() {
     'VICTOR CAMPOS',
     'ELISA SOLER',
     'LEONARDO RIOS',
-    'LUIS GUANIPA',
+    'VICTORIA VARGAS',
     'OSCAR ORTIZ',
     'OSCAR ORTIZ- CORO',
     'OSCAR ORTIZ - CORO',
@@ -1296,9 +1318,21 @@ async function startServer() {
       const productsPath = path.join(process.cwd(), 'pareto_products_complete.json');
       const sellersPath = path.join(process.cwd(), 'sellers_monthly_volume_cache.json');
 
-      const clients = fs.existsSync(clientsPath) ? JSON.parse(fs.readFileSync(clientsPath, 'utf8')) : [];
+      const clients = (fs.existsSync(clientsPath) ? JSON.parse(fs.readFileSync(clientsPath, 'utf8')) : []).map((c: any) => ({
+        ...c,
+        vendedor: normalizeSellerName(c.vendedor || '') || c.vendedor,
+        vendedoresList: Array.isArray(c.vendedoresList)
+          ? Array.from(new Set(c.vendedoresList.map((v: any) => normalizeSellerName(String(v || '')) || String(v || ''))))
+          : c.vendedoresList,
+      }));
       const products = fs.existsSync(productsPath) ? JSON.parse(fs.readFileSync(productsPath, 'utf8')) : [];
       const sellersRaw = fs.existsSync(sellersPath) ? JSON.parse(fs.readFileSync(sellersPath, 'utf8')) : null;
+      const normalizedSellerMonthlyData = Array.isArray(sellersRaw?.sellerMonthlyData)
+        ? sellersRaw.sellerMonthlyData.map((s: any) => ({
+            ...s,
+            vendedor: normalizeSellerName(s.vendedor || '') || s.vendedor,
+          }))
+        : [];
 
       const availableMonths = [
         'ENERO', 'FEBRERO', 'MARZO', 'ABRIL', 'MAYO', 'JUNIO',
@@ -1308,7 +1342,7 @@ async function startServer() {
       paretoMemoryCache = {
         clients,
         products,
-        sellerMonthlyData: sellersRaw?.sellerMonthlyData || [],
+        sellerMonthlyData: normalizedSellerMonthlyData,
         availableMonths,
         ano: 2026,
         lastSync: new Date().toISOString()
@@ -1622,12 +1656,15 @@ async function startServer() {
   // ==========================================
   const GERENCIA_FDV_SUPABASE_URL =
     process.env.GERENCIA_SUPABASE_URL ||
+    process.env.GERENCIA_FDV_SUPABASE_URL ||
     process.env.VITE_GERENCIA_SUPABASE_URL ||
-    'https://nudltbgyewyiklqdyujk.supabase.co';
+    '';
   const GERENCIA_FDV_SUPABASE_KEY =
+    process.env.GERENCIA_SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.GERENCIA_FDV_SUPABASE_KEY ||
     process.env.GERENCIA_SUPABASE_ANON_KEY ||
     process.env.VITE_GERENCIA_SUPABASE_ANON_KEY ||
-    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im51ZGx0Ymd5ZXd5aWtscWR5dWprIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MTgzMDA3OCwiZXhwIjoyMTA3NDA2MDc4fQ.k92vdZiuVkTzAWNK8Fq71m1Xi_MoWtpx_eRQcZTw1cA';
+    '';
 
   let activacionClientesMemoryCache: { data: any[]; timestamp: number } | null = null;
   const activacionClientesSeedPath = path.join(process.cwd(), 'src', 'data', 'activacionClientesSeed.json');
@@ -1949,6 +1986,12 @@ async function startServer() {
       const cacheFile = path.join(cacheDir, `${idArt}.json`);
       if (fs.existsSync(cacheFile)) {
         const cached = JSON.parse(fs.readFileSync(cacheFile, 'utf8'));
+        if (cached && Array.isArray(cached.clients)) {
+          cached.clients = cached.clients.map((c: any) => ({
+            ...c,
+            vendedor: normalizeSellerName(c.vendedor || '') || c.vendedor,
+          }));
+        }
         productClientsMemoryCache.set(idArt, cached);
         return res.json(cached);
       }
@@ -2019,7 +2062,7 @@ async function startServer() {
           clientMap.set(cid, {
             id_cliente: cid,
             cliente: (r.cliente || '').trim(),
-            vendedor: (r.vendedor || '').trim(),
+            vendedor: normalizeSellerName(r.vendedor || '') || (r.vendedor || '').trim(),
             monto: 0,
             cajas: 0,
             kgs: 0,
@@ -2928,8 +2971,9 @@ Responde EXCLUSIVAMENTE con un objeto JSON válido con la siguiente estructura (
       });
 
       for (const r of rows || []) {
+        const normRowSeller = normalizeSellerName(r.vendedor || '') || (r.vendedor || '').trim();
         if (r.cliente) clientName = r.cliente.trim();
-        if (r.vendedor && !sellerName) sellerName = r.vendedor.trim();
+        if (normRowSeller && !sellerName) sellerName = normRowSeller;
 
         const docKey = `${r.tipo_doc}-${r.numero}`;
         if (!docMap.has(docKey)) {
@@ -2940,7 +2984,7 @@ Responde EXCLUSIVAMENTE con un objeto JSON válido con la siguiente estructura (
             mes: r.mes,
             ano: r.ano,
             date: `${r.mes} ${r.ano}`,
-            seller: (r.vendedor || '').trim(),
+            seller: normRowSeller,
             client: (r.cliente || '').trim(),
             boxes: 0,
             total: 0,
@@ -3454,7 +3498,7 @@ Responde EXCLUSIVAMENTE con un objeto JSON válido con la siguiente estructura (
               chObj.clients.add(cl);
             }
 
-            const sel = (r.vendedor || '').trim();
+            const sel = normalizeSellerName(r.vendedor || '') || (r.vendedor || '').trim();
             if (sel) {
               if (!sellerMap.has(sel)) {
                 sellerMap.set(sel, { vendedor: sel, zona: 'Occidente', totalFA: 0, totalDV: 0, netMonto: 0, boxes: 0, kgs: 0 });

@@ -656,7 +656,7 @@ export async function executeMaestraActivaBatchSync(
         });
       }
     } else {
-      // Nueva alta (ej. Id = 8377 bajo LUIS GUANIPA o clientes nuevos) enriquecida con ventas reales
+      // Nueva alta (ej. Id = 8377 bajo VICTORIA VARGAS o clientes nuevos) enriquecida con ventas reales
       const newHasLeche =
         Boolean(salesSummary?.activeRubros.has('LECHE_VENCAMPO')) || salesCajasLeche > 0;
       const newHasAzucar =

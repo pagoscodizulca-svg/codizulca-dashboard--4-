@@ -36,7 +36,12 @@ export interface IndexedDbHistoryCachePayload {
 const DB_NAME = 'codizulca_gerencia_sync_db';
 const DB_VERSION = 1;
 const STORE_NAME = 'history_sales_cache_v1';
-export const DEFAULT_HISTORY_CACHE_KEY = 'history_sales_2026_01_01_to_2026_10_31_v3_oct29722';
+export const DEFAULT_HISTORY_CACHE_KEY = 'history_sales_2026_01_01_to_2026_10_31_v4_victoria_vargas';
+const LEGACY_HISTORY_CACHE_KEYS = [
+  'history_sales_2026_01_01_to_2026_10_31_v3_oct29722',
+  'history_sales_2026_01_01_to_2026_10_31_v2',
+  'history_sales_2026_01_01_to_2026_10_31_v1',
+];
 
 // Fallback en memoria para entornos sin IndexedDB (ej. SSR / Node / Vitest)
 const memoryFallbackStore = new Map<string, IndexedDbHistoryCachePayload>();
@@ -133,6 +138,12 @@ export async function saveCachedHistorySalesRows(
     await new Promise<void>((resolve, reject) => {
       const tx = db.transaction(STORE_NAME, 'readwrite');
       const store = tx.objectStore(STORE_NAME);
+      for (const legacyKey of LEGACY_HISTORY_CACHE_KEYS) {
+        if (legacyKey !== cacheKey) {
+          memoryFallbackStore.delete(legacyKey);
+          try { store.delete(legacyKey); } catch {}
+        }
+      }
       const req = store.put(payload);
       req.onsuccess = () => resolve();
       req.onerror = () => reject(req.error);

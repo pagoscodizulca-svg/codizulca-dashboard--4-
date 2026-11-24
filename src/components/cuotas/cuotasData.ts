@@ -151,7 +151,7 @@ const SHEET_ACTIVATION_SELLERS: Array<{
   { name: 'EDUARDO PIÑA', cartera: 174, metas: [80, 41, 25, 30, 32], act: [38, 21, 6, 10, 14] },
   { name: 'LEONARDO RIOS', cartera: 80, metas: [52, 15, 30, 28, 30], act: [20, 14, 6, 11, 14] },
   { name: 'MARYERY GARCIA', cartera: 148, metas: [95, 51, 65, 60, 70], act: [58, 48, 37, 32, 30] },
-  { name: 'LUIS GUANIPA', cartera: 52, metas: [35, 10, 12, 20, 25], act: [14, 11, 2, 5, 5] },
+  { name: 'VICTORIA VARGAS', cartera: 52, metas: [35, 10, 12, 20, 25], act: [14, 11, 2, 5, 5] },
   { name: 'PEDRO ABREU', cartera: 57, metas: [35, 15, 18, 20, 30], act: [18, 16, 5, 10, 18] },
   { name: 'MARIANGEL GONZALEZ', cartera: 70, metas: [42, 15, 40, 15, 35], act: [30, 25, 18, 8, 9] },
   { name: 'VICTOR CAMPOS', cartera: 71, metas: [43, 15, 25, 20, 35], act: [22, 22, 9, 13, 7] },

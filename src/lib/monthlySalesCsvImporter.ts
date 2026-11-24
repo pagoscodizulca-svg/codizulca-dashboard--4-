@@ -1,5 +1,6 @@
 import Papa from 'papaparse';
 import { supabase } from './supabase';
+import { normalizeSellerName } from '../components/cuotas/sellerSupervisorMap';
 
 export interface ParsedMonthlySalesRow {
   id: number;
@@ -309,7 +310,14 @@ export function parseMonthlySalesCsvContent(csvContent: string): MonthlySalesPar
     const id_cliente = String(cols[idxIdCliente] ?? '').trim();
     const cliente = String(cols[idxCliente] ?? '').trim();
     const id_vendedor = String(cols[idxIdVendedor] ?? '').trim();
-    const vendedor = String(cols[idxVendedor] ?? '').trim();
+    const rawVendedor = String(cols[idxVendedor] ?? '').trim();
+    const normVendedor = normalizeSellerName(rawVendedor);
+    const vendedor =
+      normVendedor === 'VICTORIA VARGAS' ||
+      ((id_vendedor === '40' || id_vendedor === '040') &&
+        (!rawVendedor || rawVendedor.toUpperCase().includes('GUANIPA')))
+        ? 'VICTORIA VARGAS'
+        : rawVendedor;
     const id_articulo = String(cols[idxIdArticulo] ?? '').trim();
     const articulo = String(cols[idxArticulo] ?? '').trim();
 

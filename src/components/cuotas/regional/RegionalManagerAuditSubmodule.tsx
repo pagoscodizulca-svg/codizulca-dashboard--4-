@@ -83,11 +83,19 @@ export const RegionalManagerAuditSubmodule: React.FC<RegionalManagerAuditSubmodu
   const [salesData, setSalesData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
-  // Estado de Auditoría Persistente en localStorage
+  // Estado de Auditoría Persistente en localStorage (con migración automática de vendedores reasignados)
   const [commitments, setCommitments] = useState<AuditCommitment[]>(() => {
     try {
       const saved = localStorage.getItem('codizulca_regional_audit_commitments');
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          return parsed.map((c: AuditCommitment) => ({
+            ...c,
+            vendedor: c?.vendedor ? normalizeSellerName(c.vendedor) || c.vendedor : c?.vendedor,
+          }));
+        }
+      }
     } catch (e) {
       console.error(e);
     }
@@ -97,7 +105,17 @@ export const RegionalManagerAuditSubmodule: React.FC<RegionalManagerAuditSubmodu
   const [auditOverrides, setAuditOverrides] = useState<Record<string, { calif?: number; causa?: string }>>(() => {
     try {
       const saved = localStorage.getItem('codizulca_regional_audit_overrides');
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && typeof parsed === 'object') {
+          const migrated: Record<string, { calif?: number; causa?: string }> = {};
+          for (const [k, v] of Object.entries(parsed as Record<string, { calif?: number; causa?: string }>)) {
+            const normKey = normalizeSellerName(k) || k;
+            migrated[normKey] = migrated[normKey] ? { ...v, ...migrated[normKey] } : v;
+          }
+          return migrated;
+        }
+      }
     } catch (e) {
       console.error(e);
     }

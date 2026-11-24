@@ -356,10 +356,19 @@ export const OFFICIAL_MASTER_VENDEDORES_SEED: MasterSellerRecord[] = [
   {
     vendedor_id: '40',
     codigo_erp: '40',
-    nombre_canonico: 'LUIS GUANIPA',
-    display_name: 'Luis Guanipa',
-    ruta_oficial: 'LUIS GUANIPA',
-    aliases: ['LUIS GUANIPA'],
+    nombre_canonico: 'VICTORIA VARGAS',
+    display_name: 'Victoria Vargas',
+    ruta_oficial: 'VICTORIA VARGAS',
+    aliases: [
+      'VICTORIA VARGAS',
+      'LUIS GUANIPA',
+      'GUANIPA',
+      'LUISGUANIPA@CODIZULCA.COM',
+      'GUANIPALUIS28@GMAIL.COM',
+      'LUISGUSTAVO127@GMAIL.COM',
+      'LUISAMMV.1990@GMAIL.COM',
+      'VICTORIA.VARGAS@CODIZULCA.COM',
+    ],
     supervisor: 'ALI PEREZ',
     zona: 'Coro / Falcón',
     region: 'Supervisión Ali Perez',
@@ -368,6 +377,7 @@ export const OFFICIAL_MASTER_VENDEDORES_SEED: MasterSellerRecord[] = [
     incluir_en_volumen: true,
     meta_activacion: 57,
     meta_volumen: 0,
+    email: 'victoria.vargas@codizulca.com',
     activo: true,
   },
   {
@@ -775,8 +785,13 @@ export function hydrateRuntimeSellerCatalog(rows: Array<Partial<MasterSellerReco
   }
 
   for (const raw of rows) {
-    const canon = sanitizeCatalogUpper(raw.nombre_canonico || raw.ruta_oficial || raw.display_name);
+    let canon = sanitizeCatalogUpper(raw.nombre_canonico || raw.ruta_oficial || raw.display_name);
     if (!canon) continue;
+    // Interceptor anti-regresión: unificar cualquier registro legacy de Luis Guanipa hacia VICTORIA VARGAS
+    if (canon.includes('GUANIPA') || canon.includes('VICTORIA VARGAS')) {
+      canon = 'VICTORIA VARGAS';
+      if (raw.activo === false) continue;
+    }
     const isSup = Boolean(raw.is_supervisor_route) || sanitizeCatalogUpper(raw.role) === 'SUPERVISOR';
     const key = `${isSup ? 'SUP::' : 'VEN::'}${canon}`;
     const existing = byCanonical.get(key);
@@ -872,13 +887,19 @@ export function resolveSellerFromMasterCatalog(rawVendedor: unknown): {
 
   const matched = runtimeAliasLookup.get(ascii);
   if (matched) {
-    // Preservar sub-ruta específica en vendedorRuta cuando el vendedor tiene múltiples rutas (ej. OSCAR ORTIZ - LA COSTA, MIKELANGELO DIAZ - VILLA DEL ROS)
+    // Preservar sub-ruta específica en vendedorRuta solo para vendedores multi-ruta;
+    // para vendedores reasignados (ej. LUIS GUANIPA -> VICTORIA VARGAS) usar siempre la ruta oficial canónica.
     let routeLabel = matched.ruta_oficial;
     if (clean.includes('LA COSTA')) routeLabel = 'OSCAR ORTIZ- LA COSTA';
     else if (clean.includes('CORO') && matched.nombre_canonico === 'OSCAR ORTIZ') routeLabel = 'OSCAR ORTIZ- CORO';
     else if (clean.includes('VILLA') && matched.nombre_canonico === 'MIKELANGELO DIAZ') {
       routeLabel = clean.includes('JOHNATAN') ? 'JOHNATAN SOTO VILLA DEL ROS' : 'MIKELANGELO DIAZ - VILLA DEL ROS';
-    } else if (clean) {
+    } else if (
+      clean &&
+      !clean.includes('GUANIPA') &&
+      !clean.includes('JOHNATAN') &&
+      clean !== 'ALI PEREZ'
+    ) {
       routeLabel = clean;
     }
 

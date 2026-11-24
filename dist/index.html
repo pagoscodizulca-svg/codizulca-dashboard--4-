@@ -33,12 +33,25 @@
           }
         }, true);
 
-        // Auto-invalidate stale Service Worker and Workbox caches when version updates
+        // Auto-invalidate stale Service Worker, Workbox, and legacy seller caches when version updates
         try {
-          var APP_BUILD_VERSION = 'v5.0-20261025-inv-stability';
+          var APP_BUILD_VERSION = 'v5.1-20261124-victoria-vargas';
           var prevVersion = localStorage.getItem('codizulca_app_build_version');
           if (prevVersion !== APP_BUILD_VERSION) {
             localStorage.setItem('codizulca_app_build_version', APP_BUILD_VERSION);
+            // Purge volatile KPI/historical/sheets caches so VICTORIA VARGAS appears immediately
+            [
+              'app_kpi_cache',
+              'app_historical_sales_cache',
+              'app_historical_sales_cache_v3',
+              'app_historical_sales_cache_v4',
+              'october_2026_closing_cache',
+              'app_last_sheets_sync',
+              'codizulca_maestra_sync_version',
+              'codibot_messages_active',
+            ].forEach(function(k) {
+              try { localStorage.removeItem(k); } catch (e) {}
+            });
             var cleanupPromises = [];
             if ('serviceWorker' in navigator) {
               cleanupPromises.push(
@@ -86,7 +99,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="Codizulca" />
     <link rel="apple-touch-icon" href="https://placehold.co/180x180/dc2626/ffffff.png?text=C&font=sans-serif" />
-    <script type="module" crossorigin src="/assets/index-BS3JKU-O.js"></script>
+    <script type="module" crossorigin src="/assets/index-DP4nyFLv.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/vendor-react-OqJ7N9rB.js">
     <link rel="modulepreload" crossorigin href="/assets/vendor-pdf-CDr5kSUf.js">
     <link rel="modulepreload" crossorigin href="/assets/vendor-supabase-DYxuN0_g.js">

@@ -1,9 +1,13 @@
 const fs = require("fs");
+require("dotenv").config();
 const { createClient } = require("@supabase/supabase-js");
-const sb = createClient(
-  "https://uterioexpfweghxfbvoa.supabase.co",
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV0ZXJpb2V4cGZ3ZWdoeGZidm9hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc5NTg3ODYsImV4cCI6MjEwMzUzNDc4Nn0.bZnN4vrXUDlcoIaI7l39O-bU4GQp05SvJdio_cn6niI"
-);
+
+const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "";
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || "";
+if (!supabaseUrl || !supabaseKey) {
+  throw new Error("Missing required env vars: SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY / VITE_SUPABASE_ANON_KEY");
+}
+const sb = createClient(supabaseUrl.replace(/\/rest\/v1\/?$/, ""), supabaseKey);
 
 const SYNTHETIC_SEED_IDS = new Set([
   "ef235819-47b1-4523-ac24-3c39bea18ad5",

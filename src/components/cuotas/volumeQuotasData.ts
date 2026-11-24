@@ -332,7 +332,7 @@ export const SELLER_VOLUME_QUOTAS: Record<string, SellerVolumeQuota> = {
       mortadelaSalpicaoAsturias: { q: 5323.32, r: 1707.40 },
     },
   },
-  'LUIS GUANIPA': {
+  'VICTORIA VARGAS': {
     kgs: 24017.07,
     realKgsOct: 6680.80,
     cajas: 8704,

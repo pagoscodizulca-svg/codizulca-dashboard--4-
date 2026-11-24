@@ -136,7 +136,8 @@ const PREFERRED_SELLER_DISPLAY_NAMES: Record<string, string> = {
   'EDUARDO PINA': 'EDUARDO PIÑA',
   'LEONARDO RIOS': 'LEONARDO RIOS',
   'MARYERY GARCIA': 'MARYERY GARCIA',
-  'LUIS GUANIPA': 'LUIS GUANIPA',
+  'VICTORIA VARGAS': 'VICTORIA VARGAS',
+  'LUIS GUANIPA': 'VICTORIA VARGAS',
   'PEDRO ABREU': 'PEDRO ABREU',
   'OSCAR ORTIZ': 'OSCAR ORTIZ',
   'MIKELANGELO DIAZ': 'MIKELANGELO DIAZ'
@@ -152,7 +153,11 @@ export function canonicalizeSellerKey(raw: string): string {
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/\s+/g, ' ');
-  return cleaned || 'SIN VENDEDOR ASIGNADO';
+  if (!cleaned) return 'SIN VENDEDOR ASIGNADO';
+  if (cleaned.includes('LUIS GUANIPA') || cleaned === 'GUANIPA' || cleaned.includes('VICTORIA VARGAS')) {
+    return 'VICTORIA VARGAS';
+  }
+  return cleaned;
 }
 
 /**

@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { EnrichedClient } from '../../data/clientsWithLocation';
 import { VendedorMultiSelect, SellerOption } from './VendedorMultiSelect';
+import { normalizeSellerName } from '../cuotas/sellerSupervisorMap';
 
 // Curated Vibrant Seller Palette (25 Official Sellers)
 const SELLER_COLORS: { [seller: string]: string } = {
@@ -55,7 +56,7 @@ const SELLER_COLORS: { [seller: string]: string } = {
   'JOHNATAN SOTO VILLA DEL ROS': '#2563eb', // Royal Blue
   'LEONARDO RIOS': '#9333ea', // Purple
   'MARYERY GARCIA': '#f43f5e', // Hot Pink
-  'LUIS GUANIPA': '#65a30d', // Olive Lime
+  'VICTORIA VARGAS': '#65a30d', // Olive Lime
   'PEDRO ABREU': '#b45309', // Bronze
   'OSCAR ORTIZ': '#4f46e5', // Indigo
   'MIKELANGELO DIAZ': '#0284c7', // Sky Blue
@@ -65,7 +66,8 @@ const DEFAULT_COLOR = '#ef4444';
 
 export const getSellerColor = (seller: string): string => {
   if (!seller) return DEFAULT_COLOR;
-  return SELLER_COLORS[seller.trim().toUpperCase()] || DEFAULT_COLOR;
+  const norm = normalizeSellerName(seller);
+  return SELLER_COLORS[norm] || SELLER_COLORS[seller.trim().toUpperCase()] || DEFAULT_COLOR;
 };
 
 // 2D Convex Hull (Monotone Chain algorithm)

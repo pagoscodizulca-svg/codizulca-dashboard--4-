@@ -566,7 +566,7 @@ export const TradeMarketing: React.FC = () => {
       'EDUARDO PIÑA',
       'LEONARDO RIOS',
       'MARYERY GARCIA',
-      'LUIS GUANIPA',
+      'VICTORIA VARGAS',
       'PEDRO ABREU',
       'OSCAR ORTIZ',
       'MIKELANGELO DIAZ'
@@ -578,9 +578,13 @@ export const TradeMarketing: React.FC = () => {
 
     degustaciones.forEach((d) => {
       if (d.vendedor) {
-        const k = cleanKey(d.vendedor);
+        const rawKey = cleanKey(d.vendedor);
+        const k =
+          rawKey.includes('LUIS GUANIPA') || rawKey === 'GUANIPA' || rawKey.includes('VICTORIA VARGAS')
+            ? 'VICTORIA VARGAS'
+            : rawKey;
         if (k && !canonicalMap.has(k)) {
-          canonicalMap.set(k, d.vendedor.trim());
+          canonicalMap.set(k, k === 'VICTORIA VARGAS' ? 'VICTORIA VARGAS' : d.vendedor.trim());
         }
       }
     });

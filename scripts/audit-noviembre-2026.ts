@@ -214,7 +214,7 @@ async function main() {
         Metrica: 'Posición Ranking (Supervisión Ali Pérez)',
         Motor_Anterior_Cache: '#7 (Último)',
         Motor_Corregido_Vivo: `#${angel.rankingSupervisor} (General: #${angel.rankingGeneral})`,
-        Diferencia: 'Sube a #6 (supera a Luis Guanipa)',
+        Diferencia: 'Sube a #6 (supera a VICTORIA VARGAS)',
       },
       {
         Metrica: 'Cuota Volumen Noviembre (Cuotas Volumen)',

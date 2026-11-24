@@ -340,7 +340,9 @@ export const ParetoSubmodule: React.FC = () => {
           idsList: c.idsList,
           nombre: c.cliente || `Cliente #${c.id_cliente}`,
           secundario: cleanVendedor,
-          vendedoresList: c.vendedoresList ? c.vendedoresList.map((v) => normalizeSellerName(v) || v) : undefined,
+          vendedoresList: c.vendedoresList
+            ? Array.from(new Set(c.vendedoresList.map((v) => normalizeSellerName(v) || v)))
+            : undefined,
           terciario: c.idsList && c.idsList.length > 1 ? `${c.idsList.length} Sucursales / Códigos ERP` : `ID: ${c.id_cliente}`,
           supervisor,
           zona,

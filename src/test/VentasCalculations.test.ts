@@ -44,6 +44,13 @@ describe('Ventas & Cuotas Business Calculations Test Suite', () => {
       expect(normalizeSellerName('JOHNATAN SOTO VILLA DEL ROS')).toBe('MIKELANGELO DIAZ');
       expect(normalizeSellerName('ALI PEREZ')).toBe('ANGEL NAVARRO');
       expect(normalizeSellerName('ANGEL NAVARRO')).toBe('ANGEL NAVARRO');
+      // Interceptor anti-regresión: Luis Guanipa (y variantes/correos) -> VICTORIA VARGAS
+      expect(normalizeSellerName('Luis Guanipa')).toBe('VICTORIA VARGAS');
+      expect(normalizeSellerName('LUIS GUANIPA                                 ')).toBe('VICTORIA VARGAS');
+      expect(normalizeSellerName('guanipa')).toBe('VICTORIA VARGAS');
+      expect(normalizeSellerName('luisguanipa@codizulca.com')).toBe('VICTORIA VARGAS');
+      expect(normalizeSellerName('guanipaluis28@gmail.com')).toBe('VICTORIA VARGAS');
+      expect(normalizeSellerName('victoria vargas')).toBe('VICTORIA VARGAS');
     });
 
     it('debe retornar string vacío ante inputs vacíos, nulos o indefinidos sin lanzar excepción', () => {
@@ -64,6 +71,8 @@ describe('Ventas & Cuotas Business Calculations Test Suite', () => {
       expect(OFFICIAL_SUPERVISORS.length).toBe(3);
       expect(OFFICIAL_SELLERS_LIST.length).toBe(25);
       expect(OFFICIAL_SELLERS_LIST).not.toContain('ALI PEREZ');
+      expect(OFFICIAL_SELLERS_LIST).not.toContain('LUIS GUANIPA');
+      expect(OFFICIAL_SELLERS_LIST).toContain('VICTORIA VARGAS');
       expect(OFFICIAL_SELLERS_LIST).toContain('ANGEL NAVARRO');
       expect(OFFICIAL_SELLERS_LIST).toContain('MARIANGEL GONZALEZ');
       expect(OFFICIAL_SELLERS_LIST).toContain('VICTOR CAMPOS');
@@ -88,6 +97,8 @@ describe('Ventas & Cuotas Business Calculations Test Suite', () => {
       expect(getSellerMetadata('VICTOR CAMPOS').supervisor).toBe('ALI PEREZ');
       expect(getSellerMetadata('ELISA SOLER').supervisor).toBe('ALI PEREZ');
       expect(getSellerMetadata('LEONARDO RIOS').supervisor).toBe('ALI PEREZ');
+      expect(getSellerMetadata('VICTORIA VARGAS').supervisor).toBe('ALI PEREZ');
+      expect(getSellerMetadata('LUIS GUANIPA').vendedor).toBe('VICTORIA VARGAS');
       expect(getSellerMetadata('LUIS GUANIPA').supervisor).toBe('ALI PEREZ');
       expect(getSellerMetadata('OSCAR ORTIZ').supervisor).toBe('ALI PEREZ');
       expect(getSellerMetadata('OSCAR ORTIZ- CORO').supervisor).toBe('ALI PEREZ');
@@ -174,7 +185,10 @@ describe('Ventas & Cuotas Business Calculations Test Suite', () => {
       expect(countBySeller.get('OSWALDO CHURION')).toBeGreaterThan(0);
       expect(countBySeller.get('HERNAN PAZ')).toBeGreaterThan(0);
       expect(countBySeller.get('J PABLO ARAUJO - CAB/OJE')).toBeGreaterThan(0);
-      expect(countBySeller.get('LUIS GUANIPA')).toBeGreaterThan(0);
+      expect(countBySeller.get('LUIS GUANIPA')).toBeUndefined();
+      expect(countBySeller.get('VICTORIA VARGAS')).toBe(64);
+      // Preservar clientes reales cuyo apellido es Guanipa sin alterar su razón social
+      expect(CARTERA_CLIENTES.filter((c) => /GUANIPA/i.test(c.nombre)).length).toBe(6);
       expect(countBySeller.get('CUENTAS CLAVES 1 - MC')).toBeGreaterThan(0);
       expect(countBySeller.get('CUENTAS CLAVES 2 - SV')).toBeGreaterThan(0);
     });

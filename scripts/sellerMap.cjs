@@ -21,11 +21,12 @@ const SELLER_EMAIL_MAP = {
   'oscardortizh06@gmail.com': 'OSCAR ORTIZ - CORO',
   'hernandj81@gmail.com': 'HERNAN PAZ',
   'lugoyoleida00@gmail.com': 'YOLEIDA LUGO',
-  'luisgustavo127@gmail.com': 'LUIS GUANIPA',
+  'luisgustavo127@gmail.com': 'VICTORIA VARGAS',
   'sairuvalles92@gmail.com': 'CUENTAS CLAVE 2 - SV (SAIRU VALLES)',
   'oswaldochurioncodizulca@gmail.com': 'OSWALDO CHURION',
   'josegonzalez@codizulca.com': 'JOSE G. GONZALEZ',
-  'luisammv.1990@gmail.com': 'LUIS GUANIPA'
+  'luisammv.1990@gmail.com': 'VICTORIA VARGAS',
+  'victoria.vargas@codizulca.com': 'VICTORIA VARGAS'
 };
 
 module.exports = { SELLER_EMAIL_MAP };

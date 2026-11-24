@@ -1,19 +1,27 @@
 import fs from 'fs';
 import path from 'path';
+import dotenv from 'dotenv';
 import { parseMaestraActivaBuffer } from '../src/lib/maestraActivaEngine';
 import { executeMaestraActivaBatchSync } from '../src/server/maestraActivaSyncService';
 
-const DEFAULT_EXCEL_PATH =
-  'C:/Users/JAVIER CASTELLANOS/.gemini/antigravity/brain/c84a6892-3887-459d-8762-736ca7bbfe94/.user_uploaded/media_1793305847098_5a3290d1.xlsx';
+dotenv.config();
+
+const DEFAULT_EXCEL_PATH = process.env.MAESTRA_EXCEL_PATH || '';
 
 const SUPA_FDV_URL =
   process.env.GERENCIA_SUPABASE_URL ||
   process.env.VITE_GERENCIA_SUPABASE_URL ||
-  'https://nudltbgyewyiklqdyujk.supabase.co';
+  '';
 const SUPA_FDV_KEY =
+  process.env.GERENCIA_SUPABASE_SERVICE_ROLE_KEY ||
   process.env.GERENCIA_SUPABASE_ANON_KEY ||
-  process.env.VITE_GERENCIA_SUPABASE_ANON_KEY ||
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im51ZGx0Ymd5ZXd5aWtscWR5dWprIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MTgzMDA3OCwiZXhwIjoyMTA3NDA2MDc4fQ.k92vdZiuVkTzAWNK8Fq71m1Xi_MoWtpx_eRQcZTw1cA';
+  '';
+
+if (!SUPA_FDV_URL || !SUPA_FDV_KEY) {
+  throw new Error(
+    'Faltan variables de entorno obligatorias: GERENCIA_SUPABASE_URL y GERENCIA_SUPABASE_SERVICE_ROLE_KEY.'
+  );
+}
 
 async function main() {
   const excelArg = process.argv[2] || DEFAULT_EXCEL_PATH;

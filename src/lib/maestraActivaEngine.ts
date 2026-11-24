@@ -199,8 +199,8 @@ export function resolveMaestraSellerHierarchy(rawVendedor: string): {
   if (ascii.includes('LEONARDO RIOS')) {
     return { vendedor: clean, canonicalSeller: 'LEONARDO RIOS', supervisor: 'ALI PEREZ', zona: 'Punto Fijo / Paraguaná' };
   }
-  if (ascii.includes('LUIS GUANIPA')) {
-    return { vendedor: clean, canonicalSeller: 'LUIS GUANIPA', supervisor: 'ALI PEREZ', zona: 'Coro / Falcón' };
+  if (ascii.includes('VICTORIA VARGAS') || ascii.includes('LUIS GUANIPA') || ascii === 'GUANIPA') {
+    return { vendedor: 'VICTORIA VARGAS', canonicalSeller: 'VICTORIA VARGAS', supervisor: 'ALI PEREZ', zona: 'Coro / Falcón' };
   }
   if (ascii.includes('CARLOS FUENMAYOR')) {
     return { vendedor: clean, canonicalSeller: 'CARLOS FUENMAYOR', supervisor: 'NELSON FINOL', zona: 'Maracaibo' };
@@ -422,7 +422,13 @@ export function parseMaestraActivaWorkbook(
     }
 
     const excelRowNumber = headerRowIdx + 2 + i;
-    const effectiveVendorLabel = rawVendedor.toUpperCase() || hierarchy.vendedor;
+    const rawVendorUpper = rawVendedor.toUpperCase();
+    const effectiveVendorLabel =
+      rawVendorUpper.includes('LUIS GUANIPA') ||
+      rawVendorUpper === 'GUANIPA' ||
+      rawVendorUpper.includes('VICTORIA VARGAS')
+        ? hierarchy.vendedor
+        : rawVendorUpper || hierarchy.vendedor;
 
     rawParsed.push({
       assignmentKey: `${idVendedor || effectiveVendorLabel}::${idCliente}`,
@@ -612,9 +618,14 @@ export function isActivationRecordLogicallyInactive(r: ExistingActivationRecordL
  */
 export function extractCleanVendorRoute(r: ExistingActivationRecordLike): string {
   const vNom = sanitizeMaestraText(r.vendedor_nombre).toUpperCase();
-  if (vNom && !vNom.startsWith(LOGICAL_INACTIVE_VENDOR_PREFIX)) return vNom;
-  const vId = sanitizeMaestraText(r.vendedor_id).toUpperCase();
-  return vId.replace(/^INACTIVO_MAESTRA::/, '').trim();
+  const raw =
+    vNom && !vNom.startsWith(LOGICAL_INACTIVE_VENDOR_PREFIX)
+      ? vNom
+      : sanitizeMaestraText(r.vendedor_id).toUpperCase().replace(/^INACTIVO_MAESTRA::/, '').trim();
+  if (raw.includes('LUIS GUANIPA') || raw === 'GUANIPA' || raw.includes('VICTORIA VARGAS')) {
+    return 'VICTORIA VARGAS';
+  }
+  return raw;
 }
 
 /**
@@ -738,7 +749,7 @@ export function compareMaestraAgainstDatabase(
       previousVendedor = prevRoute;
       cambiosVendedorRutaCount++;
     } else {
-      // Alta nueva de asignación/cliente en Supabase (ej. Id=8377 en LUIS GUANIPA o cliente 100% nuevo)
+      // Alta nueva de asignación/cliente en Supabase (ej. Id=8377 en VICTORIA VARGAS o cliente 100% nuevo)
       changeTypes.push('ALTA_SUPABASE');
       altasSupabaseCount++;
     }

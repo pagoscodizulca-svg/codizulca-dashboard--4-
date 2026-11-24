@@ -37,7 +37,7 @@ export const OFFICIAL_SELLERS_LIST = [
   'EDUARDO PIÑA',
   'LEONARDO RIOS',
   'MARYERY GARCIA',
-  'LUIS GUANIPA',
+  'VICTORIA VARGAS',
   'PEDRO ABREU',
   'OSCAR ORTIZ',
 ] as const;
@@ -73,7 +73,7 @@ export const SELLER_METADATA_MAP: Record<string, { supervisor: string; zona: str
   'VICTOR CAMPOS': { supervisor: 'ALI PEREZ', zona: 'Punto Fijo / Paraguaná', region: 'Supervisión Ali Perez' },
   'ELISA SOLER': { supervisor: 'ALI PEREZ', zona: 'Punto Fijo / Paraguaná', region: 'Supervisión Ali Perez' },
   'LEONARDO RIOS': { supervisor: 'ALI PEREZ', zona: 'Punto Fijo / Paraguaná', region: 'Supervisión Ali Perez' },
-  'LUIS GUANIPA': { supervisor: 'ALI PEREZ', zona: 'Coro / Falcón', region: 'Supervisión Ali Perez' },
+  'VICTORIA VARGAS': { supervisor: 'ALI PEREZ', zona: 'Coro / Falcón', region: 'Supervisión Ali Perez' },
   'OSCAR ORTIZ': { supervisor: 'ALI PEREZ', zona: 'Coro / La Costa', region: 'Supervisión Ali Perez' },
 
   // ==========================================
@@ -105,14 +105,16 @@ export function hydrateSellerMetadataFromSupabase(rows: Array<Partial<MasterSell
   const hydrated = hydrateRuntimeSellerCatalog(rows);
   for (const r of hydrated) {
     if (!r.nombre_canonico) continue;
-    SELLER_METADATA_MAP[r.nombre_canonico] = {
+    const canonName = normalizeSellerName(r.nombre_canonico);
+    if (!canonName) continue;
+    SELLER_METADATA_MAP[canonName] = {
       supervisor: r.supervisor,
       zona: r.zona,
       region: r.region,
       isSupervisorRoute: r.is_supervisor_route,
     };
     if (r.incluir_en_volumen && r.activo) {
-      VALID_VOLUME_SELLERS.add(r.nombre_canonico);
+      VALID_VOLUME_SELLERS.add(canonName);
     }
   }
 }
@@ -212,6 +214,21 @@ export const normalizeSellerName = (vendedorName: string): string => {
   // Ali Perez pasó exclusivamente a Supervisor; su código de ruta 29 anterior pasa a Angel Navarro
   if (n === 'ALI PEREZ' || n === 'ANGEL NAVARRO') {
     return 'ANGEL NAVARRO';
+  }
+  // Reasignación oficial de cartera y métricas históricas/actuales: Luis Guanipa (id 40) -> VICTORIA VARGAS
+  if (
+    n === 'VICTORIA VARGAS' ||
+    n === 'LUIS GUANIPA' ||
+    n === 'GUANIPA' ||
+    n.includes('LUIS GUANIPA') ||
+    n.includes('VICTORIA VARGAS') ||
+    n === 'LUISGUANIPA@CODIZULCA.COM' ||
+    n === 'GUANIPALUIS28@GMAIL.COM' ||
+    n === 'LUISGUSTAVO127@GMAIL.COM' ||
+    n === 'LUISAMMV.1990@GMAIL.COM' ||
+    n === 'VICTORIA.VARGAS@CODIZULCA.COM'
+  ) {
+    return 'VICTORIA VARGAS';
   }
   if (
     n === 'OSCAR ORTIZ' ||

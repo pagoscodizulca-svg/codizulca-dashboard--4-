@@ -15,7 +15,7 @@ email_to_seller = {
     'oscardortizh06@gmail.com': 'OSCAR ORTIZ - CORO',
     'lugoyoleida00@gmail.com': 'YOLEIDA LUGO',
     'marianachacinrosas@gmail.com': 'CUENTAS CLAVE 1 - MC (MARIANA CHACIN)',
-    'luisgustavo127@gmail.com': 'LUIS GUANIPA',
+    'luisgustavo127@gmail.com': 'VICTORIA VARGAS',
     'sairuvalles92@gmail.com': 'CUENTAS CLAVE 2 - SV (SAIRU VALLES)',
     'johnatansoto18@gmail.com': 'JOHNATAN SOTO VILLA DEL ROS',
     'paab937@gmail.com': 'PEDRO ABREU',
@@ -27,7 +27,7 @@ email_to_seller = {
     'solerelisab@gmail.com': 'ELISA SOLER',
     'oswaldochurioncodizulca@gmail.com': 'OSCAR ORTIZ - LA COSTA',
     'josegonzalez@codizulca.com': 'JOSE G. GONZALEZ',
-    'luisammv.1990@gmail.com': 'LUIS GUANIPA'
+    'luisammv.1990@gmail.com': 'VICTORIA VARGAS'
 }
 
 print("Script template written")

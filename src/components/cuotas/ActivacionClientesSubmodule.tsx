@@ -267,8 +267,8 @@ export const resolveCanonicalSellerForClient = (rawVendor: string): {
   if (u.includes('LEONARDO RIOS')) {
     return { canonicalSeller: 'LEONARDO RIOS', routeLabel: 'LEONARDO RIOS', supervisor: 'ALI PEREZ', zona: 'Punto Fijo / Paraguaná' };
   }
-  if (u.includes('LUIS GUANIPA')) {
-    return { canonicalSeller: 'LUIS GUANIPA', routeLabel: 'LUIS GUANIPA', supervisor: 'ALI PEREZ', zona: 'Coro / Falcón' };
+  if (u.includes('VICTORIA VARGAS') || u.includes('LUIS GUANIPA') || u === 'GUANIPA') {
+    return { canonicalSeller: 'VICTORIA VARGAS', routeLabel: 'VICTORIA VARGAS', supervisor: 'ALI PEREZ', zona: 'Coro / Falcón' };
   }
   if (u.includes('CARLOS FUENMAYOR')) {
     return { canonicalSeller: 'CARLOS FUENMAYOR', routeLabel: 'CARLOS FUENMAYOR', supervisor: 'NELSON FINOL', zona: 'Maracaibo' };
@@ -306,7 +306,23 @@ const loadManualRubros = (): ManualRubrosMap => {
     const raw = localStorage.getItem(MANUAL_RUBROS_STORAGE_KEY);
     if (!raw) return {};
     const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === 'object' ? parsed : {};
+    if (!parsed || typeof parsed !== 'object') return {};
+    const migrated: ManualRubrosMap = {};
+    let changed = false;
+    for (const [k, v] of Object.entries(parsed as ManualRubrosMap)) {
+      const upper = k.toUpperCase();
+      if (upper.startsWith('LUIS GUANIPA::')) {
+        const nextKey = 'VICTORIA VARGAS::' + k.slice(k.indexOf('::') + 2);
+        migrated[nextKey] = { ...(v || {}), ...(migrated[nextKey] || {}) };
+        changed = true;
+      } else {
+        migrated[k] = v;
+      }
+    }
+    if (changed) {
+      localStorage.setItem(MANUAL_RUBROS_STORAGE_KEY, JSON.stringify(migrated));
+    }
+    return migrated;
   } catch {
     return {};
   }

@@ -65,11 +65,14 @@ describe('Maestra Activa (Octubre 2026) — ETL, Auditoría Comparativa y Sincro
     expect(c1001.rif).toBe('J123456789');
     expect(c1001.vendedor).toBe('MARIA BRICEÑO');
 
-    // 2. Cliente 8348 con #N/A en DATA pero rescatado por cruce contra hojas RIF/TIPO
+    // 2. Cliente 8348 con #N/A en DATA pero rescatado por cruce contra hojas RIF/TIPO + interceptor anti-regresión LUIS GUANIPA -> VICTORIA VARGAS
     const c8348 = parsed.records.find((r) => r.idCliente === '8348')!;
     expect(c8348.rif).toBe('J998877665');
     expect(c8348.tipoCliente).toBe('MINIMARKET');
     expect(c8348.isPendingClassification).toBe(false);
+    expect(c8348.vendedor).toBe('VICTORIA VARGAS');
+    expect(c8348.canonicalSeller).toBe('VICTORIA VARGAS');
+    expect(c8348.supervisor).toBe('ALI PEREZ');
 
     // 3. Cliente 8377 ausente en RIF/TIPO y compartido entre rutas 9 y 40 -> PENDIENTE / POR CLASIFICAR + llave compuesta
     const shared8377 = parsed.records.filter((r) => r.idCliente === '8377');
@@ -163,18 +166,19 @@ describe('Maestra Activa (Octubre 2026) — ETL, Auditoría Comparativa y Sincro
     const rows8377 = activeSeed.filter((r) => String(r.id) === '8377');
     expect(rows8377).toHaveLength(2);
     expect(rows8377.map((r) => r.vendedorNombre.replace(/\s*-\s*/g, ' - ')).sort()).toEqual([
-      'LUIS GUANIPA',
       'OSCAR ORTIZ - LA COSTA',
+      'VICTORIA VARGAS',
     ]);
 
-    // Verificar conteos de rutas en la Maestra actualizada
+    // Verificar conteos de rutas en la Maestra actualizada (0 LUIS GUANIPA, 100% VICTORIA VARGAS)
     const countByVendor = new Map<string, number>();
     for (const r of activeSeed) {
       const k = r.vendedorNombre.replace(/\s*-\s*/g, ' - ');
       countByVendor.set(k, (countByVendor.get(k) || 0) + 1);
     }
     expect(countByVendor.size).toBe(30);
-    expect(countByVendor.get('LUIS GUANIPA')).toBeGreaterThan(0);
+    expect(countByVendor.get('LUIS GUANIPA')).toBeUndefined();
+    expect(countByVendor.get('VICTORIA VARGAS')).toBeGreaterThan(0);
     expect(countByVendor.get('OSCAR ORTIZ - LA COSTA')).toBeGreaterThan(0);
     expect(countByVendor.get('FOOD SERVICE SENIOR - JUAN HERNANDEZ')).toBeGreaterThan(0);
     expect(countByVendor.get('JUAN HERNANDEZ')).toBeGreaterThan(0);

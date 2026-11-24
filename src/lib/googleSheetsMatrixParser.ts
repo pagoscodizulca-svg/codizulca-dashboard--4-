@@ -168,6 +168,9 @@ export function normalizeSheetSellerOrSupervisorKey(raw: unknown): string {
     .replace(/JOHNATAN\s+GARCIA/g, 'JOHNATAN SOTO')
     .replace(/JONATHAN\s+GARCIA/g, 'JOHNATAN SOTO')
     .replace(/JONATHAN\s+SOTO/g, 'JOHNATAN SOTO');
+  if (base.includes('LUIS GUANIPA') || base === 'GUANIPA' || base.includes('VICTORIA VARGAS')) {
+    return 'VICTORIA VARGAS';
+  }
   return base;
 }
 

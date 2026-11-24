@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import dotenv from 'dotenv';
 import * as XLSX from 'xlsx';
 import { createClient } from '@supabase/supabase-js';
 import {
@@ -14,10 +15,19 @@ import {
   executeMaestraActivaBatchSync,
 } from '../src/server/maestraActivaSyncService';
 
-const SUPABASE_URL = 'https://nudltbgyewyiklqdyujk.supabase.co';
+dotenv.config();
+
+const SUPABASE_URL = process.env.GERENCIA_SUPABASE_URL || '';
 const SUPABASE_SERVICE_KEY =
+  process.env.GERENCIA_SUPABASE_SERVICE_ROLE_KEY ||
   process.env.SUPABASE_SERVICE_ROLE_KEY ||
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im51ZGx0Ymd5ZXd5aWtscWR5dWprIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MTgzMDA3OCwiZXhwIjoyMTA3NDA2MDc4fQ.k92vdZiuVkTzAWNK8Fq71m1Xi_MoWtpx_eRQcZTw1cA';
+  '';
+
+if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
+  throw new Error(
+    'Faltan variables de entorno obligatorias: GERENCIA_SUPABASE_URL y GERENCIA_SUPABASE_SERVICE_ROLE_KEY.'
+  );
+}
 
 const GERENCIA_ROOT = 'c:/Users/JAVIER CASTELLANOS/Downloads/codizulca-dashboard (4)';
 const PLANIFICADOR_ROOT = 'c:/Users/JAVIER CASTELLANOS/Downloads/dashboard-fdv---planificador';
