@@ -21,6 +21,15 @@ import {
   HistorialOctubre2026Summary,
   isStrictNovember2026Date,
 } from '../lib/supabaseHistoryLoader';
+import {
+  DashboardDailyTrendPoint,
+  DashboardMonthlyProductRow,
+  DashboardMonthlyTotalEntry,
+  DashboardOverviewBootstrapPayload,
+  fetchDashboardOverviewBootstrap,
+  fetchNovemberDetailRows,
+  getCachedDashboardBootstrap,
+} from '../lib/dashboardOverviewBootstrap';
 import { getSellerMetadata } from '../components/cuotas/sellerSupervisorMap';
 import { 
   DollarSign, 
@@ -215,9 +224,43 @@ const ProductTooltip = ({ active, payload, label }: any) => {
   return null;
 };
 
+const DASHBOARD_HISTORICAL_MONTH_OPTIONS = [
+  { id: '2026-11', label: 'Noviembre 2026 (En Curso • Google Sheets)', shortLabel: 'Noviembre 2026', source: 'sheets' as const },
+  { id: '2026-10', label: 'Octubre 2026 (Cierre • Supabase)', shortLabel: 'Octubre 2026', source: 'supabase' as const },
+  { id: '2026-09', label: 'Septiembre 2026 (Cierre • Supabase)', shortLabel: 'Septiembre 2026', source: 'supabase' as const },
+  { id: '2026-08', label: 'Agosto 2026 (Cierre • Supabase)', shortLabel: 'Agosto 2026', source: 'supabase' as const },
+  { id: '2026-07', label: 'Julio 2026 (Cierre • Supabase)', shortLabel: 'Julio 2026', source: 'supabase' as const },
+  { id: '2026-06', label: 'Junio 2026 (Cierre • Supabase)', shortLabel: 'Junio 2026', source: 'supabase' as const },
+  { id: '2026-05', label: 'Mayo 2026 (Cierre • Supabase)', shortLabel: 'Mayo 2026', source: 'supabase' as const },
+  { id: '2026-04', label: 'Abril 2026 (Cierre • Supabase)', shortLabel: 'Abril 2026', source: 'supabase' as const },
+  { id: '2026-03', label: 'Marzo 2026 (Cierre • Supabase)', shortLabel: 'Marzo 2026', source: 'supabase' as const },
+  { id: '2026-02', label: 'Febrero 2026 (Cierre • Supabase)', shortLabel: 'Febrero 2026', source: 'supabase' as const },
+  { id: '2026-01', label: 'Enero 2026 (Cierre • Supabase)', shortLabel: 'Enero 2026', source: 'supabase' as const },
+];
+
+const mapHistoricalProductsToOverviewItems = (
+  products: DashboardMonthlyProductRow[],
+  catalog?: Record<string, string>
+) =>
+  (products || [])
+    .filter((r) => r && r.period && r.period !== '2026-11')
+    .map((r) => ({
+      idArt: String(r.id_articulo || '').trim(),
+      baseName: resolveCatalogProductName(r.id_articulo, r.articulo, catalog),
+      facturado: Number(r.monto) || 0,
+      montoFA: Number(r.montoFA) || 0,
+      montoDV: Number(r.montoDV) || 0,
+      despachado: Number(r.kgs_lts) || 0,
+      kgFacturado: Number(r.kgs_lts) || 0,
+      cajas: Number(r.cajas) || 0,
+      utilidad: Number(r.utilidad) || 0,
+      date: `${r.period}-01`,
+    }));
+
 export const DashboardOverview: React.FC = () => {
+  const initialBootstrap = React.useMemo(() => getCachedDashboardBootstrap(), []);
   const [selectedKpi, setSelectedKpi] = useState<{ id: string, label: string } | null>(null);
-  const [periodoActivo, setPeriodoActivo] = useState<'2026-11' | '2026-10'>('2026-11');
+  const [periodoActivo, setPeriodoActivo] = useState<string>('2026-11');
   const [novemberSummary, setNovemberSummary] = useState<{
     facturacionTotal: number;
     utilidadBruta: number;
@@ -226,21 +269,49 @@ export const DashboardOverview: React.FC = () => {
     totalKilogramos: number;
     tendenciaDiaria: Array<{ date: string; ventas: number; kg: number; kgFacturado: number; kgDespachado: number }>;
     isLoading: boolean;
-  }>({
-    facturacionTotal: 0,
-    utilidadBruta: 0,
-    porcentajeUtilidad: 0,
-    cajasDespachadas: 0,
-    totalKilogramos: 0,
-    tendenciaDiaria: [],
-    isLoading: true,
-  });
-  const [historialOctubre2026, setHistorialOctubre2026] = useState<HistorialOctubre2026Summary | null>(null);
+  }>(() =>
+    initialBootstrap?.november?.summary
+      ? {
+          facturacionTotal: initialBootstrap.november.summary.facturacionTotal,
+          utilidadBruta: initialBootstrap.november.summary.utilidadBruta,
+          porcentajeUtilidad: initialBootstrap.november.summary.porcentajeUtilidad,
+          cajasDespachadas: initialBootstrap.november.summary.cajasDespachadas,
+          totalKilogramos: initialBootstrap.november.summary.totalKilogramos,
+          tendenciaDiaria: initialBootstrap.november.summary.tendenciaDiaria || [],
+          isLoading: false,
+        }
+      : {
+          facturacionTotal: 0,
+          utilidadBruta: 0,
+          porcentajeUtilidad: 0,
+          cajasDespachadas: 0,
+          totalKilogramos: 0,
+          tendenciaDiaria: [],
+          isLoading: true,
+        }
+  );
+  const [historialOctubre2026, setHistorialOctubre2026] = useState<HistorialOctubre2026Summary | null>(() =>
+    initialBootstrap?.historical?.octoberSummary
+      ? ({
+          ...initialBootstrap.historical.octoberSummary,
+          rows: [],
+        } as HistorialOctubre2026Summary)
+      : null
+  );
   const [kpiData, setKpiData] = useState(() => {
     try {
       localStorage.removeItem('app_kpi_cache');
     } catch {
       // ignore
+    }
+    if (initialBootstrap?.november?.summary) {
+      return {
+        facturacion: initialBootstrap.november.summary.facturacionTotal,
+        utilidad: initialBootstrap.november.summary.utilidadBruta,
+        cajas: initialBootstrap.november.summary.cajasDespachadas,
+        kg: initialBootstrap.november.summary.totalKilogramos,
+        isLoading: false,
+      };
     }
     return {
       facturacion: 0,
@@ -250,8 +321,29 @@ export const DashboardOverview: React.FC = () => {
       isLoading: true
     };
   });
-  const [trendData, setTrendData] = useState<any[]>([]);
-  const [rawProductData, setRawProductData] = useState<any[]>([]);
+  const [trendData, setTrendData] = useState<any[]>(() => initialBootstrap?.november?.summary?.tendenciaDiaria || []);
+  const [rawProductData, setRawProductData] = useState<any[]>(() => initialBootstrap?.november?.productDaily || []);
+  const [novemberMonthlyProducts, setNovemberMonthlyProducts] = useState<DashboardMonthlyProductRow[]>(
+    () => initialBootstrap?.november?.productMonthly || []
+  );
+  const [historicalProductsRaw, setHistoricalProductsRaw] = useState<DashboardMonthlyProductRow[]>(
+    () => initialBootstrap?.historical?.products || []
+  );
+  const [historicalMonthlyTotals, setHistoricalMonthlyTotals] = useState<Record<string, DashboardMonthlyTotalEntry>>(
+    () => initialBootstrap?.historical?.monthlyTotals || {}
+  );
+  const [historicalDailyTrends, setHistoricalDailyTrends] = useState<Record<string, DashboardDailyTrendPoint[]>>(
+    () => initialBootstrap?.historical?.dailyTrends || {}
+  );
+  const [bootstrapProductCatalog, setBootstrapProductCatalog] = useState<Record<string, string>>(
+    () => initialBootstrap?.productCatalog || {}
+  );
+  const [bootstrapVendors, setBootstrapVendors] = useState<string[]>(
+    () => initialBootstrap?.november?.availableVendors || []
+  );
+  const [bootstrapSupervisors, setBootstrapSupervisors] = useState<string[]>(
+    () => initialBootstrap?.november?.availableSupervisors || []
+  );
   
   const [skuFilter, setSkuFilter] = useState('');
   const [showTop5, setShowTop5] = useState(true);
@@ -267,13 +359,28 @@ export const DashboardOverview: React.FC = () => {
   });
   const [sheetSyncSuccessMessage, setSheetSyncSuccessMessage] = useState<string | null>(null);
   
-  const [isHistoricalLoading, setIsHistoricalLoading] = useState(false);
+  const [isHistoricalLoading, setIsHistoricalLoading] = useState<boolean>(() => !initialBootstrap?.historical?.products?.length);
   const [exactMonthlyTotals, setExactMonthlyTotals] = useState<
     Record<string, { totalNeto: number; totalUtilidad?: number; totalCajas: number; totalKgs: number; totalRows?: number }>
-  >({});
+  >(() => {
+    const out: Record<string, { totalNeto: number; totalUtilidad?: number; totalCajas: number; totalKgs: number; totalRows?: number }> = {};
+    if (initialBootstrap?.historical?.monthlyTotals) {
+      for (const [ym, rawEntry] of Object.entries(initialBootstrap.historical.monthlyTotals)) {
+        const entry = rawEntry as DashboardMonthlyTotalEntry;
+        out[ym] = {
+          totalNeto: entry.totalNeto,
+          totalUtilidad: entry.hasExactUtilidad ? entry.totalUtilidad : undefined,
+          totalCajas: entry.totalCajas,
+          totalKgs: entry.totalKgs,
+          totalRows: entry.validRows,
+        };
+      }
+    }
+    return out;
+  });
   const [sellerMonthlyHistory, setSellerMonthlyHistory] = useState<
     Array<{ monthKey: string; vendedor: string; supervisor: string; montoNeto: number; cajas: number; kgs: number; facturasCount: number }>
-  >([]);
+  >(() => initialBootstrap?.historical?.sellerMonthlyHistory || []);
   const [historicalData, setHistoricalData] = useState<any[]>(() => {
     try {
       localStorage.removeItem('app_historical_sales_cache'); // Purge stale un-ordered cache
@@ -282,6 +389,12 @@ export const DashboardOverview: React.FC = () => {
       localStorage.removeItem('october_2026_closing_cache');
     } catch {
       // ignore
+    }
+    if (initialBootstrap?.historical?.products?.length) {
+      return mapHistoricalProductsToOverviewItems(
+        initialBootstrap.historical.products,
+        initialBootstrap.productCatalog
+      );
     }
     return [];
   });
@@ -334,6 +447,7 @@ export const DashboardOverview: React.FC = () => {
     utilidad: number;
     source?: 'supabase_history_sales' | 'google_sheets_november';
   }>>([]);
+  const octoberDetailLoadedRef = React.useRef(false);
 
   const [selectedSkus, setSelectedSkus] = useState<string[]>([]);
   const [showSkuPicker, setShowSkuPicker] = useState(false);
@@ -347,22 +461,30 @@ export const DashboardOverview: React.FC = () => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
   const availableVendors = React.useMemo(() => {
-    const s = new Set<string>();
+    const s = new Set<string>(bootstrapVendors);
     rawFacturacionRows.forEach(r => {
       if (r.vendedor) s.add(r.vendedor);
     });
+    sellerMonthlyHistory.forEach(r => {
+      if (r.vendedor) s.add(r.vendedor);
+    });
     return Array.from(s).sort((a, b) => a.localeCompare(b));
-  }, [rawFacturacionRows]);
+  }, [rawFacturacionRows, bootstrapVendors, sellerMonthlyHistory]);
 
   const availableSupervisors = React.useMemo(() => {
-    const s = new Set<string>();
+    const s = new Set<string>(bootstrapSupervisors);
     rawFacturacionRows.forEach(r => {
       if (r.supervisor && r.supervisor !== 'SIN SUPERVISOR') {
         s.add(r.supervisor);
       }
     });
+    sellerMonthlyHistory.forEach(r => {
+      if (r.supervisor && r.supervisor !== 'SIN SUPERVISOR') {
+        s.add(r.supervisor);
+      }
+    });
     return Array.from(s).sort((a, b) => a.localeCompare(b));
-  }, [rawFacturacionRows]);
+  }, [rawFacturacionRows, bootstrapSupervisors, sellerMonthlyHistory]);
 
   const handleExecuteFilters = () => {
     setAppliedFilters({
@@ -468,59 +590,140 @@ export const DashboardOverview: React.FC = () => {
      setSelectedTimeGroups([]);
   }, [timeView]);
 
-  React.useEffect(() => {
-    // Initial fallback hydration of historical aggregated data if IndexedDB detail is still loading
-    let isMounted = true;
-    const fetchFallbackHistorical = async () => {
-      if (historicalData.length > 0) return;
-      setIsHistoricalLoading(true);
-      try {
-        const res = await fetch('/api/historical-sales');
-        if (res.ok && isMounted) {
-          const fetchedData = await res.json();
-          const MONTH_NAMES = ['ENERO', 'FEBRERO', 'MARZO', 'ABRIL', 'MAYO', 'JUNIO', 'JULIO', 'AGOSTO', 'SEPTIEMBRE', 'OCTUBRE', 'NOVIEMBRE', 'DICIEMBRE'];
-          const parsed = (fetchedData as any[]).map((row: any) => {
-            const rawMes = String(row.mes || '').trim().toUpperCase();
-            const monthIndex = MONTH_NAMES.indexOf(rawMes);
-            if (monthIndex === -1) return null;
-            const gDate = `${row.ano}-${(monthIndex + 1).toString().padStart(2, '0')}`;
-            return {
-              idArt: String(row.id_articulo),
-              baseName: resolveCatalogProductName(row.id_articulo, row.articulo),
-              facturado: Number(row.monto) || 0,
-              montoFA: Number(row.montoFA) || Number(row.monto) || 0,
-              montoDV: Number(row.montoDV) || 0,
-              despachado: Number(row.kgs_lts) || 0,
-              kgFacturado: Number(row.kgs_lts) || 0,
-              cajas: Number(row.cajas) || 0,
-              date: gDate + '-01'
-            };
-          }).filter(Boolean);
-
-          if (parsed.length > 0 && isMounted) {
-            setHistoricalData(prev => (prev.length > 0 ? prev : parsed));
-          }
-        }
-      } catch (e) {
-        console.error('Failed to fetch fallback historical data', e);
-      } finally {
-        if (isMounted) setIsHistoricalLoading(false);
-      }
-    };
-    fetchFallbackHistorical();
-    return () => { isMounted = false; };
-  }, []);
-
   const toggleTimeGroup = (g: string) => {
       setSelectedTimeGroups(prev => 
           prev.includes(g) ? prev.filter(x => x !== g) : [...prev, g]
       );
   };
 
+  const applyBootstrapPayload = React.useCallback((payload: DashboardOverviewBootstrapPayload) => {
+    const novSum = payload.november?.summary;
+    if (novSum) {
+      setNovemberSummary({
+        facturacionTotal: novSum.facturacionTotal,
+        utilidadBruta: novSum.utilidadBruta,
+        porcentajeUtilidad: novSum.porcentajeUtilidad,
+        cajasDespachadas: novSum.cajasDespachadas,
+        totalKilogramos: novSum.totalKilogramos,
+        tendenciaDiaria: novSum.tendenciaDiaria || [],
+        isLoading: false,
+      });
+      setKpiData({
+        facturacion: novSum.facturacionTotal,
+        utilidad: novSum.utilidadBruta,
+        cajas: novSum.cajasDespachadas,
+        kg: novSum.totalKilogramos,
+        isLoading: false,
+      });
+      setTrendData(novSum.tendenciaDiaria || []);
+    }
+
+    if (Array.isArray(payload.november?.productDaily)) {
+      setRawProductData(payload.november.productDaily);
+    }
+    if (Array.isArray(payload.november?.productMonthly)) {
+      setNovemberMonthlyProducts(payload.november.productMonthly);
+    }
+    if (Array.isArray(payload.november?.availableVendors)) {
+      setBootstrapVendors(payload.november.availableVendors);
+    }
+    if (Array.isArray(payload.november?.availableSupervisors)) {
+      setBootstrapSupervisors(payload.november.availableSupervisors);
+    }
+
+    if (payload.sheetsUpdatedAt) {
+      const dt = new Date(payload.sheetsUpdatedAt);
+      if (!Number.isNaN(dt.getTime())) {
+        const syncLabel = dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        setLastSheetSync(syncLabel);
+      }
+    }
+
+    const catalog = payload.productCatalog || {};
+    if (Object.keys(catalog).length > 0) {
+      setBootstrapProductCatalog(catalog);
+    }
+
+    if (payload.historical) {
+      const mTotals = payload.historical.monthlyTotals || {};
+      setHistoricalMonthlyTotals(mTotals);
+      const exactCompat: Record<
+        string,
+        { totalNeto: number; totalUtilidad?: number; totalCajas: number; totalKgs: number; totalRows?: number }
+      > = {};
+      for (const [ym, entry] of Object.entries(mTotals)) {
+        exactCompat[ym] = {
+          totalNeto: entry.totalNeto,
+          totalUtilidad: entry.hasExactUtilidad ? entry.totalUtilidad : undefined,
+          totalCajas: entry.totalCajas,
+          totalKgs: entry.totalKgs,
+          totalRows: entry.validRows,
+        };
+      }
+      setExactMonthlyTotals(exactCompat);
+
+      if (payload.historical.dailyTrends) {
+        setHistoricalDailyTrends(payload.historical.dailyTrends);
+      }
+      if (Array.isArray(payload.historical.sellerMonthlyHistory)) {
+        setSellerMonthlyHistory(payload.historical.sellerMonthlyHistory);
+      }
+      if (Array.isArray(payload.historical.products)) {
+        setHistoricalProductsRaw(payload.historical.products);
+        setHistoricalData(mapHistoricalProductsToOverviewItems(payload.historical.products, catalog));
+      }
+      if (payload.historical.octoberSummary) {
+        setHistorialOctubre2026((prev) => ({
+          ...payload.historical.octoberSummary!,
+          rows: prev?.rows?.length ? prev.rows : [],
+        }));
+      }
+    }
+  }, []);
+
+  const ensureOctoberDetailRowsLoaded = React.useCallback(async () => {
+    if (octoberDetailLoadedRef.current) return;
+    octoberDetailLoadedRef.current = true;
+    try {
+      const octSummary = await fetchHistorialOctubre2026({ forceRefresh: false });
+      if (octSummary && octSummary.rows.length > 0) {
+        setHistorialOctubre2026(octSummary);
+        const octMapped = octSummary.rows.map((r) => ({
+          fecha: r.fecha,
+          idCliente: r.id_cliente,
+          cliente: r.cliente,
+          idArt: r.id_articulo,
+          articulo: resolveCatalogProductName(r.id_articulo, r.articulo, bootstrapProductCatalog),
+          vendedor: r.vendedor,
+          supervisor: r.supervisor,
+          categoria: 'GENERAL',
+          cajas: r.cajas,
+          unidades: r.unidades,
+          kg: r.kgs_lts,
+          monto: r.monto,
+          costo: r.costo,
+          utilidad: r.utilidad,
+          source: 'supabase_history_sales' as const,
+        }));
+        setRawFacturacionRows((prev) => {
+          const withoutOct = prev.filter((row) => !(row.fecha >= '2026-10-01' && row.fecha <= '2026-10-31'));
+          return [...octMapped, ...withoutOct];
+        });
+      }
+    } catch (err) {
+      octoberDetailLoadedRef.current = false;
+      console.warn('[Overview] Lazy October detail fetch failed:', err);
+    }
+  }, [bootstrapProductCatalog]);
+
   const fetchKpis = React.useCallback(async (forceRefresh = false) => {
-    setKpiData(prev => ({ ...prev, isLoading: true }));
-    setNovemberSummary(prev => ({ ...prev, isLoading: prev.facturacionTotal === 0 }));
-    setIsHistoricalLoading(true);
+    const hasWarmData = Boolean(getCachedDashboardBootstrap());
+    if (!hasWarmData || forceRefresh) {
+      setKpiData((prev) => ({ ...prev, isLoading: prev.facturacion === 0 }));
+      setNovemberSummary((prev) => ({ ...prev, isLoading: prev.facturacionTotal === 0 }));
+      setIsHistoricalLoading((prev) => prev || !hasWarmData);
+    }
+
     try {
       if (forceRefresh) {
         try {
@@ -530,456 +733,159 @@ export const DashboardOverview: React.FC = () => {
         }
       }
 
-      const fetchSheetTabCsv = async (sheetName: 'Ventas' | 'Productos' | 'Clientes' | 'Supervisores'): Promise<string> => {
-        const maxAttempts = sheetName === 'Ventas' ? 3 : 2;
-        for (let attempt = 0; attempt < maxAttempts; attempt++) {
-          const qs = new URLSearchParams({ sheet: sheetName, raw: 'true' });
-          if (forceRefresh && attempt === 0) {
-            qs.set('refresh', 'true');
-          }
-          if (forceRefresh || attempt > 0) {
-            qs.set('_t', String(Date.now()));
-          }
+      // 1 sola petición gzip (~80 KB, <100ms): trae Noviembre (Google Sheets) + Historial Ene-Oct (Supabase)
+      const bootstrap = await fetchDashboardOverviewBootstrap({ forceRefresh });
+      if (bootstrap) {
+        applyBootstrapPayload(bootstrap);
+        setIsHistoricalLoading(false);
+
+        if (forceRefresh) {
+          const nowStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          setLastSheetSync(nowStr);
           try {
-            const controller = new AbortController();
-            const timeoutId = window.setTimeout(() => controller.abort(), 14000);
-            const res = await fetch(`/api/sheets?${qs.toString()}`, {
-              cache: 'no-store',
-              signal: controller.signal,
-            });
-            window.clearTimeout(timeoutId);
-            if (res.ok) {
-              const txt = await res.text();
-              const trimmed = txt.trim();
-              if (
-                trimmed &&
-                !trimmed.startsWith('<!DOCTYPE') &&
-                !trimmed.startsWith('<html') &&
-                trimmed.includes(',')
-              ) {
-                if (sheetName === 'Ventas') {
-                  const updatedHeader = res.headers.get('X-Sheets-Updated-At');
-                  if (updatedHeader) {
-                    const dt = new Date(updatedHeader);
-                    if (!Number.isNaN(dt.getTime())) {
-                      const syncLabel = dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                      setLastSheetSync(syncLabel);
-                    }
-                  }
+            localStorage.setItem('app_last_sheets_sync', nowStr);
+          } catch {}
+          setSheetSyncSuccessMessage('Google Sheets y Supabase sincronizados exitosamente con el dashboard.');
+          setTimeout(() => setSheetSyncSuccessMessage(null), 4000);
+        }
+
+        // Si el servidor devolvió snapshot inmediato mientras revalida Google Sheets en 2do plano,
+        // actualizar silenciosamente en cuanto llegue la versión en vivo (sin mostrar spinner).
+        if (!forceRefresh && bootstrap.freshness === 'revalidating') {
+          void fetchDashboardOverviewBootstrap({ waitLive: true }).then((livePayload) => {
+            if (livePayload) {
+              applyBootstrapPayload(livePayload);
+              void fetchNovemberDetailRows(false).then((rows) => {
+                if (rows.length > 0) {
+                  setRawFacturacionRows((prev) => {
+                    const nonNov = prev.filter((r) => !isStrictNovember2026Date(r.fecha));
+                    return [...nonNov, ...rows];
+                  });
                 }
-                return txt;
-              }
+              });
             }
-          } catch {
-            // retry on transient cold-start / network error
-          }
-          if (attempt < maxAttempts - 1) {
-            await new Promise((r) => window.setTimeout(r, 500 * (attempt + 1)));
-          }
+          });
         }
-        return '';
-      };
 
-      // =========================================================================
-      // ETAPA 1 (PRIORIDAD INMEDIATA ~1-2s): Google Sheets Noviembre 2026
-      // Pinta las 5 tarjetas KPI, tendencia diaria y top productos SIN esperar
-      // a la carga histórica de Supabase.
-      // =========================================================================
-      const [ventasCsvText, productosCsvText, clientesCsvText, supervisoresCsvText] = await Promise.all([
-        fetchSheetTabCsv('Ventas'),
-        fetchSheetTabCsv('Productos'),
-        fetchSheetTabCsv('Clientes'),
-        fetchSheetTabCsv('Supervisores'),
-      ]);
+        // Hidratar filas detalladas de Noviembre en 2do plano (no bloqueante) para filtros instantáneos
+        window.setTimeout(() => {
+          void fetchNovemberDetailRows(forceRefresh).then((rows) => {
+            if (rows.length > 0) {
+              setRawFacturacionRows((prev) => {
+                const nonNov = prev.filter((r) => !isStrictNovember2026Date(r.fecha));
+                return [...nonNov, ...rows];
+              });
+            }
+          });
+        }, 60);
 
-      // Build product catalog maps: prioritize official PRODUCT_CATALOG_BY_SKU + Google Sheet 'Productos'
-      const productMap = new Map<string, string>(Object.entries(PRODUCT_CATALOG_BY_SKU));
-      const productCategoryMap = new Map<string, string>();
-      try {
-        const cachedMap = localStorage.getItem('app_product_map_cache');
-        if (cachedMap) {
-          const parsedCache = JSON.parse(cachedMap);
-          if (parsedCache && typeof parsedCache === 'object') {
-            Object.entries(parsedCache).forEach(([k, v]) => {
-              const cleanKey = String(k || '').trim().replace(/^0+/, '') || String(k || '').trim();
-              const val = String(v || '').trim();
-              if (cleanKey && val && !isGenericProductLabel(val) && !PRODUCT_CATALOG_BY_SKU[cleanKey]) {
-                productMap.set(k, val);
-                productMap.set(cleanKey, val);
-              }
-            });
-          }
-        }
-      } catch {}
-
-      const parsedProductos = productosCsvText ? parseProductosCatalogCsv(productosCsvText) : null;
-      if (parsedProductos) {
-        parsedProductos.byCode.forEach((entry, codeKey) => {
-          const cleanCode = String(codeKey || '').trim().replace(/^0+/, '') || String(codeKey || '').trim();
-          if (entry.producto && !isGenericProductLabel(entry.producto)) {
-            productMap.set(codeKey, entry.producto);
-            productMap.set(cleanCode, entry.producto);
-          }
-          if (entry.categoria) {
-            productCategoryMap.set(codeKey, entry.categoria);
-            productCategoryMap.set(cleanCode, entry.categoria);
-          }
-        });
+        return;
       }
 
-      const clientByCode = clientesCsvText
-        ? parseClientesCatalogCsv(clientesCsvText).byCode
-        : new Map();
-      const supervisorBySeller = supervisoresCsvText
-        ? parseSupervisoresCatalogCsv(supervisoresCsvText).bySeller
-        : new Map<string, string>();
+      // Fallback defensivo si /api/dashboard/overview-bootstrap no estuviera disponible
+      const [ventasRes, histRes, totalsRes] = await Promise.all([
+        fetch('/api/sheets?sheet=Ventas&raw=true', { cache: 'no-store' }).catch(() => null),
+        fetch('/api/historical-sales', { cache: 'no-store' }).catch(() => null),
+        fetch('/api/historical-monthly-totals', { cache: 'no-store' }).catch(() => null),
+      ]);
 
-      const catalogs = {
-        productByCode: parsedProductos?.byCode,
-        clientByCode,
-        supervisorBySeller,
-      };
-
-      const parsedNovemberSheet = ventasCsvText
-        ? parseVentasSheetCsv(ventasCsvText, NOVEMBER_STRICT_CUTOFF_DATE)
-        : { rows: [], ignoredBeforeCutoffCount: 0, totalRawDataRows: 0, acceptedFromCutoffCount: 0, cutoffDate: NOVEMBER_STRICT_CUTOFF_DATE };
-
-      const novemberDetailRows = convertSheetVentasRowsToDetailRecords(
-        parsedNovemberSheet.rows,
-        catalogs
-      );
-
-      const mapDetailRecordToFacturacionRow = (r: (typeof novemberDetailRows)[number]) => ({
-        fecha: r.fecha,
-        idCliente: r.id_cliente,
-        cliente: r.cliente,
-        idArt: r.id_articulo,
-        articulo: resolveCatalogProductName(r.id_articulo, r.articulo, productMap),
-        vendedor: r.vendedor,
-        supervisor: supervisorBySeller.get(r.vendedor) || r.supervisor,
-        categoria:
-          productCategoryMap.get(r.id_articulo) ||
-          productCategoryMap.get(String(r.id_articulo || '').replace(/^0+/, '')) ||
-          'GENERAL',
-        cajas: r.cajas,
-        unidades: r.unidades,
-        kg: r.kgs_lts,
-        monto: r.monto,
-        costo: r.costo,
-        utilidad: r.utilidad,
-        source: r.source,
-      });
-
-      const novemberMappedRows = novemberDetailRows.map(mapDetailRecordToFacturacionRow);
-
-      // Build `rawProductData` from November rows (>= 2026-11-01)
-      const novProdAgg = new Map<string, {
-        idArt: string;
-        date: string;
-        facturado: number;
-        montoFA: number;
-        montoDV: number;
-        despachado: number;
-        kgFacturado: number;
-        kgDespachado: number;
-      }>();
-
-      const strictNovemberRows = novemberDetailRows.filter((r) =>
-        isStrictNovember2026Date(r.fecha)
-      );
-
-      let novFacturacion = 0;
-      let novUtilidad = 0;
-      let novCajas = 0;
-      let novKg = 0;
-      const novTrends = new Map<string, { date: string; ventas: number; kg: number; kgFacturado: number; kgDespachado: number }>();
-
-      strictNovemberRows.forEach((r) => {
-        novFacturacion += r.monto;
-        novUtilidad += r.utilidad;
-        novCajas += r.cajas;
-        novKg += r.kgs_lts;
-
-        if (r.fecha) {
-          if (!novTrends.has(r.fecha)) {
-            novTrends.set(r.fecha, { date: r.fecha, ventas: 0, kg: 0, kgFacturado: 0, kgDespachado: 0 });
+      if (ventasRes && ventasRes.ok) {
+        const ventasCsvText = await ventasRes.text();
+        const parsedNov = parseVentasSheetCsv(ventasCsvText, NOVEMBER_STRICT_CUTOFF_DATE);
+        const novDetail = convertSheetVentasRowsToDetailRecords(parsedNov.rows);
+        let novFact = 0;
+        let novUtil = 0;
+        let novCajas = 0;
+        let novKg = 0;
+        const tMap = new Map<string, { date: string; ventas: number; kg: number; kgFacturado: number; kgDespachado: number }>();
+        novDetail.forEach((r) => {
+          novFact += r.monto;
+          novUtil += r.utilidad;
+          novCajas += r.cajas;
+          novKg += r.kgs_lts;
+          if (!tMap.has(r.fecha)) {
+            tMap.set(r.fecha, { date: r.fecha, ventas: 0, kg: 0, kgFacturado: 0, kgDespachado: 0 });
           }
-          const t = novTrends.get(r.fecha)!;
+          const t = tMap.get(r.fecha)!;
           t.ventas += r.monto;
           t.kg += r.kgs_lts;
           t.kgFacturado += r.kgs_lts;
           t.kgDespachado += r.kgs_lts;
-
-          if (r.id_articulo) {
-            const aggKey = `${r.id_articulo}|${r.fecha}`;
-            if (!novProdAgg.has(aggKey)) {
-              novProdAgg.set(aggKey, {
-                idArt: r.id_articulo,
-                date: r.fecha,
-                facturado: 0,
-                montoFA: 0,
-                montoDV: 0,
-                despachado: 0,
-                kgFacturado: 0,
-                kgDespachado: 0,
-              });
-            }
-            const p = novProdAgg.get(aggKey)!;
-            p.facturado += r.monto;
-            if (r.monto < 0) p.montoDV += r.monto;
-            else p.montoFA += r.monto;
-            p.kgFacturado += r.kgs_lts;
-            p.kgDespachado += r.kgs_lts;
-          }
-        }
-      });
-
-      novFacturacion = Math.round(novFacturacion * 100) / 100;
-      novUtilidad = Math.round(novUtilidad * 100) / 100;
-      novCajas = Math.round(novCajas * 100) / 100;
-      novKg = Math.round(novKg * 100) / 100;
-      const novPctUtilidad = novFacturacion > 0 ? (novUtilidad / novFacturacion) * 100 : 0;
-      const sortedNovTrends = Array.from(novTrends.values()).sort((a, b) => a.date.localeCompare(b.date));
-
-      const pArr = Array.from(novProdAgg.values()).map((p) => ({
-        idArt: p.idArt,
-        baseName: resolveCatalogProductName(p.idArt, undefined, productMap),
-        facturado: p.facturado,
-        montoFA: p.montoFA,
-        montoDV: p.montoDV,
-        despachado: p.kgDespachado,
-        kgFacturado: p.kgFacturado,
-        date: p.date,
-      }));
-
-      // Solo actualizar Noviembre si obtuvimos CSV válido (o si aún no había datos) para no pisar KPIs válidos con 0 ante un fallo transitorio
-      if (ventasCsvText || strictNovemberRows.length > 0) {
-        setRawProductData(pArr);
-        setRawFacturacionRows(novemberMappedRows);
+        });
+        const sortedT = Array.from(tMap.values()).sort((a, b) => a.date.localeCompare(b.date));
         setNovemberSummary({
-          facturacionTotal: novFacturacion,
-          utilidadBruta: novUtilidad,
-          porcentajeUtilidad: novPctUtilidad,
-          cajasDespachadas: novCajas,
-          totalKilogramos: novKg,
-          tendenciaDiaria: sortedNovTrends,
+          facturacionTotal: Math.round(novFact * 100) / 100,
+          utilidadBruta: Math.round(novUtil * 100) / 100,
+          porcentajeUtilidad: novFact > 0 ? (novUtil / novFact) * 100 : 0,
+          cajasDespachadas: Math.round(novCajas * 100) / 100,
+          totalKilogramos: Math.round(novKg * 100) / 100,
+          tendenciaDiaria: sortedT,
           isLoading: false,
         });
         setKpiData({
-          facturacion: novFacturacion,
-          utilidad: novUtilidad,
-          cajas: novCajas,
-          kg: novKg,
+          facturacion: Math.round(novFact * 100) / 100,
+          utilidad: Math.round(novUtil * 100) / 100,
+          cajas: Math.round(novCajas * 100) / 100,
+          kg: Math.round(novKg * 100) / 100,
           isLoading: false,
         });
-        setTrendData(sortedNovTrends);
+        setTrendData(sortedT);
       } else {
         setNovemberSummary((prev) => ({ ...prev, isLoading: false }));
         setKpiData((prev) => ({ ...prev, isLoading: false }));
       }
 
-      if (forceRefresh && ventasCsvText) {
-        const nowStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        setLastSheetSync(nowStr);
-        try {
-          localStorage.setItem('app_last_sheets_sync', nowStr);
-        } catch {}
-        setSheetSyncSuccessMessage('Google Sheets y Supabase sincronizados exitosamente con el dashboard.');
-        setTimeout(() => setSheetSyncSuccessMessage(null), 4000);
+      if (histRes && histRes.ok) {
+        const rows = await histRes.json();
+        const MONTH_NAME_TO_MM: Record<string, string> = {
+          ENERO: '01', FEBRERO: '02', MARZO: '03', ABRIL: '04', MAYO: '05', JUNIO: '06',
+          JULIO: '07', AGOSTO: '08', SEPTIEMBRE: '09', OCTUBRE: '10',
+        };
+        const mappedProducts: DashboardMonthlyProductRow[] = (Array.isArray(rows) ? rows : [])
+          .map((r: any) => {
+            const mm = MONTH_NAME_TO_MM[String(r.mes || '').trim().toUpperCase()];
+            if (!mm) return null;
+            const ano = Number(r.ano) || 2026;
+            return {
+              period: `${ano}-${mm}`,
+              ano,
+              mes: String(r.mes || '').trim().toUpperCase(),
+              id_articulo: String(r.id_articulo || '').trim(),
+              articulo: resolveCatalogProductName(r.id_articulo, r.articulo),
+              monto: Number(r.monto) || 0,
+              montoFA: Number(r.montoFA) || Number(r.monto) || 0,
+              montoDV: Number(r.montoDV) || 0,
+              cajas: Number(r.cajas) || 0,
+              kgs_lts: Number(r.kgs_lts) || 0,
+              costo: Number(r.costo) || 0,
+              utilidad: Number(r.utilidad) || 0,
+            };
+          })
+          .filter(Boolean) as DashboardMonthlyProductRow[];
+        setHistoricalProductsRaw(mappedProducts);
+        setHistoricalData(mapHistoricalProductsToOverviewItems(mappedProducts));
       }
 
-      // =========================================================================
-      // ETAPA 2 (SEGUNDO PLANO NO BLOQUEANTE): Histórico Ene-Oct + Cierre Octubre
-      // Evita el statement timeout (57014) del escaneo masivo de 325k filas en
-      // history_sales cargando el agregado Ene-Oct (~370 KB en <150ms) y el cierre
-      // exacto de Octubre 2026 (29,722 filas) en paralelo.
-      // =========================================================================
-      const MONTH_NAME_TO_MM: Record<string, string> = {
-        ENERO: '01',
-        FEBRERO: '02',
-        MARZO: '03',
-        ABRIL: '04',
-        MAYO: '05',
-        JUNIO: '06',
-        JULIO: '07',
-        AGOSTO: '08',
-        SEPTIEMBRE: '09',
-        OCTUBRE: '10',
-        NOVIEMBRE: '11',
-        DICIEMBRE: '12',
-      };
-
-      const aggregatedHistoryPromise = (async () => {
-        try {
-          const histRes = await fetch('/api/historical-sales', { cache: 'no-store' });
-          if (!histRes.ok) return [];
-          const rows = await histRes.json();
-          if (!Array.isArray(rows)) return [];
-          const mapped = rows
-            .map((r: any) => {
-              const idArt = String(r.id_articulo || '').trim();
-              const mesUpper = String(r.mes || '').trim().toUpperCase();
-              const mm = MONTH_NAME_TO_MM[mesUpper];
-              if (!idArt || !mm || mm === '11') return null;
-              const ano = Number(r.ano) || 2026;
-              const cleanSku = idArt.replace(/^0+/, '') || idArt;
-              if (cleanSku && !productMap.has(cleanSku) && r.articulo && !isGenericProductLabel(r.articulo)) {
-                productMap.set(cleanSku, String(r.articulo).trim());
-              }
-              const monto = Number(r.monto) || 0;
-              return {
-                idArt,
-                baseName: resolveCatalogProductName(idArt, r.articulo, productMap),
-                facturado: monto,
-                montoFA: r.montoFA !== undefined ? Number(r.montoFA) || 0 : monto > 0 ? monto : 0,
-                montoDV: r.montoDV !== undefined ? Number(r.montoDV) || 0 : monto < 0 ? monto : 0,
-                despachado: Number(r.kgs_lts) || 0,
-                kgFacturado: Number(r.kgs_lts) || 0,
-                cajas: Number(r.cajas) || 0,
-                date: `${ano}-${mm}-01`,
-              };
-            })
-            .filter(Boolean);
-          if (mapped.length > 0) {
-            setHistoricalData(mapped);
-          }
-          return mapped;
-        } catch (histErr) {
-          console.warn('[Sync] Failed to load /api/historical-sales:', histErr);
-          return [];
+      if (totalsRes && totalsRes.ok) {
+        const rawTotals = await totalsRes.json();
+        const MONTH_NAME_TO_MM: Record<string, string> = {
+          ENERO: '01', FEBRERO: '02', MARZO: '03', ABRIL: '04', MAYO: '05', JUNIO: '06',
+          JULIO: '07', AGOSTO: '08', SEPTIEMBRE: '09', OCTUBRE: '10',
+        };
+        const byYm: Record<string, { totalNeto: number; totalUtilidad?: number; totalCajas: number; totalKgs: number; totalRows?: number }> = {};
+        for (const val of Object.values((rawTotals || {}) as Record<string, any>)) {
+          const mm = MONTH_NAME_TO_MM[String(val?.mes || '').trim().toUpperCase()];
+          if (!mm) continue;
+          byYm[`${Number(val?.ano) || 2026}-${mm}`] = {
+            totalNeto: Number(val?.totalNeto) || 0,
+            totalUtilidad: val?.totalUtilidad ? Number(val.totalUtilidad) : undefined,
+            totalCajas: Number(val?.totalCajas) || 0,
+            totalKgs: Number(val?.totalKgs) || 0,
+            totalRows: Number(val?.validRows ?? val?.totalRows) || 0,
+          };
         }
-      })();
-
-      const octoberSummaryPromise = (async () => {
-        try {
-          const octSummary = await fetchHistorialOctubre2026({ forceRefresh });
-          setHistorialOctubre2026(octSummary);
-          return octSummary;
-        } catch (octErr) {
-          console.warn('[Sync] Failed dedicated fetchHistorialOctubre2026:', octErr);
-          return null;
-        }
-      })();
-
-      const monthlyTotalsPromise = (async () => {
-        try {
-          const [totalsRes, sellerVolRes] = await Promise.all([
-            fetch('/api/historical-monthly-totals', { cache: 'no-store' }).catch(() => null),
-            fetch('/api/sellers-monthly-volume', { cache: 'no-store' }).catch(() => null),
-          ]);
-          if (totalsRes && totalsRes.ok) {
-            const rawTotals = await totalsRes.json();
-            if (rawTotals && typeof rawTotals === 'object') {
-              const byYm: Record<string, { totalNeto: number; totalUtilidad?: number; totalCajas: number; totalKgs: number; totalRows?: number }> = {};
-              for (const val of Object.values(rawTotals as Record<string, any>)) {
-                const mesU = String(val?.mes || '').trim().toUpperCase();
-                const mm = MONTH_NAME_TO_MM[mesU];
-                const yr = Number(val?.ano) || 2026;
-                if (!mm) continue;
-                byYm[`${yr}-${mm}`] = {
-                  totalNeto: Number(val?.totalNeto) || 0,
-                  totalUtilidad: val?.totalUtilidad !== undefined ? Number(val.totalUtilidad) || 0 : undefined,
-                  totalCajas: Number(val?.totalCajas) || 0,
-                  totalKgs: Number(val?.totalKgs) || 0,
-                  totalRows: Number(val?.totalRows ?? val?.validRows) || 0,
-                };
-              }
-              setExactMonthlyTotals(byYm);
-            }
-          }
-          if (sellerVolRes && sellerVolRes.ok) {
-            const volJson = await sellerVolRes.json();
-            if (volJson && Array.isArray(volJson.sellerMonthlyData)) {
-              const mappedSellers = volJson.sellerMonthlyData
-                .map((s: any) => {
-                  const mesU = String(s?.mes || '').trim().toUpperCase();
-                  const mm = MONTH_NAME_TO_MM[mesU];
-                  const yr = Number(s?.ano) || 2026;
-                  if (!mm) return null;
-                  const vend = String(s?.vendedor || '').trim().toUpperCase();
-                  return {
-                    monthKey: `${yr}-${mm}`,
-                    vendedor: vend,
-                    supervisor: supervisorBySeller.get(vend) || getSellerMetadata(vend).supervisor,
-                    montoNeto: Number(s?.montoNeto) || 0,
-                    cajas: Number(s?.cajas) || 0,
-                    kgs: Number(s?.kgs) || 0,
-                    facturasCount: Number(s?.facturasCount) || 0,
-                  };
-                })
-                .filter(Boolean);
-              setSellerMonthlyHistory(mappedSellers);
-            }
-          }
-        } catch (err) {
-          console.warn('[Sync] Failed loading historical monthly totals/sellers:', err);
-        }
-      })();
-
-      const [baseAggHistory, octSummary] = await Promise.all([
-        aggregatedHistoryPromise,
-        octoberSummaryPromise,
-        monthlyTotalsPromise,
-      ]);
-
-      if (octSummary && octSummary.rows.length > 0) {
-        octSummary.rows.forEach((r) => {
-          const cleanSku = String(r.id_articulo || '').trim().replace(/^0+/, '') || String(r.id_articulo || '').trim();
-          if (cleanSku && !productMap.has(cleanSku) && r.articulo && !isGenericProductLabel(r.articulo)) {
-            productMap.set(cleanSku, r.articulo.trim());
-          }
-        });
-
-        // Reemplazar 2026-10 agregado por detalle diario exacto de Octubre 2026
-        const octDailyAgg = new Map<string, {
-          idArt: string;
-          baseName: string;
-          facturado: number;
-          montoFA: number;
-          montoDV: number;
-          despachado: number;
-          kgFacturado: number;
-          cajas: number;
-          date: string;
-        }>();
-
-        octSummary.rows.forEach((r) => {
-          const aggKey = `${r.id_articulo}|${r.fecha}`;
-          if (!octDailyAgg.has(aggKey)) {
-            octDailyAgg.set(aggKey, {
-              idArt: r.id_articulo,
-              baseName: resolveCatalogProductName(r.id_articulo, r.articulo, productMap),
-              facturado: 0,
-              montoFA: 0,
-              montoDV: 0,
-              despachado: 0,
-              kgFacturado: 0,
-              cajas: 0,
-              date: r.fecha,
-            });
-          }
-          const item = octDailyAgg.get(aggKey)!;
-          item.facturado += r.monto;
-          if (r.monto < 0) item.montoDV += r.monto;
-          else item.montoFA += r.monto;
-          item.despachado += r.kgs_lts;
-          item.kgFacturado += r.kgs_lts;
-          item.cajas += r.cajas;
-        });
-
-        const janToSepOnly = (baseAggHistory as any[]).filter(
-          (h) => h && !String(h.date || '').startsWith('2026-10')
-        );
-        setHistoricalData([...janToSepOnly, ...Array.from(octDailyAgg.values())]);
-
-        // Unificar detalle de Octubre + Noviembre para filtros interactivos (vendedor, cliente, fecha)
-        const octMappedRows = octSummary.rows.map(mapDetailRecordToFacturacionRow);
-        setRawFacturacionRows([...octMappedRows, ...novemberMappedRows]);
+        setExactMonthlyTotals(byYm);
       }
-
-      try {
-        localStorage.setItem('app_product_map_cache', JSON.stringify(Object.fromEntries(productMap.entries())));
-      } catch {}
     } catch (e) {
       console.warn('Notice: Using cached KPIs data:', e);
       setNovemberSummary((prev) => ({ ...prev, isLoading: false }));
@@ -987,11 +893,28 @@ export const DashboardOverview: React.FC = () => {
     } finally {
       setIsHistoricalLoading(false);
     }
-  }, []);
+  }, [applyBootstrapPayload]);
 
   React.useEffect(() => {
     fetchKpis(false);
   }, [fetchKpis]);
+
+  // Cargar filas detalladas de Octubre bajo demanda solo si el usuario aplica filtros que requieran granularidad cliente/búsqueda en Octubre
+  React.useEffect(() => {
+    const needsOctoberDetail =
+      (periodoActivo === '2026-10' &&
+        (Boolean(appliedFilters.client.trim()) ||
+          Boolean(appliedFilters.search.trim()) ||
+          appliedFilters.vendor !== 'ALL' ||
+          appliedFilters.zone !== 'ALL')) ||
+      Boolean(
+        (appliedFilters.startDate && appliedFilters.startDate <= '2026-10-31') ||
+          (appliedFilters.endDate && appliedFilters.endDate >= '2026-10-01' && appliedFilters.endDate <= '2026-10-31')
+      );
+    if (needsOctoberDetail) {
+      void ensureOctoberDetailRowsLoaded();
+    }
+  }, [periodoActivo, appliedFilters, ensureOctoberDetailRowsLoaded]);
 
   const handleManualSyncSheets = async () => {
     if (isSyncingSheets) return;
@@ -1214,7 +1137,7 @@ export const DashboardOverview: React.FC = () => {
     if (!isConsolidatedAllDates) {
       filtered = filtered.filter(p => groupsToShow.includes(mapGroupDate(p.date)));
     } else if (!appliedFilters.startDate && !appliedFilters.endDate) {
-      const targetPeriodPrefix = periodoActivo === '2026-10' ? '2026-10' : '2026-11';
+      const targetPeriodPrefix = periodoActivo || '2026-11';
       const periodMatches = filtered.filter(p => String(p.date || '').startsWith(targetPeriodPrefix));
       if (periodMatches.length > 0) {
         filtered = periodMatches;
@@ -1224,9 +1147,12 @@ export const DashboardOverview: React.FC = () => {
       }
     }
 
+    const activePeriodLabel =
+      DASHBOARD_HISTORICAL_MONTH_OPTIONS.find((m) => m.id === periodoActivo)?.shortLabel || periodoActivo;
+
     const effectiveGroupDate = (date: string) => {
       if (isConsolidatedAllDates) {
-        return periodoActivo === '2026-10' ? 'Octubre 2026' : 'Noviembre 2026';
+        return activePeriodLabel;
       }
       return mapGroupDate(date);
     };
@@ -1363,7 +1289,7 @@ export const DashboardOverview: React.FC = () => {
     }));
   }, [combinedProductData, skuFilter, showTop5, timeView, selectedTimeGroups, availableGroups, selectedSkus, productSortMetric, appliedFilters, periodoActivo]);
 
-  // Dynamically filtered KPIs reflecting active period ('2026-11' vs '2026-10') and active filters
+  // Dynamically filtered KPIs reflecting active period ('2026-11' via Google Sheets or '2026-01'..'2026-10' via Supabase)
   const activeKpis = React.useMemo(() => {
     let filtered = rawFacturacionRows;
 
@@ -1391,8 +1317,8 @@ export const DashboardOverview: React.FC = () => {
       // Aislar estrictamente las filas de Noviembre 2026 (2026-11-01 a 2026-11-30)
       filtered = filtered.filter(r => isStrictNovember2026Date(r.fecha));
     } else {
-      // Modo Consulta Histórica: Octubre 2026 (2026-10-01 a 2026-10-31)
-      filtered = filtered.filter(r => r.fecha >= '2026-10-01' && r.fecha <= '2026-10-31');
+      // Modo Consulta Histórica (Supabase history_sales)
+      filtered = filtered.filter(r => String(r.fecha || '').startsWith(periodoActivo));
     }
 
     if (hasVendor) {
@@ -1436,6 +1362,7 @@ export const DashboardOverview: React.FC = () => {
         return {
           facturacion: historialOctubre2026.facturacionTotal,
           utilidad: historialOctubre2026.utilidadBruta,
+          hasExactUtilidad: true,
           cajas: historialOctubre2026.cajasDespachadas,
           kg: historialOctubre2026.totalKilogramos,
           isFiltered: false,
@@ -1443,9 +1370,25 @@ export const DashboardOverview: React.FC = () => {
           isLoading: isHistoricalLoading && historialOctubre2026.totalRegistros === 0,
         };
       }
+      if (periodoActivo !== '2026-11') {
+        const histEntry = historicalMonthlyTotals[periodoActivo];
+        if (histEntry) {
+          return {
+            facturacion: histEntry.totalNeto,
+            utilidad: histEntry.totalUtilidad,
+            hasExactUtilidad: histEntry.hasExactUtilidad,
+            cajas: histEntry.totalCajas,
+            kg: histEntry.totalKgs,
+            isFiltered: false,
+            count: histEntry.validRows,
+            isLoading: false,
+          };
+        }
+      }
       return {
         facturacion: novemberSummary.facturacionTotal,
         utilidad: novemberSummary.utilidadBruta,
+        hasExactUtilidad: true,
         cajas: novemberSummary.cajasDespachadas,
         kg: novemberSummary.totalKilogramos,
         isFiltered: false,
@@ -1467,27 +1410,28 @@ export const DashboardOverview: React.FC = () => {
       kg += r.kg;
     });
 
-    // Completar KPIs de meses históricos (Enero–Septiembre 2026 de Supabase) cuando el usuario
-    // filtra por rango de fechas o meses anteriores en el selector sin filtro por cliente/texto libre.
-    if (!hasClient && !hasSearch && (hasDateRange || (hasTimeGroups && timeView === 'month'))) {
-      const targetPreOctMonths = new Set<string>();
-      const PRE_OCT_MONTHS = ['2026-01', '2026-02', '2026-03', '2026-04', '2026-05', '2026-06', '2026-07', '2026-08', '2026-09'];
+    // Completar KPIs de meses históricos (Enero–Octubre 2026 de Supabase) cuando el usuario
+    // filtra por mes histórico, rango de fechas, vendedor o supervisor sin texto libre/cliente.
+    if (!hasClient && !hasSearch) {
+      const targetHistMonths = new Set<string>();
+      const HIST_MONTHS = ['2026-01', '2026-02', '2026-03', '2026-04', '2026-05', '2026-06', '2026-07', '2026-08', '2026-09', '2026-10'];
       if (hasTimeGroups && timeView === 'month') {
         selectedTimeGroups.forEach((m) => {
-          if (PRE_OCT_MONTHS.includes(m)) targetPreOctMonths.add(m);
+          if (HIST_MONTHS.includes(m)) targetHistMonths.add(m);
         });
       } else if (hasDateRange) {
         const startYm = appliedFilters.startDate ? appliedFilters.startDate.slice(0, 7) : '2026-01';
         const endYm = appliedFilters.endDate ? appliedFilters.endDate.slice(0, 7) : '2026-11';
-        PRE_OCT_MONTHS.forEach((m) => {
-          if (m >= startYm && m <= endYm) targetPreOctMonths.add(m);
+        HIST_MONTHS.forEach((m) => {
+          if (m >= startYm && m <= endYm) targetHistMonths.add(m);
         });
+      } else if (periodoActivo !== '2026-11' && HIST_MONTHS.includes(periodoActivo)) {
+        targetHistMonths.add(periodoActivo);
       }
 
-      if (targetPreOctMonths.size > 0) {
-        // Solo agregar los meses pre-Octubre que no estén ya presentes en `filtered`
+      if (targetHistMonths.size > 0) {
         const monthsAlreadyInDetail = new Set(filtered.map((r) => String(r.fecha || '').slice(0, 7)));
-        const missingMonths = Array.from(targetPreOctMonths).filter((m) => !monthsAlreadyInDetail.has(m));
+        const missingMonths = Array.from(targetHistMonths).filter((m) => !monthsAlreadyInDetail.has(m));
 
         if (missingMonths.length > 0) {
           if (hasVendor || hasZoneOrSupervisor) {
@@ -1503,7 +1447,10 @@ export const DashboardOverview: React.FC = () => {
                 return;
               }
               facturacion += s.montoNeto;
-              utilidad += s.montoNeto * 0.23;
+              const totM = historicalMonthlyTotals[s.monthKey];
+              if (totM && totM.hasExactUtilidad && totM.totalNeto > 0) {
+                utilidad += s.montoNeto * (totM.totalUtilidad / totM.totalNeto);
+              }
               cajas += s.cajas;
               kg += s.kgs;
               count += s.facturasCount;
@@ -1513,7 +1460,9 @@ export const DashboardOverview: React.FC = () => {
               const tot = exactMonthlyTotals[m];
               if (tot) {
                 facturacion += tot.totalNeto;
-                utilidad += tot.totalUtilidad !== undefined ? tot.totalUtilidad : tot.totalNeto * 0.23;
+                if (tot.totalUtilidad !== undefined) {
+                  utilidad += tot.totalUtilidad;
+                }
                 cajas += tot.totalCajas;
                 kg += tot.totalKgs;
                 count += tot.totalRows || 0;
@@ -1527,23 +1476,44 @@ export const DashboardOverview: React.FC = () => {
     return {
       facturacion: Math.round(facturacion * 100) / 100,
       utilidad: Math.round(utilidad * 100) / 100,
+      hasExactUtilidad: utilidad !== 0 || periodoActivo === '2026-11' || periodoActivo === '2026-10',
       cajas: Math.round(cajas * 100) / 100,
       kg: Math.round(kg * 100) / 100,
       isFiltered: true,
       count,
       isLoading: novemberSummary.isLoading
     };
-  }, [rawFacturacionRows, appliedFilters, selectedTimeGroups, timeView, periodoActivo, novemberSummary, historialOctubre2026, isHistoricalLoading, exactMonthlyTotals, sellerMonthlyHistory]);
+  }, [rawFacturacionRows, appliedFilters, selectedTimeGroups, timeView, periodoActivo, novemberSummary, historialOctubre2026, historicalMonthlyTotals, isHistoricalLoading, exactMonthlyTotals, sellerMonthlyHistory]);
 
   // Dynamically filtered trend chart data strictly isolated by periodoActivo
   const activeTrendData = React.useMemo(() => {
-    let list =
-      periodoActivo === '2026-10'
-        ? historialOctubre2026?.tendenciaDiaria || []
-        : novemberSummary.tendenciaDiaria.filter((t) => isStrictNovember2026Date(t.date));
+    let list: Array<{ date: string; ventas: number; kg: number; kgFacturado: number; kgDespachado: number }> = [];
+
+    if (periodoActivo === '2026-11') {
+      list = novemberSummary.tendenciaDiaria.filter((t) => isStrictNovember2026Date(t.date));
+    } else if (historicalDailyTrends[periodoActivo] && historicalDailyTrends[periodoActivo].length > 0) {
+      list = historicalDailyTrends[periodoActivo];
+    } else if (periodoActivo === '2026-10' && historialOctubre2026?.tendenciaDiaria?.length) {
+      list = historialOctubre2026.tendenciaDiaria;
+    } else {
+      // Para meses históricos sin fecha diaria en Supabase (Ene-Ago), mostrar evolución mensual Ene-Oct de Supabase
+      const ordered = ['2026-01', '2026-02', '2026-03', '2026-04', '2026-05', '2026-06', '2026-07', '2026-08', '2026-09', '2026-10'];
+      list = ordered
+        .map((ym) => {
+          const entry = historicalMonthlyTotals[ym];
+          if (!entry) return null;
+          return {
+            date: entry.mes.slice(0, 3) + ' 26',
+            ventas: entry.totalNeto,
+            kg: entry.totalKgs,
+            kgFacturado: entry.totalKgs,
+            kgDespachado: entry.totalKgs,
+          };
+        })
+        .filter(Boolean) as any[];
+    }
 
     if (appliedFilters.startDate || appliedFilters.endDate) {
-      // Si el usuario aplica un rango de fechas personalizado, construir tendencia sobre las filas filtradas
       const customTrends = new Map<string, { date: string; ventas: number; kg: number; kgFacturado: number; kgDespachado: number }>();
       rawFacturacionRows.forEach((r) => {
         if (appliedFilters.startDate && r.fecha < appliedFilters.startDate) return;
@@ -1557,12 +1527,15 @@ export const DashboardOverview: React.FC = () => {
         pt.kgFacturado += r.kg;
         pt.kgDespachado += r.kg;
       });
-      list = Array.from(customTrends.values()).sort((a, b) => a.date.localeCompare(b.date));
+      if (customTrends.size > 0) {
+        list = Array.from(customTrends.values()).sort((a, b) => a.date.localeCompare(b.date));
+      }
     } else if (selectedTimeGroups.length > 0 && timeView === 'day') {
-      list = list.filter(t => selectedTimeGroups.includes(t.date));
+      const filteredDays = list.filter(t => selectedTimeGroups.includes(t.date));
+      if (filteredDays.length > 0) list = filteredDays;
     }
     return list;
-  }, [periodoActivo, novemberSummary, historialOctubre2026, rawFacturacionRows, appliedFilters, selectedTimeGroups, timeView]);
+  }, [periodoActivo, novemberSummary, historialOctubre2026, historicalDailyTrends, historicalMonthlyTotals, rawFacturacionRows, appliedFilters, selectedTimeGroups, timeView]);
   
   const monthComparisonData = React.useMemo(() => {
     if (selectedTimeGroups.length !== 2) return null;
@@ -1977,9 +1950,17 @@ export const DashboardOverview: React.FC = () => {
   };
 
   const pctUtilidad = kpiData.facturacion > 0 ? (kpiData.utilidad / kpiData.facturacion) * 100 : 0;
+  const activePeriodMeta =
+    DASHBOARD_HISTORICAL_MONTH_OPTIONS.find((m) => m.id === periodoActivo) ||
+    DASHBOARD_HISTORICAL_MONTH_OPTIONS[0];
+  const activeHistEntry = periodoActivo !== '2026-11' ? historicalMonthlyTotals[periodoActivo] : null;
+  const activeAuditBadge =
+    periodoActivo === '2026-10'
+      ? historialOctubre2026?.auditBadgeText || activeHistEntry?.auditBadgeText
+      : activeHistEntry?.auditBadgeText;
 
   return (
-    <div className="space-y-6 animate-in fade-in-50 duration-500 font-sans text-zinc-100 max-w-[1600px] mx-auto pb-10">
+    <div className="space-y-6 animate-in fade-in-50 duration-300 font-sans text-zinc-100 max-w-[1600px] mx-auto pb-10">
       
       {/* Header */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
@@ -1993,6 +1974,22 @@ export const DashboardOverview: React.FC = () => {
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5 self-start lg:self-auto">
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-zinc-950 border border-white/10 rounded-lg">
+            <CalendarIcon className="w-3.5 h-3.5 text-red-500 shrink-0" />
+            <select
+              aria-label="Periodo activo"
+              value={periodoActivo}
+              onChange={(e) => setPeriodoActivo(e.target.value)}
+              className="bg-transparent text-xs font-semibold text-zinc-100 focus:outline-none cursor-pointer pr-1"
+            >
+              {DASHBOARD_HISTORICAL_MONTH_OPTIONS.map((opt) => (
+                <option key={opt.id} value={opt.id} className="bg-zinc-950 text-zinc-100">
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
           <button
             type="button"
             onClick={handleManualSyncSheets}
@@ -2088,8 +2085,12 @@ export const DashboardOverview: React.FC = () => {
                 <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse"></span>
                 Filtro activo ({activeKpis.count} operaciones evaluadas)
               </span>
+            ) : periodoActivo === '2026-11' ? (
+              <span className="text-zinc-500">Mostrando Noviembre 2026 en vivo (Google Sheets)</span>
             ) : (
-              <span className="text-zinc-500">Mostrando consolidado general de operaciones</span>
+              <span className="text-amber-400/90 font-medium">
+                Consultando historial: {activePeriodMeta.shortLabel} (Supabase • {activeKpis.count.toLocaleString('es-ES')} registros)
+              </span>
             )}
           </div>
           <div className="flex items-center gap-3 w-full sm:w-auto">
@@ -2116,23 +2117,40 @@ export const DashboardOverview: React.FC = () => {
       {/* KPI Cards */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-3 lg:gap-4">
         {[
-          { id: 'facturacion', label: 'FACTURACIÓN TOTAL', value: activeKpis.isLoading ? 'Cargando...' : formatUSD(activeKpis.facturacion), icon: DollarSign, color: 'text-red-500' },
-          { id: 'utilidad', label: 'UTILIDAD BRUTA', value: activeKpis.isLoading ? 'Cargando...' : formatUSD(activeKpis.utilidad), icon: TrendingUp, color: 'text-zinc-400' },
-          { id: 'margen', label: '% UTILIDAD', value: activeKpis.isLoading ? 'Cargando...' : formatNum(activeKpis.facturacion > 0 ? (activeKpis.utilidad / activeKpis.facturacion) * 100 : 0) + '%', icon: Percent, color: 'text-zinc-400' },
-          { id: 'cajas', label: 'CAJAS DESPACHADAS', value: activeKpis.isLoading ? 'Cargando...' : formatNum(activeKpis.cajas), icon: Package, color: 'text-zinc-400' },
-          { id: 'kilogramos', label: 'TOTAL KILOGRAMOS', value: activeKpis.isLoading ? 'Cargando...' : formatNum(activeKpis.kg), icon: Settings, color: 'text-red-500' }, 
+          { id: 'facturacion', label: 'FACTURACIÓN TOTAL', value: activeKpis.isLoading ? 'Cargando...' : formatUSD(activeKpis.facturacion), icon: DollarSign, color: 'text-red-500', note: undefined as string | undefined },
+          {
+            id: 'utilidad',
+            label: 'UTILIDAD BRUTA',
+            value: activeKpis.isLoading
+              ? 'Cargando...'
+              : activeKpis.hasExactUtilidad === false
+                ? 'N/D'
+                : formatUSD(activeKpis.utilidad),
+            icon: TrendingUp,
+            color: 'text-zinc-400',
+            note: !activeKpis.isLoading && activeKpis.hasExactUtilidad === false ? 'Sin costo en BD para este mes' : undefined,
+          },
+          {
+            id: 'margen',
+            label: '% UTILIDAD',
+            value: activeKpis.isLoading
+              ? 'Cargando...'
+              : activeKpis.hasExactUtilidad === false
+                ? 'N/D'
+                : formatNum(activeKpis.facturacion > 0 ? (activeKpis.utilidad / activeKpis.facturacion) * 100 : 0) + '%',
+            icon: Percent,
+            color: 'text-zinc-400',
+            note: !activeKpis.isLoading && activeKpis.hasExactUtilidad === false ? 'Sin costo en BD para este mes' : undefined,
+          },
+          { id: 'cajas', label: 'CAJAS DESPACHADAS', value: activeKpis.isLoading ? 'Cargando...' : formatNum(activeKpis.cajas), icon: Package, color: 'text-zinc-400', note: undefined as string | undefined },
+          { id: 'kilogramos', label: 'TOTAL KILOGRAMOS', value: activeKpis.isLoading ? 'Cargando...' : formatNum(activeKpis.kg), icon: Settings, color: 'text-red-500', note: undefined as string | undefined }, 
         ].map((kpi, i) => {
           const isSelected = selectedKpi?.id === kpi.id;
-          const octAuditBadge =
-            periodoActivo === '2026-10'
-              ? historialOctubre2026?.auditBadgeText ||
-                'Fuente: Tabla history_sales en Supabase • 0 registros válidos procesados'
-              : undefined;
           return (
             <div 
               key={i} 
               onClick={() => setSelectedKpi(isSelected ? null : { id: kpi.id, label: kpi.label })}
-              title={octAuditBadge}
+              title={activeAuditBadge}
               className={`bg-zinc-950/60 border rounded-xl p-3 sm:p-4 lg:p-5 flex flex-col items-center justify-center text-center shadow-[0_4px_20px_rgba(0,0,0,0.5)] cursor-pointer transition-all ${
                 isSelected ? 'border-red-500 bg-red-950/20 shadow-[0_0_25px_rgba(220,38,38,0.2)]' : 'border-white/5 hover:border-white/20 hover:bg-zinc-900'
               }`}
@@ -2142,11 +2160,13 @@ export const DashboardOverview: React.FC = () => {
               </div>
               <p className="text-[9px] sm:text-[10px] font-bold tracking-widest text-zinc-500 mb-0.5 sm:mb-1 line-clamp-1">{kpi.label}</p>
               <p className="text-lg sm:text-xl lg:text-2xl font-black text-white tracking-wide">{kpi.value}</p>
-              {octAuditBadge && (
+              {kpi.note ? (
+                <p className="text-[9px] text-zinc-500 font-mono mt-1 line-clamp-1">{kpi.note}</p>
+              ) : activeAuditBadge ? (
                 <p className="text-[9px] text-amber-400/80 font-mono mt-1 line-clamp-1">
-                  {octAuditBadge}
+                  {activeAuditBadge}
                 </p>
-              )}
+              ) : null}
             </div>
           );
         })}
@@ -2174,7 +2194,14 @@ export const DashboardOverview: React.FC = () => {
             cajas: novemberSummary.cajasDespachadas,
             kg: novemberSummary.totalKilogramos,
           }}
+          historicalMonthlyTotals={historicalMonthlyTotals}
+          historicalProducts={historicalProductsRaw}
+          novemberProductRows={novemberMonthlyProducts}
+          productCatalog={bootstrapProductCatalog}
+          activePeriod={periodoActivo}
+          onSelectPeriod={(monthId) => setPeriodoActivo(monthId)}
           onConsultOctober2026={() => setPeriodoActivo('2026-10')}
+          isExternalLoading={isHistoricalLoading}
           syncKey={lastSheetSync}
         />
       )}
@@ -2183,21 +2210,24 @@ export const DashboardOverview: React.FC = () => {
       <div className="bg-zinc-950/60 border border-white/5 rounded-xl p-6 shadow-[0_4px_20px_rgba(0,0,0,0.5)]">
         <div className="flex flex-wrap items-center justify-between gap-2 mb-6">
           <h3 className="text-sm font-bold text-white uppercase tracking-wider">
-            Tendencia por Fecha (Ventas vs Kilogramos)
+            {periodoActivo === '2026-11' || (historicalDailyTrends[periodoActivo]?.length ?? 0) > 0
+              ? 'Tendencia por Fecha (Ventas vs Kilogramos)'
+              : 'Evolución Histórica Mensual Supabase (Ventas vs Kilogramos)'}
           </h3>
           {periodoActivo === '2026-11' ? (
             <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-emerald-950/50 border border-emerald-500/30 text-emerald-400">
-              Noviembre 2026 (2026-11-01 al 2026-11-30)
+              Noviembre 2026 • Google Sheets (2026-11-01 al 2026-11-30)
             </span>
           ) : (
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-amber-950/50 border border-amber-500/30 text-amber-300">
-                Modo Consulta Histórica: Octubre 2026 (Fuente: Supabase)
+                Modo Consulta Histórica: {activePeriodMeta.shortLabel} (Fuente: Supabase)
               </span>
-              <span className="text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-zinc-900 border border-zinc-700/70 text-zinc-300">
-                {historialOctubre2026?.auditBadgeText ||
-                  'Fuente: Tabla history_sales en Supabase • 0 registros válidos procesados'}
-              </span>
+              {activeAuditBadge && (
+                <span className="text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-zinc-900 border border-zinc-700/70 text-zinc-300">
+                  {activeAuditBadge}
+                </span>
+              )}
             </div>
           )}
         </div>
@@ -2220,15 +2250,14 @@ export const DashboardOverview: React.FC = () => {
                 <Line yAxisId="right" type="monotone" dataKey="kg" stroke="#dc2626" strokeWidth={3} dot={{ r: 4, fill: '#dc2626', strokeWidth: 2, stroke: '#000' }} />
               </ComposedChart>
             </ResponsiveContainer>
-          ) : periodoActivo === '2026-10' ? (
+          ) : periodoActivo !== '2026-11' ? (
             <div className="h-full w-full flex flex-col items-center justify-center border border-dashed border-amber-800/40 rounded-lg bg-black/30 p-6 text-center">
               <CalendarIcon className="w-8 h-8 text-amber-500/70 mb-2.5" />
               <p className="text-sm font-bold text-zinc-200">
-                Octubre 2026 (Consulta Directa a Supabase)
+                {activePeriodMeta.shortLabel} (Consulta Directa a Supabase)
               </p>
               <p className="text-xs text-amber-400/90 font-mono mt-1">
-                {historialOctubre2026?.auditBadgeText ||
-                  'Fuente: Tabla history_sales en Supabase • 0 registros válidos procesados'}
+                {activeAuditBadge || 'Fuente: Tabla history_sales en Supabase'}
               </p>
             </div>
           ) : (
@@ -2238,7 +2267,7 @@ export const DashboardOverview: React.FC = () => {
                 Noviembre 2026 aperturado - Esperando primeros registros del mes
               </p>
               <p className="text-xs text-zinc-500 mt-1">
-                Rango activo: 2026-11-01 al 2026-11-30 • Sin mezclar datos de Octubre 2026
+                Rango activo: 2026-11-01 al 2026-11-30 • Sin mezclar datos de meses previos
               </p>
             </div>
           )}
@@ -3073,22 +3102,22 @@ export const DashboardOverview: React.FC = () => {
             {monthChartsData.map((m) => {
               const isMultiMonth = monthChartsData.length > 1;
               const isThreePlus = monthChartsData.length >= 3;
-
-              const isOctoberCard = m.monthKey === '2026-10';
+              const isConsultableMonth = m.monthKey !== 'ALL';
+              const isHistoricalSupabaseMonth = isConsultableMonth && m.monthKey !== '2026-11';
 
               return (
                 <div 
                   key={m.monthKey} 
                   onClick={
-                    isOctoberCard
+                    isConsultableMonth
                       ? () => {
-                          setPeriodoActivo('2026-10');
+                          setPeriodoActivo(m.monthKey);
                           window.scrollTo({ top: 0, behavior: 'smooth' });
                         }
                       : undefined
                   }
                   className={`bg-zinc-950/70 border border-white/10 rounded-xl p-4 sm:p-5 hover:border-red-500/30 transition-all flex flex-col justify-between overflow-hidden shadow-xl ${
-                    isOctoberCard ? 'cursor-pointer ring-1 ring-amber-500/20 hover:ring-amber-500/50' : ''
+                    isConsultableMonth ? 'cursor-pointer ring-1 ring-white/5 hover:ring-amber-500/40' : ''
                   }`}
                 >
                   {/* Month Card Header */}
@@ -3106,9 +3135,14 @@ export const DashboardOverview: React.FC = () => {
                       <span className="text-xs font-black font-mono text-zinc-100 bg-white/5 border border-white/10 px-2 py-0.5 rounded">
                         {formatUSD(m.totalMonthSales)}
                       </span>
-                      {isOctoberCard && (
+                      {isHistoricalSupabaseMonth && (
                         <span className="text-[10px] font-bold text-amber-300 bg-amber-950/60 border border-amber-500/30 px-2 py-0.5 rounded">
-                          Ver Cierre Supabase
+                          Ver Supabase
+                        </span>
+                      )}
+                      {m.monthKey === '2026-11' && (
+                        <span className="text-[10px] font-bold text-emerald-300 bg-emerald-950/60 border border-emerald-500/30 px-2 py-0.5 rounded">
+                          Google Sheets
                         </span>
                       )}
                     </div>

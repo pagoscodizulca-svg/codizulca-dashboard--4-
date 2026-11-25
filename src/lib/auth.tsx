@@ -547,7 +547,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return null;
     }
   });
-  const [isLoading, setIsLoading] = useState(true);
+  // Si el usuario ya tiene un perfil corporativo persistido, renderizar el dashboard de inmediato
+  // sin bloquear el primer módulo esperando la ida y vuelta de Supabase Auth.
+  const [isLoading, setIsLoading] = useState<boolean>(() => !storedCorpProfile);
 
   useEffect(() => {
     const syncLocalCorpProfile = () => {

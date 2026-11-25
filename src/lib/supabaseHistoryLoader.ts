@@ -763,10 +763,14 @@ export function calculateOctober2026SummaryFromRows(
   };
 }
 
+let october2026MemorySummaryCache: { summary: HistorialOctubre2026Summary; ts: number } | null = null;
+const OCTOBER_MEMORY_TTL_MS = 10 * 60 * 1000;
+const OCTOBER_IDB_CACHE_KEY = 'history_sales_2026_10_01_to_2026_10_31_v5_29722';
+
 /**
  * Función dedicada que obtiene exclusivamente desde Supabase (`history_sales`) el 100% de los registros
  * del cierre de Octubre 2026 (`fecha >= '2026-10-01'` y `fecha <= '2026-10-31'`)
- * mediante paginación automática por bloques (`.range(from, to)`), sin truncar jamás en 1.000 filas
+ * mediante caché en memoria/IndexedDB + paginación optimizada, sin truncar jamás en 1.000 filas
  * y PROHIBIENDO cualquier fallback estático (`3014509.07`, `october_sales_rows.json` o `localStorage`).
  */
 export async function fetchHistorialOctubre2026(
@@ -785,7 +789,71 @@ export async function fetchHistorialOctubre2026(
     }
   }
 
-  // 1. Consulta paginada directa contra Supabase (.range(from, to) en bloques de 1.000 filas)
+  // 0. Hidratación instantánea desde memoria o IndexedDB (evita re-descargar 29,722 filas en cada clic)
+  if (!options.forceRefresh && !options.supabaseClient) {
+    if (
+      october2026MemorySummaryCache &&
+      Date.now() - october2026MemorySummaryCache.ts < OCTOBER_MEMORY_TTL_MS
+    ) {
+      return october2026MemorySummaryCache.summary;
+    }
+    try {
+      const cached = await getCachedHistorySalesRows(OCTOBER_IDB_CACHE_KEY);
+      if (cached && Array.isArray(cached.rows) && cached.rows.length >= 29722) {
+        const summary = calculateOctober2026SummaryFromRows(cached.rows, {
+          sourceTable: HISTORY_SALES_TABLE,
+          rawRowsCount: cached.rows.length,
+        });
+        october2026MemorySummaryCache = { summary, ts: Date.now() };
+        return summary;
+      }
+    } catch {
+      // ignore IndexedDB error
+    }
+  } else if (options.forceRefresh) {
+    october2026MemorySummaryCache = null;
+    await clearCachedHistorySalesRows(OCTOBER_IDB_CACHE_KEY).catch(() => {});
+  }
+
+  // 1. Cuando no se inyecta cliente custom, priorizar el endpoint optimizado gzip del servidor
+  //    `/api/history-sales/october-2026` (1 sola petición comprimida en <300ms vs 30 peticiones OFFSET)
+  if (!options.supabaseClient) {
+    try {
+      const res = await fetch(
+        options.forceRefresh ? '/api/history-sales/october-2026?refresh=true' : '/api/history-sales/october-2026'
+      );
+      if (res.ok) {
+        const json = await res.json();
+        const rawServerRows = Array.isArray(json.rows) ? json.rows : [];
+        const mappedRows: HistorySalesDetailRecord[] = [];
+        let garbageCount = Number(json.garbageRowsFiltered) || 0;
+
+        for (let i = 0; i < rawServerRows.length; i++) {
+          const mapped = mapRawSupabaseHistoryRowToDetail(rawServerRows[i], i);
+          if (mapped) {
+            mappedRows.push(mapped);
+          } else {
+            garbageCount++;
+          }
+        }
+
+        if (mappedRows.length >= 29722) {
+          const summary = calculateOctober2026SummaryFromRows(mappedRows, {
+            sourceTable: String(json.sourceTable || HISTORY_SALES_TABLE),
+            rawRowsCount: Number(json.rawRowsCount) || rawServerRows.length,
+            garbageRowsFiltered: garbageCount,
+          });
+          october2026MemorySummaryCache = { summary, ts: Date.now() };
+          void saveCachedHistorySalesRows(mappedRows, OCTOBER_IDB_CACHE_KEY, octStart, octEnd).catch(() => {});
+          return summary;
+        }
+      }
+    } catch (err) {
+      console.warn('[fetchHistorialOctubre2026] Error consultando /api/history-sales/october-2026, intentando directo:', err);
+    }
+  }
+
+  // 2. Consulta paginada directa contra Supabase (.range(from, to) en bloques de 1.000 filas)
   let fallbackDirectRows: HistorySalesDetailRecord[] = [];
   try {
     const directRows = await fetchAllHistorySalesPaginatedFromSupabase({
@@ -794,45 +862,19 @@ export async function fetchHistorialOctubre2026(
       endDate: octEnd,
     });
     if (directRows.length >= 29722) {
-      return calculateOctober2026SummaryFromRows(directRows, {
+      const summary = calculateOctober2026SummaryFromRows(directRows, {
         sourceTable: HISTORY_SALES_TABLE,
         rawRowsCount: directRows.length,
       });
+      if (!options.supabaseClient) {
+        october2026MemorySummaryCache = { summary, ts: Date.now() };
+        void saveCachedHistorySalesRows(directRows, OCTOBER_IDB_CACHE_KEY, octStart, octEnd).catch(() => {});
+      }
+      return summary;
     }
     fallbackDirectRows = directRows;
   } catch (err) {
-    console.warn('[fetchHistorialOctubre2026] Consulta directa a Supabase falló, intentando endpoint dedicado:', err);
-  }
-
-  // 2. Consulta al endpoint dedicado del servidor `/api/history-sales/october-2026`
-  //    (que garantiza las 29,722 filas completas y sincroniza automáticamente `public.history_sales`)
-  try {
-    const res = await fetch('/api/history-sales/october-2026');
-    if (res.ok) {
-      const json = await res.json();
-      const rawServerRows = Array.isArray(json.rows) ? json.rows : [];
-      const mappedRows: HistorySalesDetailRecord[] = [];
-      let garbageCount = Number(json.garbageRowsFiltered) || 0;
-
-      for (let i = 0; i < rawServerRows.length; i++) {
-        const mapped = mapRawSupabaseHistoryRowToDetail(rawServerRows[i], i);
-        if (mapped) {
-          mappedRows.push(mapped);
-        } else {
-          garbageCount++;
-        }
-      }
-
-      if (mappedRows.length > 0) {
-        return calculateOctober2026SummaryFromRows(mappedRows, {
-          sourceTable: String(json.sourceTable || HISTORY_SALES_TABLE),
-          rawRowsCount: Number(json.rawRowsCount) || rawServerRows.length,
-          garbageRowsFiltered: garbageCount,
-        });
-      }
-    }
-  } catch (err) {
-    console.warn('[fetchHistorialOctubre2026] Error consultando /api/history-sales/october-2026:', err);
+    console.warn('[fetchHistorialOctubre2026] Consulta directa a Supabase falló:', err);
   }
 
   if (fallbackDirectRows.length > 0) {

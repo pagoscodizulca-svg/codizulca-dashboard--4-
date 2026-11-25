@@ -11,10 +11,10 @@
     "zone": "ALL_MY_ROUTES",
     "vendedor": "SAIRÚ VALLES",
     "source": "vendedor_app",
-    "status": "scheduled",
-    "delivered": 0,
+    "status": "completed",
+    "delivered": 150,
     "target": 150,
-    "acceptanceRate": 0,
+    "acceptanceRate": 95,
     "comments": "Contacto en tienda: Oliver (04246493108). Agendada por SAIRÚ VALLES. Kilos: 5. Personas: 150."
   },
   {
@@ -29,10 +29,10 @@
     "zone": "ALL_MY_ROUTES",
     "vendedor": "SAIRÚ VALLES",
     "source": "vendedor_app",
-    "status": "scheduled",
-    "delivered": 0,
+    "status": "completed",
+    "delivered": 150,
     "target": 150,
-    "acceptanceRate": 0,
+    "acceptanceRate": 95,
     "comments": "Contacto en tienda: Hellen (04121005744). Agendada por SAIRÚ VALLES. Kilos: 5. Personas: 150."
   },
   {
@@ -47,10 +47,10 @@
     "zone": "ALL_MY_ROUTES",
     "vendedor": "SAIRÚ VALLES",
     "source": "vendedor_app",
-    "status": "scheduled",
-    "delivered": 0,
+    "status": "completed",
+    "delivered": 150,
     "target": 150,
-    "acceptanceRate": 0,
+    "acceptanceRate": 95,
     "comments": "Contacto en tienda: Jose (04128037152). Agendada por SAIRÚ VALLES. Kilos: 5. Personas: 150."
   },
   {
@@ -65,10 +65,10 @@
     "zone": "ALL_MY_ROUTES",
     "vendedor": "SAIRÚ VALLES",
     "source": "vendedor_app",
-    "status": "scheduled",
-    "delivered": 0,
+    "status": "completed",
+    "delivered": 150,
     "target": 150,
-    "acceptanceRate": 0,
+    "acceptanceRate": 95,
     "comments": "Contacto en tienda: endrina (04246306317). Agendada por SAIRÚ VALLES. Kilos: 5. Personas: 150."
   },
   {
@@ -83,10 +83,10 @@
     "zone": "ALL_MY_ROUTES",
     "vendedor": "SAIRÚ VALLES",
     "source": "vendedor_app",
-    "status": "scheduled",
-    "delivered": 0,
+    "status": "completed",
+    "delivered": 150,
     "target": 150,
-    "acceptanceRate": 0,
+    "acceptanceRate": 95,
     "comments": "Contacto en tienda: Idalis (04225060064). Agendada por SAIRÚ VALLES. Kilos: 5. Personas: 150."
   },
   {

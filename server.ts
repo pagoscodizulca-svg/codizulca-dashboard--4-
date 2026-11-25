@@ -4,6 +4,7 @@ dotenv.config();
 import path from 'path';
 import fs from 'fs';
 import https from 'https';
+import zlib from 'zlib';
 import { GoogleGenAI, Type } from '@google/genai';
 import { createClient } from '@supabase/supabase-js';
 import Papa from 'papaparse';
@@ -98,8 +99,14 @@ import {
   getConfiguredGoogleSheetId,
   parseClientesCatalogCsv,
   parseProductosCatalogCsv,
+  parseSupervisoresCatalogCsv,
   parseVentasSheetCsv,
 } from './src/lib/googleSheetsMatrixParser';
+import {
+  PRODUCT_CATALOG_BY_SKU,
+  isGenericProductLabel,
+  resolveCatalogProductName,
+} from './src/data/productCatalog';
 
 
 async function startServer() {
@@ -120,6 +127,43 @@ async function startServer() {
     if (req.method === 'OPTIONS') {
       return res.sendStatus(200);
     }
+    next();
+  });
+
+  // Native gzip compression for API JSON & CSV responses (>= 1 KB) — cuts payload transfer by ~80-90%
+  app.use((req, res, next) => {
+    const acceptEncoding = String(req.headers['accept-encoding'] || '');
+    if (!/\bgzip\b/i.test(acceptEncoding)) {
+      return next();
+    }
+    const originalSend = res.send.bind(res);
+    (res as any).send = (body: any) => {
+      try {
+        if (
+          !res.headersSent &&
+          !res.getHeader('Content-Encoding') &&
+          body !== undefined &&
+          body !== null &&
+          (typeof body === 'string' || Buffer.isBuffer(body))
+        ) {
+          const buf = Buffer.isBuffer(body) ? body : Buffer.from(body, 'utf8');
+          const contentType = String(res.getHeader('Content-Type') || '');
+          const isCompressible =
+            !contentType ||
+            /json|text|csv|javascript|xml|svg/i.test(contentType);
+          if (buf.length >= 1024 && isCompressible) {
+            const compressed = zlib.gzipSync(buf, { level: 6 });
+            res.setHeader('Content-Encoding', 'gzip');
+            res.setHeader('Vary', 'Accept-Encoding');
+            res.removeHeader('Content-Length');
+            return originalSend(compressed);
+          }
+        }
+      } catch {
+        // fallback to uncompressed response
+      }
+      return originalSend(body);
+    };
     next();
   });
 
@@ -200,6 +244,7 @@ async function startServer() {
   let historicalAllCache: any[] | null = null;
   let historicalAllCacheTime = 0;
   let monthlyTotalsCache: Record<string, any> | null = null;
+  let historicalDailyTrendsCache: Record<string, any[]> = {};
 
   try {
     const aggFile = path.join(process.cwd(), 'historical_sales_aggregated.json');
@@ -214,95 +259,317 @@ async function startServer() {
       monthlyTotalsCache = JSON.parse(fs.readFileSync(totalsFile, 'utf8'));
       console.log(`[Historical Sales] Loaded exact monthly totals from disk.`);
     }
+    const trendsFile = path.join(process.cwd(), 'historical_daily_trends.json');
+    if (fs.existsSync(trendsFile)) {
+      historicalDailyTrendsCache = JSON.parse(fs.readFileSync(trendsFile, 'utf8')) || {};
+      console.log(`[Historical Sales] Loaded daily trends for ${Object.keys(historicalDailyTrendsCache).length} historical months from disk.`);
+    }
   } catch (e) {
     console.warn('[Historical Sales] Failed to load disk cache:', e);
   }
-  
+
+  const HISTORY_MONTHS_ORDER = [
+    'ENERO',
+    'FEBRERO',
+    'MARZO',
+    'ABRIL',
+    'MAYO',
+    'JUNIO',
+    'JULIO',
+    'AGOSTO',
+    'SEPTIEMBRE',
+    'OCTUBRE',
+  ];
+  const HISTORY_MONTH_TO_MM: Record<string, string> = {
+    ENERO: '01',
+    FEBRERO: '02',
+    MARZO: '03',
+    ABRIL: '04',
+    MAYO: '05',
+    JUNIO: '06',
+    JULIO: '07',
+    AGOSTO: '08',
+    SEPTIEMBRE: '09',
+    OCTUBRE: '10',
+    NOVIEMBRE: '11',
+    DICIEMBRE: '12',
+  };
+
+  /**
+   * Escanea `public.history_sales` usando paginación keyset por llave primaria (`id`)
+   * en lugar de `OFFSET` (`.range()`), evitando el statement timeout (57014) en tablas >300k filas.
+   */
+  const syncHistoricalAggregatesFromSupabaseKeyset = async (): Promise<{
+    products: any[];
+    monthlyTotals: Record<string, any>;
+    dailyTrends: Record<string, any[]>;
+    totalRows: number;
+  }> => {
+    const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || DEFAULT_SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || DEFAULT_SUPABASE_KEY;
+    if (!supabaseUrl || !supabaseKey) {
+      throw new Error('Supabase credentials missing on server');
+    }
+
+    const supabase = createClient(supabaseUrl.replace('/rest/v1/', ''), supabaseKey);
+    const [minRes, maxRes] = await Promise.all([
+      supabase.from('history_sales').select('id').order('id', { ascending: true }).limit(1),
+      supabase.from('history_sales').select('id').order('id', { ascending: false }).limit(1),
+    ]);
+    if (minRes.error) throw minRes.error;
+    if (maxRes.error) throw maxRes.error;
+
+    const minId = Number(minRes.data?.[0]?.id) || 1;
+    const maxId = Number(maxRes.data?.[0]?.id) || 0;
+    if (maxId <= 0) {
+      return { products: [], monthlyTotals: {}, dailyTrends: {}, totalRows: 0 };
+    }
+
+    const ranges: Array<[number, number]> = [];
+    for (let lo = minId; lo <= maxId; lo += 1000) {
+      ranges.push([lo, Math.min(lo + 999, maxId)]);
+    }
+
+    const r2 = (n: number) => Math.round((Number(n || 0) + Number.EPSILON) * 100) / 100;
+    const grouped = new Map<string, any>();
+    const totalsByMonth = new Map<string, any>();
+    const dailyByMonth = new Map<string, Map<string, any>>();
+    let totalRows = 0;
+
+    const CONCURRENCY = 10;
+    for (let i = 0; i < ranges.length; i += CONCURRENCY) {
+      const batch = ranges.slice(i, i + CONCURRENCY);
+      const chunks = await Promise.all(
+        batch.map(async ([lo, hi]) => {
+          for (let attempt = 0; attempt < 3; attempt++) {
+            const { data, error } = await supabase
+              .from('history_sales')
+              .select('id,ano,mes,fecha,tipo_doc,id_articulo,articulo,cajas,unidades,kgs_lts,monto,costo,utilidad')
+              .gte('id', lo)
+              .lte('id', hi)
+              .limit(1000);
+            if (!error && Array.isArray(data)) return data;
+            await new Promise((r) => setTimeout(r, 200 * (attempt + 1)));
+          }
+          return [];
+        })
+      );
+
+      for (const chunk of chunks) {
+        for (const row of chunk) {
+          const ano = Number(row.ano) || 2026;
+          if (ano !== 2026) continue;
+          const mes = String(row.mes || '').trim().toUpperCase();
+          const mm = HISTORY_MONTH_TO_MM[mes];
+          if (!mm || mes === 'NOVIEMBRE' || mes === 'DICIEMBRE') continue;
+
+          totalRows++;
+          const monto = Number(row.monto) || 0;
+          const costo = Number(row.costo) || 0;
+          const utilidad = Number(row.utilidad) || 0;
+          const cajas = Number(row.cajas) || 0;
+          const unidades = Number(row.unidades) || 0;
+          const kgs = Number(row.kgs_lts) || 0;
+          const isDV = String(row.tipo_doc || '').trim().toUpperCase() === 'DV' || monto < 0;
+          const monthKey = `${ano} ${mes}`;
+          const ym = `${ano}-${mm}`;
+
+          if (!totalsByMonth.has(monthKey)) {
+            totalsByMonth.set(monthKey, {
+              ano,
+              mes,
+              totalRows: 0,
+              validRows: 0,
+              faRows: 0,
+              dvRows: 0,
+              totalFA: 0,
+              totalDV: 0,
+              totalNeto: 0,
+              costoFA: 0,
+              costoDV: 0,
+              totalCosto: 0,
+              utilidadFA: 0,
+              utilidadDV: 0,
+              totalUtilidad: 0,
+              kgsFA: 0,
+              kgsDV: 0,
+              totalKgs: 0,
+              kgsBruto: 0,
+              unidadesFA: 0,
+              unidadesDV: 0,
+              totalUnidades: 0,
+              cajasFA: 0,
+              cajasDV: 0,
+              totalCajas: 0,
+            });
+          }
+          const t = totalsByMonth.get(monthKey);
+          t.totalRows++;
+          t.validRows++;
+          t.totalNeto += monto;
+          t.totalCosto += costo;
+          t.totalUtilidad += utilidad;
+          t.totalKgs += kgs;
+          t.kgsBruto += Math.abs(kgs);
+          t.totalUnidades += unidades;
+          t.totalCajas += cajas;
+          if (isDV) {
+            t.dvRows++;
+            t.totalDV += monto;
+            t.costoDV += costo;
+            t.utilidadDV += utilidad;
+            t.kgsDV += kgs;
+            t.unidadesDV += unidades;
+            t.cajasDV += cajas;
+          } else {
+            t.faRows++;
+            t.totalFA += monto;
+            t.costoFA += costo;
+            t.utilidadFA += utilidad;
+            t.kgsFA += kgs;
+            t.unidadesFA += unidades;
+            t.cajasFA += cajas;
+          }
+
+          const artId = Number(row.id_articulo) || 0;
+          const artName = String(row.articulo || '').trim();
+          const pKey = `${ano}-${mes}-${artId}`;
+          if (!grouped.has(pKey)) {
+            grouped.set(pKey, {
+              id_articulo: artId,
+              articulo: artName,
+              ano,
+              mes,
+              monto: 0,
+              montoFA: 0,
+              montoDV: 0,
+              cajas: 0,
+              kgs_lts: 0,
+              costo: 0,
+              utilidad: 0,
+            });
+          }
+          const curr = grouped.get(pKey);
+          if (!curr.articulo && artName) curr.articulo = artName;
+          curr.monto += monto;
+          if (isDV) curr.montoDV += monto;
+          else curr.montoFA += monto;
+          curr.cajas += cajas;
+          curr.kgs_lts += kgs;
+          curr.costo += costo;
+          curr.utilidad += utilidad;
+
+          const rawFecha = String(row.fecha || '').trim().slice(0, 10);
+          if (/^\d{4}-\d{2}-\d{2}$/.test(rawFecha) && rawFecha.startsWith(ym)) {
+            if (!dailyByMonth.has(ym)) dailyByMonth.set(ym, new Map());
+            const dm = dailyByMonth.get(ym)!;
+            if (!dm.has(rawFecha)) {
+              dm.set(rawFecha, {
+                date: rawFecha,
+                ventas: 0,
+                kg: 0,
+                kgFacturado: 0,
+                kgDespachado: 0,
+                cajas: 0,
+                utilidad: 0,
+              });
+            }
+            const d = dm.get(rawFecha)!;
+            d.ventas += monto;
+            d.kg += kgs;
+            d.kgFacturado += kgs;
+            d.kgDespachado += kgs;
+            d.cajas += cajas;
+            d.utilidad += utilidad;
+          }
+        }
+      }
+    }
+
+    const products = Array.from(grouped.values()).map((p) => ({
+      ...p,
+      monto: r2(p.monto),
+      montoFA: r2(p.montoFA),
+      montoDV: r2(p.montoDV),
+      cajas: r2(p.cajas),
+      kgs_lts: r2(p.kgs_lts),
+      costo: r2(p.costo),
+      utilidad: r2(p.utilidad),
+    }));
+
+    const monthlyTotals: Record<string, any> = {};
+    for (const mes of HISTORY_MONTHS_ORDER) {
+      const k = `2026 ${mes}`;
+      const t = totalsByMonth.get(k);
+      if (!t) continue;
+      monthlyTotals[k] = {
+        ...t,
+        totalFA: r2(t.totalFA),
+        totalDV: r2(t.totalDV),
+        totalNeto: r2(t.totalNeto),
+        costoFA: r2(t.costoFA),
+        costoDV: r2(t.costoDV),
+        totalCosto: r2(t.totalCosto),
+        utilidadFA: r2(t.utilidadFA),
+        utilidadDV: r2(t.utilidadDV),
+        totalUtilidad: r2(t.totalUtilidad),
+        kgsFA: r2(t.kgsFA),
+        kgsDV: r2(t.kgsDV),
+        totalKgs: r2(t.totalKgs),
+        kgsBruto: r2(t.kgsBruto),
+        unidadesFA: r2(t.unidadesFA),
+        unidadesDV: r2(t.unidadesDV),
+        totalUnidades: r2(t.totalUnidades),
+        cajasFA: r2(t.cajasFA),
+        cajasDV: r2(t.cajasDV),
+        totalCajas: r2(t.totalCajas),
+      };
+    }
+
+    const dailyTrends: Record<string, any[]> = {};
+    for (const [ym, dm] of dailyByMonth.entries()) {
+      dailyTrends[ym] = Array.from(dm.values())
+        .sort((a, b) => a.date.localeCompare(b.date))
+        .map((d) => ({
+          ...d,
+          ventas: r2(d.ventas),
+          kg: r2(d.kg),
+          kgFacturado: r2(d.kgFacturado),
+          kgDespachado: r2(d.kgDespachado),
+          cajas: r2(d.cajas),
+          utilidad: r2(d.utilidad),
+        }));
+    }
+
+    if (products.length > 0) {
+      historicalAllCache = products;
+      historicalAllCacheTime = Date.now();
+      monthlyTotalsCache = monthlyTotals;
+      historicalDailyTrendsCache = dailyTrends;
+      try {
+        fs.writeFileSync(path.join(process.cwd(), 'historical_sales_aggregated.json'), JSON.stringify(products, null, 2));
+        fs.writeFileSync(path.join(process.cwd(), 'exact_monthly_totals.json'), JSON.stringify(monthlyTotals, null, 2));
+        fs.writeFileSync(path.join(process.cwd(), 'historical_daily_trends.json'), JSON.stringify(dailyTrends, null, 2));
+      } catch (e) {
+        console.warn('[Historical Sales] Failed to write keyset cache to disk:', e);
+      }
+    }
+
+    return { products, monthlyTotals, dailyTrends, totalRows };
+  };
+
   const handleHistoricalSales = async (req: express.Request, res: express.Response) => {
     try {
       const { orClauses } = req.body || {};
-      
-      // Serve from validated cache if available
-      if (!orClauses && historicalAllCache && historicalAllCache.length > 0) {
+      const forceRefresh = req.query.refresh === 'true';
+
+      // Serve from validated cache if available (unless explicit refresh requested)
+      if (!forceRefresh && historicalAllCache && historicalAllCache.length > 0) {
         return res.json(historicalAllCache);
       }
-      
-      // If orClauses are present but we have full cached data, filter in-memory for instant response
-      if (orClauses && historicalAllCache && historicalAllCache.length > 0) {
-        // e.g., filter if needed, or fallback to full
-        return res.json(historicalAllCache);
-      }
-      
-      const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || DEFAULT_SUPABASE_URL;
-      const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || DEFAULT_SUPABASE_KEY;
-      
-      if (!supabaseUrl || !supabaseKey) {
-        if (historicalAllCache) return res.json(historicalAllCache);
-        return res.status(500).json({ error: 'Supabase credentials missing on server' });
-      }
-      
-      const supabase = createClient(supabaseUrl.replace('/rest/v1/', ''), supabaseKey);
-      
-      const limit = 1000;
-      let countQuery = supabase.from('history_sales').select('*', { count: 'exact', head: true });
-      if (orClauses) {
-          countQuery = countQuery.or(orClauses);
-      }
-      
-      const { count, error: countError } = await countQuery;
-      if (countError) throw countError;
-      
-      const numPages = Math.ceil((count || 0) / limit);
 
-      // Limit to max 300 pages (300k records) to avoid memory crash
-      const maxPages = Math.min(numPages, 300);
-      
-      const results = [];
-      const BATCH_SIZE = 20;
-      
-      for (let i = 0; i < maxPages; i += BATCH_SIZE) {
-          const promises = [];
-          for (let j = 0; j < BATCH_SIZE && (i + j) < maxPages; j++) {
-              let q = supabase.from('history_sales')
-                .select('id_articulo, articulo, monto, cajas, kgs_lts, ano, mes')
-                .range((i + j) * limit, ((i + j) + 1) * limit - 1);
-              if (orClauses) q = q.or(orClauses);
-              promises.push(q);
-          }
-          const batchResults = await Promise.all(promises);
-          results.push(...batchResults);
-      }
-
-      const grouped = new Map();
-      
-      results.forEach(resChunk => {
-          if (resChunk.data) {
-              resChunk.data.forEach(row => {
-                  const key = `${row.ano}-${row.mes}-${row.id_articulo}`;
-                  if (!grouped.has(key)) {
-                      grouped.set(key, { ...row });
-                  } else {
-                      const curr = grouped.get(key);
-                      curr.monto += (row.monto || 0);
-                      curr.cajas += (row.cajas || 0);
-                      curr.kgs_lts += (row.kgs_lts || 0);
-                  }
-              });
-          }
-      });
-      
-      const result = Array.from(grouped.values());
-      if (!orClauses && result.length > 0) {
-        historicalAllCache = result;
-        historicalAllCacheTime = Date.now();
-        try {
-          fs.writeFileSync(path.join(process.cwd(), 'historical_sales_aggregated.json'), JSON.stringify(result, null, 2));
-        } catch (e) {
-          console.warn('[Historical Sales] Failed to write cache to disk:', e);
-        }
-      }
-      
-      res.json(result);
+      const synced = await syncHistoricalAggregatesFromSupabaseKeyset();
+      return res.json(synced.products);
     } catch (err: any) {
       console.error('Error fetching historical sales:', err);
       if (historicalAllCache && historicalAllCache.length > 0) {
@@ -458,33 +725,49 @@ async function startServer() {
         try {
           const supabase = createClient(supabaseUrl.replace('/rest/v1/', ''), supabaseKey);
 
-          // 1. Consultar por rango de fecha 2026-10-01 .. 2026-10-31 con paginación concurrente (5 lotes en paralelo)
-          const { count: dateCount, error: dateCountErr } = await supabase
-            .from('history_sales')
-            .select('*', { count: 'exact', head: true })
-            .gte('fecha', '2026-10-01')
-            .lte('fecha', '2026-10-31');
+          // 1. Consultar Octubre 2026 usando paginación keyset por llave primaria `id` (evita statement timeout 57014)
+          const [minOctRes, maxOctRes] = await Promise.all([
+            supabase
+              .from('history_sales')
+              .select('id')
+              .eq('ano', 2026)
+              .eq('mes', 'OCTUBRE')
+              .order('id', { ascending: true })
+              .limit(1),
+            supabase
+              .from('history_sales')
+              .select('id')
+              .eq('ano', 2026)
+              .eq('mes', 'OCTUBRE')
+              .order('id', { ascending: false })
+              .limit(1),
+          ]);
 
-          if (!dateCountErr && dateCount && dateCount >= 29722) {
-            const totalPages = Math.ceil(dateCount / limit);
-            const BATCH = 5;
-            for (let startPage = 0; startPage < totalPages; startPage += BATCH) {
-              const pageIndices: number[] = [];
-              for (let offset = 0; offset < BATCH && startPage + offset < totalPages; offset++) {
-                pageIndices.push(startPage + offset);
-              }
+          const minOctId = Number(minOctRes.data?.[0]?.id) || 0;
+          const maxOctId = Number(maxOctRes.data?.[0]?.id) || 0;
+
+          if (!minOctRes.error && !maxOctRes.error && minOctId > 0 && maxOctId >= minOctId) {
+            const ranges: Array<[number, number]> = [];
+            for (let lo = minOctId; lo <= maxOctId; lo += limit) {
+              ranges.push([lo, Math.min(lo + limit - 1, maxOctId)]);
+            }
+            const BATCH = 8;
+            for (let startIdx = 0; startIdx < ranges.length; startIdx += BATCH) {
+              const slice = ranges.slice(startIdx, startIdx + BATCH);
               const chunks = await Promise.all(
-                pageIndices.map(async (page) => {
-                  const from = page * limit;
-                  const to = from + limit - 1;
+                slice.map(async ([lo, hi]) => {
                   const { data, error } = await supabase
                     .from('history_sales')
                     .select('*')
-                    .gte('fecha', '2026-10-01')
-                    .lte('fecha', '2026-10-31')
-                    .order('id', { ascending: true })
-                    .range(from, to);
-                  return !error && Array.isArray(data) ? data : [];
+                    .gte('id', lo)
+                    .lte('id', hi)
+                    .limit(limit);
+                  if (error || !Array.isArray(data)) return [];
+                  return data.filter(
+                    (r: any) =>
+                      Number(r.ano) === 2026 &&
+                      String(r.mes || '').trim().toUpperCase() === 'OCTUBRE'
+                  );
                 })
               );
               for (const chunk of chunks) {
@@ -975,28 +1258,37 @@ async function startServer() {
       try {
         const supabase = createClient(supabaseUrl.replace('/rest/v1/', ''), supabaseKey);
         const limit = 1000;
-        const countRes = await supabase.from('history_sales').select('*', { count: 'exact', head: true }).eq('ano', 2026);
-        if (countRes.count && countRes.count > 0) {
-          totalCount = countRes.count;
-          const totalPages = Math.ceil(totalCount / limit);
-          const BATCH_SIZE = 25;
+        const [minRes, maxRes] = await Promise.all([
+          supabase.from('history_sales').select('id').order('id', { ascending: true }).limit(1),
+          supabase.from('history_sales').select('id').order('id', { ascending: false }).limit(1),
+        ]);
+        const minId = Number(minRes.data?.[0]?.id) || 1;
+        const maxId = Number(maxRes.data?.[0]?.id) || 0;
+        if (!minRes.error && !maxRes.error && maxId >= minId) {
+          const ranges: Array<[number, number]> = [];
+          for (let lo = minId; lo <= maxId; lo += limit) {
+            ranges.push([lo, Math.min(lo + limit - 1, maxId)]);
+          }
+          totalCount = 0;
+          const BATCH_SIZE = 10;
 
-          for (let i = 0; i < totalPages; i += BATCH_SIZE) {
-            const promises = [];
-            for (let j = 0; j < BATCH_SIZE && (i + j) < totalPages; j++) {
-              const page = i + j;
-              promises.push(
-                supabase.from('history_sales')
+          for (let i = 0; i < ranges.length; i += BATCH_SIZE) {
+            const slice = ranges.slice(i, i + BATCH_SIZE);
+            const chunks = await Promise.all(
+              slice.map(([lo, hi]) =>
+                supabase
+                  .from('history_sales')
                   .select('vendedor, ano, mes, cajas, kgs_lts, monto, tipo_doc')
-                  .eq('ano', 2026)
-                  .order('id', { ascending: true })
-                  .range(page * limit, (page + 1) * limit - 1)
-              );
-            }
-            const chunks = await Promise.all(promises);
+                  .gte('id', lo)
+                  .lte('id', hi)
+                  .limit(limit)
+              )
+            );
             chunks.forEach((c: any) => {
               if (c.data) {
                 c.data.forEach((r: any) => {
+                  if (Number(r.ano) !== 2026) return;
+                  totalCount++;
                   const normVendedor = normalizeSellerName(r.vendedor || '');
                   if (!isValidVolumeSeller(normVendedor)) {
                     return;
@@ -8101,6 +8393,14 @@ Responde con un JSON estructurado con:
         sellersVolumeMemoryCache = null;
         novemberSalesDocsCache = null;
       }
+      if (
+        allowedTab === 'Ventas' ||
+        allowedTab === 'Productos' ||
+        allowedTab === 'Clientes' ||
+        allowedTab === 'Supervisores'
+      ) {
+        dashboardOverviewComputedCache = null;
+      }
       if (allowedTab === 'Cuotas Volumen' || allowedTab === 'Ventas') {
         skuVolumeResponseCache = null;
       }
@@ -8115,6 +8415,583 @@ Responde con un JSON estructurado con:
       inFlightSheetFetches.delete(cacheKey);
     }
   };
+
+  // =========================================================================
+  // PRE-PARSED DASHBOARD OVERVIEW BOOTSTRAP (STALE-WHILE-REVALIDATE + GZIP)
+  // Unifica en 1 sola petición (<100ms, ~80 KB gzip):
+  //   - Mes actual (Noviembre 2026) desde Google Sheets
+  //   - Historial verificado (Enero–Octubre 2026) desde Supabase (history_sales)
+  // =========================================================================
+  let dashboardOverviewComputedCache: {
+    fingerprint: string;
+    november: any;
+    novemberDetailRows: any[];
+    productCatalog: Record<string, string>;
+  } | null = null;
+  let dashboardHistoricalSectionCache: {
+    cacheTime: number;
+    historical: any;
+    historicalProductNames: Record<string, string>;
+  } | null = null;
+  let inFlightBackgroundSheetRevalidate: Promise<void> | null = null;
+
+  const DASHBOARD_MONTH_LABELS: Record<string, string> = {
+    '01': 'Enero',
+    '02': 'Febrero',
+    '03': 'Marzo',
+    '04': 'Abril',
+    '05': 'Mayo',
+    '06': 'Junio',
+    '07': 'Julio',
+    '08': 'Agosto',
+    '09': 'Septiembre',
+    '10': 'Octubre',
+    '11': 'Noviembre',
+    '12': 'Diciembre',
+  };
+
+  const getDashboardHistoricalSection = () => {
+    if (
+      dashboardHistoricalSectionCache &&
+      dashboardHistoricalSectionCache.cacheTime === historicalAllCacheTime
+    ) {
+      return dashboardHistoricalSectionCache;
+    }
+
+    const r2 = (n: number) => Math.round((Number(n || 0) + Number.EPSILON) * 100) / 100;
+    const productNames: Record<string, string> = { ...PRODUCT_CATALOG_BY_SKU };
+    const monthlyTotals: Record<string, any> = {};
+
+    const rawTotalsSource = monthlyTotalsCache || {};
+    for (const val of Object.values(rawTotalsSource as Record<string, any>)) {
+      const mesU = String(val?.mes || '').trim().toUpperCase();
+      const mm = HISTORY_MONTH_TO_MM[mesU];
+      const ano = Number(val?.ano) || 2026;
+      if (!mm || mm === '11' || mm === '12') continue;
+      const period = `${ano}-${mm}`;
+      const validRows = Number(val?.validRows ?? val?.totalRows) || 0;
+      const totalNeto = r2(Number(val?.totalNeto) || 0);
+      const totalUtilidad = r2(Number(val?.totalUtilidad) || 0);
+      const totalCosto = r2(Number(val?.totalCosto) || 0);
+      monthlyTotals[period] = {
+        period,
+        ano,
+        mes: mesU,
+        label: `${DASHBOARD_MONTH_LABELS[mm] || mesU} ${ano}`,
+        validRows,
+        faRows: Number(val?.faRows) || 0,
+        dvRows: Number(val?.dvRows) || 0,
+        totalFA: r2(Number(val?.totalFA) || 0),
+        totalDV: r2(Number(val?.totalDV) || 0),
+        totalNeto,
+        totalCosto,
+        totalUtilidad,
+        hasExactUtilidad: totalUtilidad !== 0 || totalCosto !== 0,
+        totalCajas: r2(Number(val?.totalCajas) || 0),
+        totalKgs: r2(Number(val?.totalKgs) || 0),
+        kgsBruto: r2(Number(val?.kgsBruto) || Math.abs(Number(val?.totalKgs) || 0)),
+        source: 'supabase_history_sales',
+        sourceTable: 'history_sales',
+        auditBadgeText: `Fuente: Tabla history_sales en Supabase • ${validRows} registros válidos procesados`,
+      };
+    }
+
+    const products: any[] = [];
+    for (const r of historicalAllCache || []) {
+      const mesU = String(r?.mes || '').trim().toUpperCase();
+      const mm = HISTORY_MONTH_TO_MM[mesU];
+      const ano = Number(r?.ano) || 2026;
+      if (!mm || mm === '11' || mm === '12') continue;
+      const idArt = String(r?.id_articulo ?? '').trim();
+      if (!idArt) continue;
+      const cleanSku = idArt.replace(/^0+/, '') || idArt;
+      const rawName = String(r?.articulo || '').trim();
+      if (cleanSku && rawName && !isGenericProductLabel(rawName) && !productNames[cleanSku]) {
+        productNames[cleanSku] = rawName;
+      }
+      const resolvedName = resolveCatalogProductName(idArt, rawName, productNames);
+      const monto = r2(Number(r?.monto) || 0);
+      products.push({
+        period: `${ano}-${mm}`,
+        ano,
+        mes: mesU,
+        id_articulo: idArt,
+        articulo: resolvedName,
+        monto,
+        montoFA: r?.montoFA !== undefined ? r2(Number(r.montoFA) || 0) : monto > 0 ? monto : 0,
+        montoDV: r?.montoDV !== undefined ? r2(Number(r.montoDV) || 0) : monto < 0 ? monto : 0,
+        cajas: r2(Number(r?.cajas) || 0),
+        kgs_lts: r2(Number(r?.kgs_lts) || 0),
+        costo: r2(Number(r?.costo) || 0),
+        utilidad: r2(Number(r?.utilidad) || 0),
+      });
+    }
+
+    // Seller monthly history from disk/memory cache (Ene-Oct)
+    const sellerMonthlyHistory: any[] = [];
+    try {
+      let volData = sellersVolumeMemoryCache?.payload;
+      if (!volData && fs.existsSync(sellersVolumeCachePath)) {
+        volData = JSON.parse(fs.readFileSync(sellersVolumeCachePath, 'utf8'));
+      }
+      if (volData && Array.isArray(volData.sellerMonthlyData)) {
+        for (const s of volData.sellerMonthlyData) {
+          const mesU = String(s?.mes || '').trim().toUpperCase();
+          const mm = HISTORY_MONTH_TO_MM[mesU];
+          const ano = Number(s?.ano) || 2026;
+          if (!mm || mm === '11' || mm === '12') continue;
+          const vend = normalizeSellerName(String(s?.vendedor || '').trim()) || String(s?.vendedor || '').trim().toUpperCase();
+          if (!vend) continue;
+          sellerMonthlyHistory.push({
+            monthKey: `${ano}-${mm}`,
+            vendedor: vend,
+            supervisor: getSupervisorForSeller(vend),
+            montoNeto: r2(Number(s?.montoNeto) || 0),
+            cajas: r2(Number(s?.cajas) || 0),
+            kgs: r2(Number(s?.kgs) || 0),
+            facturasCount: Number(s?.facturasCount) || 0,
+          });
+        }
+      }
+    } catch {
+      // ignore seller volume cache error
+    }
+
+    const octTot = monthlyTotals['2026-10'];
+    const octRaw = (rawTotalsSource as Record<string, any>)['2026 OCTUBRE'];
+    const octTrend = historicalDailyTrendsCache['2026-10'] || [];
+    const octoberSummary = octTot
+      ? {
+          periodo: '2026-10' as const,
+          label: 'Octubre 2026',
+          sourceLabel: 'Modo Consulta Histórica: Octubre 2026 (Fuente: Supabase)',
+          sourceTable: 'history_sales',
+          auditBadgeText: octTot.auditBadgeText,
+          facturacionTotal: octTot.totalNeto,
+          montoFA: octTot.totalFA,
+          montoDV: octTot.totalDV,
+          costoTotal: octTot.totalCosto,
+          costoFA: r2(Number(octRaw?.costoFA) || 0),
+          costoDV: r2(Number(octRaw?.costoDV) || 0),
+          utilidadBruta: octTot.totalUtilidad,
+          utilidadFA: r2(Number(octRaw?.utilidadFA) || 0),
+          utilidadDV: r2(Number(octRaw?.utilidadDV) || 0),
+          porcentajeUtilidad: octTot.totalNeto > 0 ? (octTot.totalUtilidad / octTot.totalNeto) * 100 : 0,
+          cajasDespachadas: octTot.totalCajas,
+          cajasFA: r2(Number(octRaw?.cajasFA) || 0),
+          cajasDV: r2(Number(octRaw?.cajasDV) || 0),
+          unidadesNeto: r2(Number(octRaw?.totalUnidades) || 0),
+          unidadesFA: r2(Number(octRaw?.unidadesFA) || 0),
+          unidadesDV: r2(Number(octRaw?.unidadesDV) || 0),
+          totalKilogramos: octTot.totalKgs,
+          kgsFA: r2(Number(octRaw?.kgsFA) || 0),
+          kgsDV: r2(Number(octRaw?.kgsDV) || 0),
+          kgsBrutoAbsoluto: octTot.kgsBruto,
+          tendenciaDiaria: octTrend,
+          totalRegistros: octTot.validRows,
+          faRows: octTot.faRows,
+          dvRows: octTot.dvRows,
+          rawRowsCount: octTot.validRows,
+          garbageRowsFiltered: 0,
+          duplicateRowsRemoved: 0,
+        }
+      : null;
+
+    dashboardHistoricalSectionCache = {
+      cacheTime: historicalAllCacheTime,
+      historical: {
+        sourceTable: 'history_sales',
+        monthlyTotals,
+        products,
+        dailyTrends: historicalDailyTrendsCache,
+        sellerMonthlyHistory,
+        octoberSummary,
+      },
+      historicalProductNames: productNames,
+    };
+
+    return dashboardHistoricalSectionCache;
+  };
+
+  const computeDashboardNovemberFromCsvs = (
+    ventasCsv: string,
+    productosCsv: string,
+    clientesCsv: string,
+    supervisoresCsv: string
+  ) => {
+    const fingerprint = `${ventasCsv.length}:${ventasCsv.slice(-64)}|${productosCsv.length}|${clientesCsv.length}|${supervisoresCsv.length}`;
+    if (dashboardOverviewComputedCache && dashboardOverviewComputedCache.fingerprint === fingerprint) {
+      return dashboardOverviewComputedCache;
+    }
+
+    const r2 = (n: number) => Math.round((Number(n || 0) + Number.EPSILON) * 100) / 100;
+    const { historicalProductNames } = getDashboardHistoricalSection();
+    const productMap = new Map<string, string>(Object.entries(historicalProductNames));
+    const productCategoryMap = new Map<string, string>();
+
+    const parsedProductos = productosCsv ? parseProductosCatalogCsv(productosCsv) : null;
+    if (parsedProductos) {
+      parsedProductos.byCode.forEach((entry, codeKey) => {
+        const cleanCode = String(codeKey || '').trim().replace(/^0+/, '') || String(codeKey || '').trim();
+        if (entry.producto && !isGenericProductLabel(entry.producto)) {
+          productMap.set(codeKey, entry.producto);
+          productMap.set(cleanCode, entry.producto);
+        }
+        if (entry.categoria) {
+          productCategoryMap.set(codeKey, entry.categoria);
+          productCategoryMap.set(cleanCode, entry.categoria);
+        }
+      });
+    }
+
+    const clientByCode = clientesCsv ? parseClientesCatalogCsv(clientesCsv).byCode : new Map();
+    const supervisorBySeller = supervisoresCsv
+      ? parseSupervisoresCatalogCsv(supervisoresCsv).bySeller
+      : new Map<string, string>();
+
+    const parsedNov = ventasCsv
+      ? parseVentasSheetCsv(ventasCsv, NOVEMBER_STRICT_CUTOFF_DATE)
+      : { rows: [] };
+
+    let novFacturacion = 0;
+    let novUtilidad = 0;
+    let novCajas = 0;
+    let novKg = 0;
+    const novTrends = new Map<string, any>();
+    const novProdDaily = new Map<string, any>();
+    const novProdMonthly = new Map<string, any>();
+    const vendorsSet = new Set<string>();
+    const supervisorsSet = new Set<string>();
+    const novemberDetailRows: any[] = [];
+
+    for (const r of parsedNov.rows) {
+      const fecha = String(r.fecha || '').slice(0, 10);
+      if (!fecha || fecha < '2026-11-01' || fecha > '2026-11-30') continue;
+
+      const sku = String(r.idArticulo || '').trim() || 'SIN-SKU';
+      const cleanSku = sku.replace(/^0+/, '') || sku;
+      const articulo = resolveCatalogProductName(sku, undefined, productMap);
+      const clientEntry =
+        clientByCode.get(r.idCliente) || clientByCode.get(String(r.idCliente || '').replace(/^0+/, ''));
+      const cliente =
+        clientEntry?.cliente || (r.idCliente ? `CLIENTE #${r.idCliente}` : 'CLIENTE GENERAL');
+      const vendedor = r.vendedor;
+      const supervisor =
+        supervisorBySeller.get(vendedor) ||
+        supervisorBySeller.get(r.vendedorRaw) ||
+        getSupervisorForSeller(vendedor);
+      const categoria =
+        productCategoryMap.get(sku) || productCategoryMap.get(cleanSku) || 'GENERAL';
+
+      if (vendedor) vendorsSet.add(vendedor);
+      if (supervisor && supervisor !== 'SIN SUPERVISOR') supervisorsSet.add(supervisor);
+
+      novFacturacion += r.monto;
+      novUtilidad += r.utilidad;
+      novCajas += r.cajas;
+      novKg += r.kg;
+
+      novemberDetailRows.push({
+        fecha,
+        idCliente: r.idCliente,
+        cliente,
+        idArt: sku,
+        articulo,
+        vendedor,
+        supervisor,
+        categoria,
+        cajas: r.cajas,
+        unidades: r.unidades,
+        kg: r.kg,
+        monto: r.monto,
+        costo: r.costo,
+        utilidad: r.utilidad,
+        source: 'google_sheets_november',
+      });
+
+      if (!novTrends.has(fecha)) {
+        novTrends.set(fecha, {
+          date: fecha,
+          ventas: 0,
+          kg: 0,
+          kgFacturado: 0,
+          kgDespachado: 0,
+          cajas: 0,
+          utilidad: 0,
+        });
+      }
+      const tr = novTrends.get(fecha)!;
+      tr.ventas += r.monto;
+      tr.kg += r.kg;
+      tr.kgFacturado += r.kg;
+      tr.kgDespachado += r.kg;
+      tr.cajas += r.cajas;
+      tr.utilidad += r.utilidad;
+
+      const dailyKey = `${sku}|${fecha}`;
+      if (!novProdDaily.has(dailyKey)) {
+        novProdDaily.set(dailyKey, {
+          idArt: sku,
+          baseName: articulo,
+          facturado: 0,
+          montoFA: 0,
+          montoDV: 0,
+          despachado: 0,
+          kgFacturado: 0,
+          cajas: 0,
+          utilidad: 0,
+          date: fecha,
+        });
+      }
+      const pd = novProdDaily.get(dailyKey)!;
+      pd.facturado += r.monto;
+      if (r.monto < 0) pd.montoDV += r.monto;
+      else pd.montoFA += r.monto;
+      pd.despachado += r.kg;
+      pd.kgFacturado += r.kg;
+      pd.cajas += r.cajas;
+      pd.utilidad += r.utilidad;
+
+      if (!novProdMonthly.has(sku)) {
+        novProdMonthly.set(sku, {
+          period: '2026-11',
+          ano: 2026,
+          mes: 'NOVIEMBRE',
+          id_articulo: sku,
+          articulo,
+          monto: 0,
+          montoFA: 0,
+          montoDV: 0,
+          cajas: 0,
+          kgs_lts: 0,
+          costo: 0,
+          utilidad: 0,
+        });
+      }
+      const pm = novProdMonthly.get(sku)!;
+      pm.monto += r.monto;
+      if (r.monto < 0) pm.montoDV += r.monto;
+      else pm.montoFA += r.monto;
+      pm.cajas += r.cajas;
+      pm.kgs_lts += r.kg;
+      pm.costo += r.costo;
+      pm.utilidad += r.utilidad;
+    }
+
+    novFacturacion = r2(novFacturacion);
+    novUtilidad = r2(novUtilidad);
+    novCajas = r2(novCajas);
+    novKg = r2(novKg);
+    const novPctUtilidad = novFacturacion > 0 ? (novUtilidad / novFacturacion) * 100 : 0;
+
+    const tendenciaDiaria = Array.from(novTrends.values())
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .map((d) => ({
+        date: d.date,
+        ventas: r2(d.ventas),
+        kg: r2(d.kg),
+        kgFacturado: r2(d.kgFacturado),
+        kgDespachado: r2(d.kgDespachado),
+        cajas: r2(d.cajas),
+        utilidad: r2(d.utilidad),
+      }));
+
+    const productDaily = Array.from(novProdDaily.values()).map((p) => ({
+      ...p,
+      facturado: r2(p.facturado),
+      montoFA: r2(p.montoFA),
+      montoDV: r2(p.montoDV),
+      despachado: r2(p.despachado),
+      kgFacturado: r2(p.kgFacturado),
+      cajas: r2(p.cajas),
+      utilidad: r2(p.utilidad),
+    }));
+
+    const productMonthly = Array.from(novProdMonthly.values()).map((p) => ({
+      ...p,
+      monto: r2(p.monto),
+      montoFA: r2(p.montoFA),
+      montoDV: r2(p.montoDV),
+      cajas: r2(p.cajas),
+      kgs_lts: r2(p.kgs_lts),
+      costo: r2(p.costo),
+      utilidad: r2(p.utilidad),
+    }));
+
+    const productCatalogObj: Record<string, string> = {};
+    productMap.forEach((v, k) => {
+      if (k && v) productCatalogObj[k] = v;
+    });
+
+    dashboardOverviewComputedCache = {
+      fingerprint,
+      november: {
+        summary: {
+          facturacionTotal: novFacturacion,
+          utilidadBruta: novUtilidad,
+          porcentajeUtilidad: novPctUtilidad,
+          cajasDespachadas: novCajas,
+          totalKilogramos: novKg,
+          tendenciaDiaria,
+          validRowsCount: novemberDetailRows.length,
+        },
+        productDaily,
+        productMonthly,
+        availableVendors: Array.from(vendorsSet).sort((a, b) => a.localeCompare(b)),
+        availableSupervisors: Array.from(supervisorsSet).sort((a, b) => a.localeCompare(b)),
+      },
+      novemberDetailRows,
+      productCatalog: productCatalogObj,
+    };
+
+    return dashboardOverviewComputedCache;
+  };
+
+  const triggerBackgroundSheetsRevalidate = () => {
+    if (inFlightBackgroundSheetRevalidate) return inFlightBackgroundSheetRevalidate;
+    inFlightBackgroundSheetRevalidate = (async () => {
+      try {
+        await Promise.all([
+          fetchAllowedTabCsvServerSideDetailed('Ventas', false, true).catch(() => null),
+          fetchAllowedTabCsvServerSideDetailed('Productos', false, true).catch(() => null),
+          fetchAllowedTabCsvServerSideDetailed('Clientes', false, true).catch(() => null),
+          fetchAllowedTabCsvServerSideDetailed('Supervisores', false, true).catch(() => null),
+        ]);
+      } finally {
+        inFlightBackgroundSheetRevalidate = null;
+      }
+    })();
+    return inFlightBackgroundSheetRevalidate;
+  };
+
+  const resolveDashboardSheetCsvs = async (options: {
+    forceRefresh: boolean;
+    waitLive: boolean;
+  }): Promise<{
+    ventasCsv: string;
+    productosCsv: string;
+    clientesCsv: string;
+    supervisoresCsv: string;
+    freshness: 'live' | 'revalidating' | 'disk-fallback';
+  }> => {
+    const now = Date.now();
+    const cachedVentas = sheetCache.get('sheet::Ventas::raw');
+    const cachedProductos = sheetCache.get('sheet::Productos::raw');
+    const cachedClientes = sheetCache.get('sheet::Clientes::raw');
+    const cachedSupervisores = sheetCache.get('sheet::Supervisores::raw');
+
+    const hasWarmSnapshot = Boolean(cachedVentas?.data && isValidSheetCsvResponse(cachedVentas.data));
+    const isFreshLive =
+      hasWarmSnapshot &&
+      cachedVentas?.source === 'live' &&
+      now - cachedVentas.timestamp < SHEET_CACHE_TTL_MS;
+
+    if (!options.forceRefresh && isFreshLive) {
+      return {
+        ventasCsv: cachedVentas!.data,
+        productosCsv: cachedProductos?.data || getDiskCachedSheetTab('Productos'),
+        clientesCsv: cachedClientes?.data || getDiskCachedSheetTab('Clientes'),
+        supervisoresCsv: cachedSupervisores?.data || getDiskCachedSheetTab('Supervisores'),
+        freshness: 'live',
+      };
+    }
+
+    // Stale-While-Revalidate: devolver snapshot pre-parseado al instante (<20ms) y revalidar Google Sheets en 2do plano
+    if (!options.forceRefresh && !options.waitLive && hasWarmSnapshot) {
+      void triggerBackgroundSheetsRevalidate();
+      return {
+        ventasCsv: cachedVentas!.data,
+        productosCsv: cachedProductos?.data || getDiskCachedSheetTab('Productos'),
+        clientesCsv: cachedClientes?.data || getDiskCachedSheetTab('Clientes'),
+        supervisoresCsv: cachedSupervisores?.data || getDiskCachedSheetTab('Supervisores'),
+        freshness: 'revalidating',
+      };
+    }
+
+    // Espera en vivo (refresh=true, waitLive=true, o arranque sin snapshot previo)
+    const [vRes, pRes, cRes, sRes] = await Promise.all([
+      fetchAllowedTabCsvServerSideDetailed('Ventas', options.forceRefresh, true).catch(() => ({
+        csvText: cachedVentas?.data || getDiskCachedSheetTab('Ventas'),
+        source: 'disk-fallback' as const,
+      })),
+      fetchAllowedTabCsvServerSideDetailed('Productos', options.forceRefresh, true).catch(() => ({
+        csvText: cachedProductos?.data || getDiskCachedSheetTab('Productos'),
+        source: 'disk-fallback' as const,
+      })),
+      fetchAllowedTabCsvServerSideDetailed('Clientes', options.forceRefresh, true).catch(() => ({
+        csvText: cachedClientes?.data || getDiskCachedSheetTab('Clientes'),
+        source: 'disk-fallback' as const,
+      })),
+      fetchAllowedTabCsvServerSideDetailed('Supervisores', options.forceRefresh, true).catch(() => ({
+        csvText: cachedSupervisores?.data || getDiskCachedSheetTab('Supervisores'),
+        source: 'disk-fallback' as const,
+      })),
+    ]);
+
+    return {
+      ventasCsv: vRes.csvText,
+      productosCsv: pRes.csvText,
+      clientesCsv: cRes.csvText,
+      supervisoresCsv: sRes.csvText,
+      freshness: vRes.source === 'disk-fallback' ? 'disk-fallback' : 'live',
+    };
+  };
+
+  app.get('/api/dashboard/overview-bootstrap', async (req, res) => {
+    try {
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+      const forceRefresh = req.query.refresh === 'true';
+      const waitLive = req.query.waitLive === 'true';
+
+      const { ventasCsv, productosCsv, clientesCsv, supervisoresCsv, freshness } =
+        await resolveDashboardSheetCsvs({ forceRefresh, waitLive });
+
+      const computedNov = computeDashboardNovemberFromCsvs(
+        ventasCsv,
+        productosCsv,
+        clientesCsv,
+        supervisoresCsv
+      );
+      const { historical } = getDashboardHistoricalSection();
+
+      res.setHeader('X-Bootstrap-Freshness', freshness);
+      return res.json({
+        freshness,
+        generatedAt: new Date().toISOString(),
+        sheetsUpdatedAt: sheetsDiskCache.updatedAt || null,
+        currentPeriod: '2026-11',
+        november: computedNov.november,
+        historical,
+        productCatalog: computedNov.productCatalog,
+      });
+    } catch (err: any) {
+      console.error('[Dashboard Bootstrap] Error building overview bootstrap:', err);
+      return res.status(500).json({ error: err?.message || 'Error cargando resumen del dashboard' });
+    }
+  });
+
+  app.get('/api/dashboard/november-detail', async (req, res) => {
+    try {
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+      const forceRefresh = req.query.refresh === 'true';
+      const { ventasCsv, productosCsv, clientesCsv, supervisoresCsv } =
+        await resolveDashboardSheetCsvs({ forceRefresh, waitLive: false });
+      const computedNov = computeDashboardNovemberFromCsvs(
+        ventasCsv,
+        productosCsv,
+        clientesCsv,
+        supervisoresCsv
+      );
+      return res.json({
+        count: computedNov.novemberDetailRows.length,
+        updatedAt: sheetsDiskCache.updatedAt || null,
+        rows: computedNov.novemberDetailRows,
+      });
+    } catch (err: any) {
+      console.error('[Dashboard November Detail] Error:', err);
+      return res.status(500).json({ error: err?.message || 'Error cargando detalle de Noviembre' });
+    }
+  });
 
   const fetchAllowedTabCsvServerSide = async (
     tabName: (typeof ALLOWED_GOOGLE_SHEET_TABS)[number],
@@ -8213,6 +9090,7 @@ Responde con un JSON estructurado con:
       sellersVolumeMemoryCache = null;
       skuVolumeResponseCache = null;
       novemberSalesDocsCache = null;
+      dashboardOverviewComputedCache = null;
       console.log('[Sheets Sync] Cache limpiado. Sincronizando las 6 pestañas autorizadas desde Google Sheets...');
       const [ventasCsv] = await Promise.all([
         fetchAllowedTabCsvServerSide('Ventas', true, true),

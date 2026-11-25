@@ -1,0 +1,519 @@
+{
+  "2026-09": [
+    {
+      "date": "2026-09-01",
+      "ventas": 262492.36,
+      "kg": 89144.8,
+      "kgFacturado": 89144.8,
+      "kgDespachado": 89144.8,
+      "cajas": 47279.01,
+      "utilidad": 0
+    },
+    {
+      "date": "2026-09-02",
+      "ventas": 151249.88,
+      "kg": 47816.46,
+      "kgFacturado": 47816.46,
+      "kgDespachado": 47816.46,
+      "cajas": 21946.01,
+      "utilidad": 0
+    },
+    {
+      "date": "2026-09-03",
+      "ventas": 218152.8,
+      "kg": 71590.79,
+      "kgFacturado": 71590.79,
+      "kgDespachado": 71590.79,
+      "cajas": 36123.41,
+      "utilidad": 0
+    },
+    {
+      "date": "2026-09-04",
+      "ventas": 129776.29,
+      "kg": 35860.95,
+      "kgFacturado": 35860.95,
+      "kgDespachado": 35860.95,
+      "cajas": 22488.25,
+      "utilidad": 0
+    },
+    {
+      "date": "2026-09-05",
+      "ventas": 215704.15,
+      "kg": 51491.6,
+      "kgFacturado": 51491.6,
+      "kgDespachado": 51491.6,
+      "cajas": 18761.92,
+      "utilidad": 0
+    },
+    {
+      "date": "2026-09-06",
+      "ventas": 0,
+      "kg": 0,
+      "kgFacturado": 0,
+      "kgDespachado": 0,
+      "cajas": 0,
+      "utilidad": 0
+    },
+    {
+      "date": "2026-09-07",
+      "ventas": 227993.58,
+      "kg": 83573.79,
+      "kgFacturado": 83573.79,
+      "kgDespachado": 83573.79,
+      "cajas": 30852.68,
+      "utilidad": 0
+    },
+    {
+      "date": "2026-09-08",
+      "ventas": 342092.32,
+      "kg": 104407.32,
+      "kgFacturado": 104407.32,
+      "kgDespachado": 104407.32,
+      "cajas": 49337.28,
+      "utilidad": 0
+    },
+    {
+      "date": "2026-09-09",
+      "ventas": 228008.39,
+      "kg": 110185.73,
+      "kgFacturado": 110185.73,
+      "kgDespachado": 110185.73,
+      "cajas": 22261.36,
+      "utilidad": 0
+    },
+    {
+      "date": "2026-09-10",
+      "ventas": 283260.85,
+      "kg": 132115.93,
+      "kgFacturado": 132115.93,
+      "kgDespachado": 132115.93,
+      "cajas": 38836.22,
+      "utilidad": 0
+    },
+    {
+      "date": "2026-09-11",
+      "ventas": 180529.11,
+      "kg": 53548.84,
+      "kgFacturado": 53548.84,
+      "kgDespachado": 53548.84,
+      "cajas": 32453.9,
+      "utilidad": 0
+    },
+    {
+      "date": "2026-09-12",
+      "ventas": 28408.66,
+      "kg": -14258.97,
+      "kgFacturado": -14258.97,
+      "kgDespachado": -14258.97,
+      "cajas": 9361.83,
+      "utilidad": 0
+    },
+    {
+      "date": "2026-09-14",
+      "ventas": 141630.71,
+      "kg": 48988.53,
+      "kgFacturado": 48988.53,
+      "kgDespachado": 48988.53,
+      "cajas": 28026.8,
+      "utilidad": 0
+    },
+    {
+      "date": "2026-09-15",
+      "ventas": 265796.6,
+      "kg": 91443.95,
+      "kgFacturado": 91443.95,
+      "kgDespachado": 91443.95,
+      "cajas": 48964.54,
+      "utilidad": 0
+    },
+    {
+      "date": "2026-09-16",
+      "ventas": 248902.72,
+      "kg": 117026.34,
+      "kgFacturado": 117026.34,
+      "kgDespachado": 117026.34,
+      "cajas": 61284.81,
+      "utilidad": 0
+    },
+    {
+      "date": "2026-09-17",
+      "ventas": 144001.72,
+      "kg": -391.19,
+      "kgFacturado": -391.19,
+      "kgDespachado": -391.19,
+      "cajas": 35588.11,
+      "utilidad": 0
+    },
+    {
+      "date": "2026-09-18",
+      "ventas": 225484.16,
+      "kg": 87977.58,
+      "kgFacturado": 87977.58,
+      "kgDespachado": 87977.58,
+      "cajas": 23938.53,
+      "utilidad": 0
+    },
+    {
+      "date": "2026-09-19",
+      "ventas": -7744.96,
+      "kg": -3819.53,
+      "kgFacturado": -3819.53,
+      "kgDespachado": -3819.53,
+      "cajas": -739.16,
+      "utilidad": 0
+    },
+    {
+      "date": "2026-09-20",
+      "ventas": 0,
+      "kg": 0,
+      "kgFacturado": 0,
+      "kgDespachado": 0,
+      "cajas": 0,
+      "utilidad": 0
+    },
+    {
+      "date": "2026-09-21",
+      "ventas": 308054.53,
+      "kg": 109584.22,
+      "kgFacturado": 109584.22,
+      "kgDespachado": 109584.22,
+      "cajas": 39343.95,
+      "utilidad": 0
+    },
+    {
+      "date": "2026-09-22",
+      "ventas": 324355.1,
+      "kg": 98281.98,
+      "kgFacturado": 98281.98,
+      "kgDespachado": 98281.98,
+      "cajas": 56019.57,
+      "utilidad": 0
+    },
+    {
+      "date": "2026-09-23",
+      "ventas": 201214.54,
+      "kg": 41131.27,
+      "kgFacturado": 41131.27,
+      "kgDespachado": 41131.27,
+      "cajas": 27600.64,
+      "utilidad": 0
+    },
+    {
+      "date": "2026-09-24",
+      "ventas": 350675.29,
+      "kg": 169269.88,
+      "kgFacturado": 169269.88,
+      "kgDespachado": 169269.88,
+      "cajas": 43781.32,
+      "utilidad": 0
+    },
+    {
+      "date": "2026-09-25",
+      "ventas": 215538.78,
+      "kg": 113506.59,
+      "kgFacturado": 113506.59,
+      "kgDespachado": 113506.59,
+      "cajas": 30815.63,
+      "utilidad": 0
+    },
+    {
+      "date": "2026-09-26",
+      "ventas": 65052.24,
+      "kg": 20800.73,
+      "kgFacturado": 20800.73,
+      "kgDespachado": 20800.73,
+      "cajas": 4702.66,
+      "utilidad": 0
+    },
+    {
+      "date": "2026-09-27",
+      "ventas": 0,
+      "kg": 0,
+      "kgFacturado": 0,
+      "kgDespachado": 0,
+      "cajas": 0,
+      "utilidad": 0
+    },
+    {
+      "date": "2026-09-28",
+      "ventas": 265852.23,
+      "kg": 94991.25,
+      "kgFacturado": 94991.25,
+      "kgDespachado": 94991.25,
+      "cajas": 44723.28,
+      "utilidad": 0
+    },
+    {
+      "date": "2026-09-29",
+      "ventas": 309433.44,
+      "kg": 140589.36,
+      "kgFacturado": 140589.36,
+      "kgDespachado": 140589.36,
+      "cajas": 54464.35,
+      "utilidad": 0
+    },
+    {
+      "date": "2026-09-30",
+      "ventas": 232194.38,
+      "kg": 92219.78,
+      "kgFacturado": 92219.78,
+      "kgDespachado": 92219.78,
+      "cajas": 21729.48,
+      "utilidad": 0
+    }
+  ],
+  "2026-10": [
+    {
+      "date": "2026-10-01",
+      "ventas": 187446.47,
+      "kg": 80834.78,
+      "kgFacturado": 80834.78,
+      "kgDespachado": 80834.78,
+      "cajas": 19756.85,
+      "utilidad": 40059.4
+    },
+    {
+      "date": "2026-10-02",
+      "ventas": 145622.73,
+      "kg": 98056.26,
+      "kgFacturado": 98056.26,
+      "kgDespachado": 98056.26,
+      "cajas": 14603.64,
+      "utilidad": 29085.82
+    },
+    {
+      "date": "2026-10-03",
+      "ventas": 87382.17,
+      "kg": 35906.02,
+      "kgFacturado": 35906.02,
+      "kgDespachado": 35906.02,
+      "cajas": 9519.13,
+      "utilidad": 16370.35
+    },
+    {
+      "date": "2026-10-05",
+      "ventas": 139640.04,
+      "kg": 52704.83,
+      "kgFacturado": 52704.83,
+      "kgDespachado": 52704.83,
+      "cajas": 25398.42,
+      "utilidad": 26739.53
+    },
+    {
+      "date": "2026-10-06",
+      "ventas": 308653.47,
+      "kg": 148501.66,
+      "kgFacturado": 148501.66,
+      "kgDespachado": 148501.66,
+      "cajas": 45326.48,
+      "utilidad": 61793.82
+    },
+    {
+      "date": "2026-10-07",
+      "ventas": 317661.45,
+      "kg": 122521,
+      "kgFacturado": 122521,
+      "kgDespachado": 122521,
+      "cajas": 49178.98,
+      "utilidad": 65992.51
+    },
+    {
+      "date": "2026-10-08",
+      "ventas": 273550.67,
+      "kg": 116946.66,
+      "kgFacturado": 116946.66,
+      "kgDespachado": 116946.66,
+      "cajas": 32759.74,
+      "utilidad": 62423.76
+    },
+    {
+      "date": "2026-10-09",
+      "ventas": 159986.87,
+      "kg": 34821.53,
+      "kgFacturado": 34821.53,
+      "kgDespachado": 34821.53,
+      "cajas": 14719.82,
+      "utilidad": 34789.24
+    },
+    {
+      "date": "2026-10-10",
+      "ventas": 32882.08,
+      "kg": 13100.62,
+      "kgFacturado": 13100.62,
+      "kgDespachado": 13100.62,
+      "cajas": 1229.87,
+      "utilidad": 6120.5
+    },
+    {
+      "date": "2026-10-12",
+      "ventas": 277777.63,
+      "kg": 87303.23,
+      "kgFacturado": 87303.23,
+      "kgDespachado": 87303.23,
+      "cajas": 38560.66,
+      "utilidad": 66987.79
+    },
+    {
+      "date": "2026-10-13",
+      "ventas": 260537.15,
+      "kg": 84826.09,
+      "kgFacturado": 84826.09,
+      "kgDespachado": 84826.09,
+      "cajas": 37433.24,
+      "utilidad": 58935.4
+    },
+    {
+      "date": "2026-10-14",
+      "ventas": 234451.41,
+      "kg": 99793.23,
+      "kgFacturado": 99793.23,
+      "kgDespachado": 99793.23,
+      "cajas": 27646.94,
+      "utilidad": 60582.53
+    },
+    {
+      "date": "2026-10-15",
+      "ventas": 243129.61,
+      "kg": 92252.88,
+      "kgFacturado": 92252.88,
+      "kgDespachado": 92252.88,
+      "cajas": 27479.57,
+      "utilidad": 58550.76
+    },
+    {
+      "date": "2026-10-16",
+      "ventas": 159614.3,
+      "kg": 70449.34,
+      "kgFacturado": 70449.34,
+      "kgDespachado": 70449.34,
+      "cajas": 15731.48,
+      "utilidad": 39672.2
+    },
+    {
+      "date": "2026-10-17",
+      "ventas": 68157.14,
+      "kg": 19237.48,
+      "kgFacturado": 19237.48,
+      "kgDespachado": 19237.48,
+      "cajas": 5827.67,
+      "utilidad": 17092.71
+    },
+    {
+      "date": "2026-10-19",
+      "ventas": 206226.57,
+      "kg": 59177.03,
+      "kgFacturado": 59177.03,
+      "kgDespachado": 59177.03,
+      "cajas": 34584.26,
+      "utilidad": 53604.92
+    },
+    {
+      "date": "2026-10-20",
+      "ventas": 328649.69,
+      "kg": 105152.36,
+      "kgFacturado": 105152.36,
+      "kgDespachado": 105152.36,
+      "cajas": 45688.86,
+      "utilidad": 88335.76
+    },
+    {
+      "date": "2026-10-21",
+      "ventas": 328713.32,
+      "kg": 118056.33,
+      "kgFacturado": 118056.33,
+      "kgDespachado": 118056.33,
+      "cajas": 30199.93,
+      "utilidad": 110607.13
+    },
+    {
+      "date": "2026-10-22",
+      "ventas": 280516.63,
+      "kg": 111171.95,
+      "kgFacturado": 111171.95,
+      "kgDespachado": 111171.95,
+      "cajas": 45055.22,
+      "utilidad": 72585.99
+    },
+    {
+      "date": "2026-10-23",
+      "ventas": 168530.13,
+      "kg": 77424.49,
+      "kgFacturado": 77424.49,
+      "kgDespachado": 77424.49,
+      "cajas": 20371.94,
+      "utilidad": 21440.54
+    },
+    {
+      "date": "2026-10-24",
+      "ventas": 115193.01,
+      "kg": 47422.33,
+      "kgFacturado": 47422.33,
+      "kgDespachado": 47422.33,
+      "cajas": 14083.05,
+      "utilidad": 27660.2
+    },
+    {
+      "date": "2026-10-25",
+      "ventas": 0,
+      "kg": 0,
+      "kgFacturado": 0,
+      "kgDespachado": 0,
+      "cajas": 0,
+      "utilidad": 0
+    },
+    {
+      "date": "2026-10-26",
+      "ventas": 189791.42,
+      "kg": 95170.67,
+      "kgFacturado": 95170.67,
+      "kgDespachado": 95170.67,
+      "cajas": 28600.36,
+      "utilidad": 39527.51
+    },
+    {
+      "date": "2026-10-27",
+      "ventas": 288968.35,
+      "kg": 98003.8,
+      "kgFacturado": 98003.8,
+      "kgDespachado": 98003.8,
+      "cajas": 43762.28,
+      "utilidad": 74402.62
+    },
+    {
+      "date": "2026-10-28",
+      "ventas": 261982.96,
+      "kg": 122719.6,
+      "kgFacturado": 122719.6,
+      "kgDespachado": 122719.6,
+      "cajas": 28283.89,
+      "utilidad": 57866.98
+    },
+    {
+      "date": "2026-10-29",
+      "ventas": 265827.85,
+      "kg": 94684.34,
+      "kgFacturado": 94684.34,
+      "kgDespachado": 94684.34,
+      "cajas": 39492.71,
+      "utilidad": 67414.19
+    },
+    {
+      "date": "2026-10-30",
+      "ventas": 186580.94,
+      "kg": 62734.16,
+      "kgFacturado": 62734.16,
+      "kgDespachado": 62734.16,
+      "cajas": 23392.32,
+      "utilidad": 48712.42
+    },
+    {
+      "date": "2026-10-31",
+      "ventas": 55160.34,
+      "kg": 17463.16,
+      "kgFacturado": 17463.16,
+      "kgDespachado": 17463.16,
+      "cajas": 8799.1,
+      "utilidad": 12007.58
+    }
+  ]
+}

@@ -6,25 +6,39 @@ import { AlertTriangle } from 'lucide-react';
 type SystemSettings = Database['public']['Tables']['system_settings']['Row'];
 
 export const KillSwitchGuard: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [isActive, setIsActive] = useState(false);
+  const [isActive, setIsActive] = useState<boolean>(() => {
+    try {
+      return sessionStorage.getItem('codizulca_kill_switch_active') === 'true';
+    } catch {
+      return false;
+    }
+  });
   const [message, setMessage] = useState<string | null>('Mantenimiento programado');
-  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Initial fetch
+    // Non-blocking background check so the first module mounts and starts fetching immediately
     const fetchSettings = async () => {
-      const { data, error } = await supabase
-        .from('system_settings')
-        .select('*')
-        .limit(1)
-        .single();
-        
-      if (data) {
-        const settings = data as SystemSettings;
-        setIsActive(settings.kill_switch_active);
-        setMessage(settings.kill_switch_message);
+      try {
+        const { data } = await supabase
+          .from('system_settings')
+          .select('kill_switch_active, kill_switch_message')
+          .limit(1)
+          .single();
+
+        if (data) {
+          const settings = data as SystemSettings;
+          setIsActive(Boolean(settings.kill_switch_active));
+          setMessage(settings.kill_switch_message);
+          try {
+            sessionStorage.setItem(
+              'codizulca_kill_switch_active',
+              settings.kill_switch_active ? 'true' : 'false'
+            );
+          } catch {}
+        }
+      } catch {
+        // fail open on transient network issue
       }
-      setIsLoading(false);
     };
 
     fetchSettings();
@@ -41,8 +55,14 @@ export const KillSwitchGuard: React.FC<{ children: React.ReactNode }> = ({ child
         },
         (payload) => {
           const newData = payload.new as SystemSettings;
-          setIsActive(newData.kill_switch_active);
+          setIsActive(Boolean(newData.kill_switch_active));
           setMessage(newData.kill_switch_message);
+          try {
+            sessionStorage.setItem(
+              'codizulca_kill_switch_active',
+              newData.kill_switch_active ? 'true' : 'false'
+            );
+          } catch {}
         }
       )
       .subscribe();
@@ -51,14 +71,6 @@ export const KillSwitchGuard: React.FC<{ children: React.ReactNode }> = ({ child
       supabase.removeChannel(channel);
     };
   }, []);
-
-  if (isLoading) {
-    return (
-      <div className="flex h-screen items-center justify-center bg-gray-50">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-gray-200 border-t-primary-600"></div>
-      </div>
-    );
-  }
 
   if (isActive) {
     return (

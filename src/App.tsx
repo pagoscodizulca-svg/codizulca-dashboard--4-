@@ -10,17 +10,9 @@ import { startBuildVersionWatcher } from './lib/buildVersionWatcher';
 import { AuthGuard } from './components/layout/AuthGuard';
 import { MainLayout } from './components/layout/MainLayout';
 import { Login } from './pages/Login';
-import { CampoLayout } from './components/layout/CampoLayout';
-import { PortalLogin } from './pages/mobile/PortalLogin';
-import { CampoRuta } from './pages/mobile/CampoRuta';
-import { CampoAsistencia } from './pages/mobile/CampoAsistencia';
-import { CampoEncuestas } from './pages/mobile/CampoEncuestas';
-import { CampoInventario } from './pages/mobile/CampoInventario';
-import { CampoPrecios } from './pages/mobile/CampoPrecios';
-import { CampoMerchandising } from './pages/mobile/CampoMerchandising';
-import { PortalPerfil } from './pages/mobile/PortalPerfil';
 import { SHOW_LEGACY_PORTAL_LINK } from './lib/portalMigrationConfig';
 import { PortalMigrationRedirect } from './components/layout/PortalMigrationRedirect';
+import { prefetchDashboardOverviewBootstrap } from './lib/dashboardOverviewBootstrap';
 
 function lazyWithRetry<T extends React.ComponentType<any>>(
   factory: () => Promise<{ default: T }>
@@ -61,7 +53,18 @@ function lazyWithRetry<T extends React.ComponentType<any>>(
   });
 }
 
-const DashboardOverview = lazyWithRetry(() => import('./pages/DashboardOverview').then(m => ({ default: m.DashboardOverview })));
+const loadDashboardOverviewChunk = () => import('./pages/DashboardOverview').then(m => ({ default: m.DashboardOverview }));
+
+// Precargar chunk y datos del primer módulo en paralelo al arrancar /dashboard (elimina cascada)
+if (typeof window !== 'undefined') {
+  const p = window.location.pathname || '/';
+  if (p === '/' || p === '/dashboard' || p === '/dashboard/') {
+    void loadDashboardOverviewChunk();
+    prefetchDashboardOverviewBootstrap();
+  }
+}
+
+const DashboardOverview = lazyWithRetry(loadDashboardOverviewChunk);
 const Cuotas = lazyWithRetry(() => import('./pages/Cuotas').then(m => ({ default: m.Cuotas })));
 const Ventas = lazyWithRetry(() => import('./pages/Ventas').then(m => ({ default: m.Ventas })));
 const Clientes = lazyWithRetry(() => import('./pages/Clientes').then(m => ({ default: m.Clientes })));
@@ -70,6 +73,17 @@ const Inventario = lazyWithRetry(() => import('./pages/Inventario').then(m => ({
 const TradeMarketing = lazyWithRetry(() => import('./pages/TradeMarketing').then(m => ({ default: m.TradeMarketing })));
 const GeofenceReview = lazyWithRetry(() => import('./pages/GeofenceReview').then(m => ({ default: m.GeofenceReview })));
 const Trazabilidad = lazyWithRetry(() => import('./pages/Trazabilidad').then(m => ({ default: m.Trazabilidad })));
+
+// Lazy-load de rutas móviles /portal/* para no inflar el bundle inicial del Dashboard de Gerencia
+const CampoLayout = lazyWithRetry(() => import('./components/layout/CampoLayout').then(m => ({ default: m.CampoLayout })));
+const PortalLogin = lazyWithRetry(() => import('./pages/mobile/PortalLogin').then(m => ({ default: m.PortalLogin })));
+const CampoRuta = lazyWithRetry(() => import('./pages/mobile/CampoRuta').then(m => ({ default: m.CampoRuta })));
+const CampoAsistencia = lazyWithRetry(() => import('./pages/mobile/CampoAsistencia').then(m => ({ default: m.CampoAsistencia })));
+const CampoEncuestas = lazyWithRetry(() => import('./pages/mobile/CampoEncuestas').then(m => ({ default: m.CampoEncuestas })));
+const CampoInventario = lazyWithRetry(() => import('./pages/mobile/CampoInventario').then(m => ({ default: m.CampoInventario })));
+const CampoPrecios = lazyWithRetry(() => import('./pages/mobile/CampoPrecios').then(m => ({ default: m.CampoPrecios })));
+const CampoMerchandising = lazyWithRetry(() => import('./pages/mobile/CampoMerchandising').then(m => ({ default: m.CampoMerchandising })));
+const PortalPerfil = lazyWithRetry(() => import('./pages/mobile/PortalPerfil').then(m => ({ default: m.PortalPerfil })));
 
 const PageLoader = () => (
   <div className="flex items-center justify-center min-h-[60vh] bg-black/95 text-zinc-400 text-sm">
