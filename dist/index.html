@@ -35,10 +35,10 @@
 
         // Auto-invalidate stale Service Worker, Workbox, and volatile KPI caches on every Render deploy
         try {
-          var APP_BUILD_HASH = '87d3e11d6879';
-          var APP_BUILD_VERSION = 'v5.2-87d3e11d6879';
-          window.87d3e11d6879 = APP_BUILD_HASH;
-          window.v5.2-87d3e11d6879 = APP_BUILD_VERSION;
+          var APP_BUILD_HASH = 'a3602ec87223';
+          var APP_BUILD_VERSION = 'v5.2-a3602ec87223';
+          window.a3602ec87223 = APP_BUILD_HASH;
+          window.v5.2-a3602ec87223 = APP_BUILD_VERSION;
           var prevVersion = localStorage.getItem('codizulca_app_build_version');
           if (APP_BUILD_HASH !== 'dev' && prevVersion !== APP_BUILD_VERSION) {
             localStorage.setItem('codizulca_app_build_version', APP_BUILD_VERSION);
@@ -78,12 +78,17 @@
           }
         } catch (err) {}
 
-        // Auto-recover from Vite preload / dynamic import chunk errors after deployments
-        window.addEventListener('vite:preloadError', function() {
+        // Auto-recover from Vite preload / dynamic import chunk errors after deployments (with 30s anti-loop window)
+        window.addEventListener('vite:preloadError', function(event) {
           try {
-            if (!sessionStorage.getItem('codizulca_vite_preload_reloaded')) {
-              sessionStorage.setItem('codizulca_vite_preload_reloaded', 'true');
-              window.location.reload();
+            if (event && typeof event.preventDefault === 'function') event.preventDefault();
+            var lastAt = Number(sessionStorage.getItem('codizulca_vite_preload_reloaded_at') || '0');
+            if (!lastAt || Date.now() - lastAt > 30000) {
+              sessionStorage.setItem('codizulca_vite_preload_reloaded_at', String(Date.now()));
+              var clearPromise = 'caches' in window
+                ? caches.keys().then(function(names) { return Promise.all(names.map(function(n) { return caches.delete(n); })); }).catch(function() {})
+                : Promise.resolve();
+              clearPromise.finally(function() { window.location.reload(); });
             }
           } catch (e) {}
         });
@@ -102,14 +107,14 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="Codizulca" />
     <link rel="apple-touch-icon" href="https://placehold.co/180x180/dc2626/ffffff.png?text=C&font=sans-serif" />
-    <script type="module" crossorigin src="/assets/index-ChM3XQt-.js"></script>
+    <script type="module" crossorigin src="/assets/index-CCsdvK56.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/vendor-react-B4UWrHFm.js">
     <link rel="modulepreload" crossorigin href="/assets/vendor-pdf-CDr5kSUf.js">
     <link rel="modulepreload" crossorigin href="/assets/vendor-supabase-DYxuN0_g.js">
-    <link rel="modulepreload" crossorigin href="/assets/vendor-icons-BPRfAA0k.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-icons-BQEGvkwx.js">
     <link rel="modulepreload" crossorigin href="/assets/vendor-charts-svwAowat.js">
     <link rel="modulepreload" crossorigin href="/assets/vendor-xlsx-DlqIvCkD.js">
-    <link rel="stylesheet" crossorigin href="/assets/index-XtkUPHl7.css">
+    <link rel="stylesheet" crossorigin href="/assets/index-AUkw5s6U.css">
   <link rel="manifest" href="/manifest.webmanifest"><script id="vite-plugin-pwa:register-sw" src="/registerSW.js"></script></head>
   <body>
     <div id="root"></div>

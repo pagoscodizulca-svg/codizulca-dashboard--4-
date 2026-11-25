@@ -2,6 +2,8 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import App from './App.tsx';
+import { AppUpdateBanner } from './components/AppUpdateBanner';
+import { startAppVersionGuard } from './lib/appVersionGuard';
 import './index.css';
 
 // Protección global contra pantallazos blancos en móviles (Chrome Translate / Android WebView / Autofill)
@@ -39,10 +41,13 @@ const queryClient = new QueryClient({
   },
 });
 
+startAppVersionGuard();
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <App />
+      <AppUpdateBanner />
     </QueryClientProvider>
   </StrictMode>,
 );

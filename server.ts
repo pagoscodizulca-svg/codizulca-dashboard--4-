@@ -9212,19 +9212,31 @@ Responde con un JSON estructurado con:
         });
       `);
     });
+    const STATIC_EXT_RE = /\.(?:m?js|cjs|css|map|json|webmanifest|png|jpe?g|webp|svg|ico|gif|woff2?|ttf|eot|txt|xml)$/i;
     app.use(
       express.static(distPath, {
+        index: false,
         setHeaders: (res, filePath) => {
+          const base = path.basename(filePath).toLowerCase();
           if (
-            filePath.endsWith('index.html') ||
-            filePath.endsWith('sw.js') ||
-            filePath.endsWith('registerSW.js') ||
-            filePath.endsWith('manifest.webmanifest')
+            base === 'index.html' ||
+            base === 'version.json' ||
+            base === 'sw.js' ||
+            base === 'registersw.js' ||
+            base === 'manifest.json' ||
+            base === 'manifest.webmanifest'
           ) {
-            res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+            res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0');
             res.setHeader('Surrogate-Control', 'no-store');
             res.setHeader('Pragma', 'no-cache');
             res.setHeader('Expires', '0');
+            if (base === 'sw.js' || base === 'registersw.js') {
+              res.setHeader('Service-Worker-Allowed', '/');
+            } else if (base === 'version.json') {
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            } else if (base.endsWith('.webmanifest')) {
+              res.setHeader('Content-Type', 'application/manifest+json; charset=utf-8');
+            }
           } else if (filePath.includes(`${path.sep}assets${path.sep}`) || filePath.includes('/assets/')) {
             res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
           }
@@ -9232,10 +9244,13 @@ Responde con un JSON estructurado con:
       })
     );
     app.get('*', (req, res) => {
-      if (req.path.startsWith('/assets/')) {
-        return res.status(404).end();
+      if (req.path.startsWith('/assets/') || STATIC_EXT_RE.test(req.path)) {
+        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
+        return res.status(404).type('text/plain; charset=utf-8').send('Asset not found');
       }
-      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0');
       res.setHeader('Surrogate-Control', 'no-store');
       res.setHeader('Pragma', 'no-cache');
       res.setHeader('Expires', '0');

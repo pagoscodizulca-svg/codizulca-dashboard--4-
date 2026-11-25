@@ -78,12 +78,17 @@
           }
         } catch (err) {}
 
-        // Auto-recover from Vite preload / dynamic import chunk errors after deployments
-        window.addEventListener('vite:preloadError', function() {
+        // Auto-recover from Vite preload / dynamic import chunk errors after deployments (with 30s anti-loop window)
+        window.addEventListener('vite:preloadError', function(event) {
           try {
-            if (!sessionStorage.getItem('codizulca_vite_preload_reloaded')) {
-              sessionStorage.setItem('codizulca_vite_preload_reloaded', 'true');
-              window.location.reload();
+            if (event && typeof event.preventDefault === 'function') event.preventDefault();
+            var lastAt = Number(sessionStorage.getItem('codizulca_vite_preload_reloaded_at') || '0');
+            if (!lastAt || Date.now() - lastAt > 30000) {
+              sessionStorage.setItem('codizulca_vite_preload_reloaded_at', String(Date.now()));
+              var clearPromise = 'caches' in window
+                ? caches.keys().then(function(names) { return Promise.all(names.map(function(n) { return caches.delete(n); })); }).catch(function() {})
+                : Promise.resolve();
+              clearPromise.finally(function() { window.location.reload(); });
             }
           } catch (e) {}
         });

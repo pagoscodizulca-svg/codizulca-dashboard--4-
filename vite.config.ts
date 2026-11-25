@@ -113,26 +113,62 @@ function stubUnusedJspdfOptionalDepsPlugin(): Plugin {
 }
 
 /**
- * Automatically injects a deterministic build fingerprint into `index.html` on every
- * production build so Render deployments invalidate stale browser & SW caches with zero manual bumps.
+ * Automatically injects a deterministic build fingerprint into `index.html`, bundle globals
+ * (`__APP_BUILD_ID__`), and `dist/version.json` on every production build so Render deployments
+ * invalidate stale browser & SW caches automatically with zero manual bumps.
  */
 function injectBuildVersionPlugin(command: 'serve' | 'build'): Plugin {
-  let resolvedHash = 'dev';
+  const builtAt = new Date().toISOString();
+  const envHash = (process.env.CODIZULCA_BUILD_HASH || '').trim();
+  const resolvedHash = command === 'build' ? envHash || computeSourceHash(__dirname).slice(0, 12) : 'dev';
+  const resolvedVersion = resolvedHash === 'dev' ? 'dev' : `v5.2-${resolvedHash}`;
+  const versionPayload = `${JSON.stringify(
+    {
+      app: 'codizulca-dashboard',
+      buildId: resolvedVersion,
+      buildHash: resolvedHash,
+      builtAt,
+    },
+    null,
+    2
+  )}\n`;
+
   return {
     name: 'inject-build-version',
-    configResolved() {
-      if (command === 'build') {
-        const envHash = (process.env.CODIZULCA_BUILD_HASH || '').trim();
-        resolvedHash = envHash || computeSourceHash(__dirname).slice(0, 12);
-      } else {
-        resolvedHash = 'dev';
-      }
+    config() {
+      return {
+        define: {
+          __APP_BUILD_ID__: JSON.stringify(resolvedVersion),
+          __APP_BUILT_AT__: JSON.stringify(builtAt),
+        },
+      };
+    },
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        const pathname = (req.url || '').split('?')[0];
+        if (pathname !== '/version.json') {
+          next();
+          return;
+        }
+        res.statusCode = 200;
+        res.setHeader('Content-Type', 'application/json; charset=utf-8');
+        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
+        res.end(versionPayload);
+      });
+    },
+    generateBundle() {
+      this.emitFile({
+        type: 'asset',
+        fileName: 'version.json',
+        source: versionPayload,
+      });
     },
     transformIndexHtml(html) {
-      const version = resolvedHash === 'dev' ? 'dev' : `v5.2-${resolvedHash}`;
       return html
         .replace(/__CODIZULCA_BUILD_HASH__/g, resolvedHash)
-        .replace(/__CODIZULCA_BUILD_VERSION__/g, version);
+        .replace(/__CODIZULCA_BUILD_VERSION__/g, resolvedVersion);
     },
   };
 }
@@ -181,7 +217,7 @@ export default defineConfig(({ command }) => {
           skipWaiting: true,
           clientsClaim: true,
           cleanupOutdatedCaches: true,
-          navigateFallbackDenylist: [/^\/api\//],
+          navigateFallbackDenylist: [/^\/api\//, /\/version\.json$/i, /\/assets\//i],
         },
         devOptions: {
           enabled: false,
