@@ -527,18 +527,37 @@ export const DashboardOverview: React.FC = () => {
 
       const fetchSheetTabCsv = async (sheetName: 'Ventas' | 'Productos' | 'Clientes' | 'Supervisores'): Promise<string> => {
         const qs = new URLSearchParams({ sheet: sheetName, raw: 'true' });
-        if (forceRefresh) qs.set('refresh', 'true');
+        if (forceRefresh) {
+          qs.set('refresh', 'true');
+          qs.set('_t', String(Date.now()));
+        }
         try {
-          const res = await fetch(`/api/sheets?${qs.toString()}`);
+          const res = await fetch(`/api/sheets?${qs.toString()}`, {
+            cache: 'no-store',
+          });
           if (res.ok) {
             const txt = await res.text();
-            if (txt && !txt.trim().startsWith('<!DOCTYPE html')) return txt;
+            if (txt && !txt.trim().startsWith('<!DOCTYPE html') && !txt.trim().startsWith('<html')) {
+              if (sheetName === 'Ventas') {
+                const updatedHeader = res.headers.get('X-Sheets-Updated-At');
+                if (updatedHeader) {
+                  const dt = new Date(updatedHeader);
+                  if (!Number.isNaN(dt.getTime())) {
+                    const syncLabel = dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                    setLastSheetSync(syncLabel);
+                  }
+                }
+              }
+              return txt;
+            }
           }
         } catch {
           // fallback to direct raw export URL
         }
         try {
-          const directRes = await fetch(buildGoogleSheetRawExportUrl(sheetName));
+          const directRes = await fetch(buildGoogleSheetRawExportUrl(sheetName), {
+            cache: 'no-store',
+          });
           if (directRes.ok) {
             return await directRes.text();
           }

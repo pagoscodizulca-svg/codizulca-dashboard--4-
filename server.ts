@@ -901,12 +901,28 @@ async function startServer() {
     return sheetsDiskCache.tabs?.[tabName] || '';
   };
 
+  const isValidSheetCsvResponse = (csvText: string): boolean => {
+    if (!csvText) return false;
+    const trimmed = csvText.trim();
+    if (!trimmed || trimmed.length < 10) return false;
+    const head = trimmed.slice(0, 200).toLowerCase();
+    if (
+      head.startsWith('<!doctype') ||
+      head.startsWith('<html') ||
+      head.includes('<head>') ||
+      head.includes('<title>google')
+    ) {
+      return false;
+    }
+    return trimmed.includes(',');
+  };
+
   const persistDiskCachedSheetTab = (
     tabName: (typeof ALLOWED_GOOGLE_SHEET_TABS)[number],
     csvText: string,
     sheetId?: string
   ) => {
-    if (!csvText || !csvText.trim()) return;
+    if (!isValidSheetCsvResponse(csvText)) return;
     sheetsDiskCache.updatedAt = new Date().toISOString();
     if (sheetId) sheetsDiskCache.sheetId = sheetId;
     if (!sheetsDiskCache.tabs) sheetsDiskCache.tabs = {};
@@ -1206,12 +1222,19 @@ async function startServer() {
       if (sheetId) {
         const sheetsUrl = buildGoogleSheetRawExportUrl('Ventas', sheetId);
         const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 8000);
-        const sheetRes = await fetch(sheetsUrl, { signal: controller.signal });
+        const timeout = setTimeout(() => controller.abort(), 12000);
+        const sheetRes = await fetch(sheetsUrl, {
+          signal: controller.signal,
+          cache: 'no-store',
+          headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' },
+        });
         clearTimeout(timeout);
         if (sheetRes.ok) {
-          sheetCsv = await sheetRes.text();
-          persistDiskCachedSheetTab('Ventas', sheetCsv, sheetId);
+          const liveCsv = await sheetRes.text();
+          if (isValidSheetCsvResponse(liveCsv)) {
+            sheetCsv = liveCsv;
+            persistDiskCachedSheetTab('Ventas', sheetCsv, sheetId);
+          }
         }
       }
       if (!sheetCsv) {
@@ -1329,6 +1352,8 @@ async function startServer() {
 
   app.get('/api/sellers-monthly-volume', async (req, res) => {
     try {
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+      res.setHeader('Surrogate-Control', 'no-store');
       const forceRefresh = req.query.refresh === 'true';
       const now = Date.now();
       if (
@@ -1341,15 +1366,6 @@ async function startServer() {
 
       if (fs.existsSync(sellersVolumeCachePath)) {
         const cached = JSON.parse(fs.readFileSync(sellersVolumeCachePath, 'utf8'));
-        const cachedAgeMs = cached?.lastSync
-          ? now - new Date(cached.lastSync).getTime()
-          : Number.POSITIVE_INFINITY;
-
-        if (!forceRefresh && cachedAgeMs < SELLERS_VOLUME_CACHE_TTL_MS) {
-          sellersVolumeMemoryCache = { payload: cached, timestamp: now };
-          return res.json(cached);
-        }
-
         const refreshed = await refreshNovemberInSellersVolumeCache(cached);
         return res.json(refreshed);
       }
@@ -7769,9 +7785,12 @@ Responde con un JSON estructurado con:
     return res.json(bcvCache);
   });
 
-  // Google Sheets Proxy with in-memory + disk-backed caching and strict 6-tab allowlist (Data Minimization)
-  const sheetCache = new Map<string, { data: string; timestamp: number }>();
-  const SHEET_CACHE_TTL_MS = 120_000;
+  // Google Sheets Proxy with live-first fetching, in-flight deduplication, strict CSV validation,
+  // and disk fallback ONLY on network outage (never stamped fresh on server cold start).
+  type SheetCacheEntry = { data: string; timestamp: number; source: 'live' | 'disk' };
+  const sheetCache = new Map<string, SheetCacheEntry>();
+  const inFlightSheetFetches = new Map<string, Promise<{ csvText: string; source: 'live' | 'memory-cache' | 'disk-fallback' }>>();
+  const SHEET_CACHE_TTL_MS = 45_000;
   const CANONICAL_TAB_LOOKUP: Record<string, (typeof ALLOWED_GOOGLE_SHEET_TABS)[number]> = {
     ventas: 'Ventas',
     'cuotas volumen': 'Cuotas Volumen',
@@ -7781,13 +7800,12 @@ Responde con un JSON estructurado con:
     supervisores: 'Supervisores',
   };
 
-  // Pre-warm sheetCache from data_google_sheets_cache.json on server startup
+  // Pre-load disk snapshots strictly as cold-outage fallback (timestamp: 0 so first request ALWAYS fetches live)
   for (const tab of ALLOWED_GOOGLE_SHEET_TABS) {
     const diskCsv = getDiskCachedSheetTab(tab);
-    if (diskCsv) {
-      const initTs = Date.now();
-      sheetCache.set(`sheet::${tab}::raw`, { data: diskCsv, timestamp: initTs });
-      sheetCache.set(`sheet::${tab}::std`, { data: diskCsv, timestamp: initTs });
+    if (diskCsv && isValidSheetCsvResponse(diskCsv)) {
+      sheetCache.set(`sheet::${tab}::raw`, { data: diskCsv, timestamp: 0, source: 'disk' });
+      sheetCache.set(`sheet::${tab}::std`, { data: diskCsv, timestamp: 0, source: 'disk' });
     }
   }
 
@@ -7795,75 +7813,130 @@ Responde con un JSON estructurado con:
     return getServerConfiguredSheetId();
   };
 
-  const fetchAllowedTabCsvServerSide = async (
+  const fetchAllowedTabCsvServerSideDetailed = async (
     tabName: (typeof ALLOWED_GOOGLE_SHEET_TABS)[number],
     forceRefresh = false,
     preferRawMatrix = true
-  ): Promise<string> => {
+  ): Promise<{ csvText: string; source: 'live' | 'memory-cache' | 'disk-fallback' }> => {
     const allowedTab = assertAllowedSheetTab(tabName);
     const cacheKey = `sheet::${allowedTab}::${preferRawMatrix ? 'raw' : 'std'}`;
     const cached = sheetCache.get(cacheKey);
     const diskFallback = getDiskCachedSheetTab(allowedTab);
     const now = Date.now();
-    if (!forceRefresh && cached && now - cached.timestamp < SHEET_CACHE_TTL_MS) {
-      return cached.data;
+
+    if (
+      !forceRefresh &&
+      cached &&
+      cached.source === 'live' &&
+      now - cached.timestamp < SHEET_CACHE_TTL_MS
+    ) {
+      return { csvText: cached.data, source: 'memory-cache' };
+    }
+
+    if (!forceRefresh && inFlightSheetFetches.has(cacheKey)) {
+      return inFlightSheetFetches.get(cacheKey)!;
     }
 
     const sheetId = resolveConfiguredSheetId();
     if (!sheetId) {
-      if (cached?.data) return cached.data;
-      if (diskFallback) return diskFallback;
+      if (cached?.data) return { csvText: cached.data, source: 'disk-fallback' };
+      if (diskFallback) return { csvText: diskFallback, source: 'disk-fallback' };
       throw new Error('Missing server configuration: process.env.GOOGLE_SHEET_ID is not set');
     }
 
-    const tabGid = GOOGLE_SHEET_TAB_GIDS[allowedTab];
-    const url = preferRawMatrix
-      ? `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${tabGid}`
-      : `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(allowedTab)}`;
+    const fetchPromise = (async (): Promise<{ csvText: string; source: 'live' | 'memory-cache' | 'disk-fallback' }> => {
+      const tabGid = GOOGLE_SHEET_TAB_GIDS[allowedTab];
+      const url = preferRawMatrix
+        ? `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${tabGid}`
+        : `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(allowedTab)}`;
 
-    let csvText = '';
+      let csvText = '';
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 14000);
+        const response = await fetch(url, {
+          signal: controller.signal,
+          cache: 'no-store',
+          headers: {
+            'Cache-Control': 'no-cache, no-store',
+            Pragma: 'no-cache',
+          },
+        });
+        clearTimeout(timeout);
+
+        if (!response.ok) {
+          throw new Error(`Google Sheets responded with status ${response.status}`);
+        }
+        const rawText = await response.text();
+        if (!isValidSheetCsvResponse(rawText)) {
+          throw new Error(`Google Sheets returned non-CSV payload for tab ${allowedTab}`);
+        }
+        csvText = rawText;
+      } catch (fetchErr: any) {
+        console.warn(`[Sheets Live Fetch Fallback] ${allowedTab}: ${fetchErr?.message}`);
+        if (cached?.data) return { csvText: cached.data, source: 'disk-fallback' };
+        if (diskFallback) return { csvText: diskFallback, source: 'disk-fallback' };
+        throw fetchErr;
+      }
+
+      if (allowedTab === 'Productos' && Array.isArray(historicalAllCache) && historicalAllCache.length > 0) {
+        const extraMap = new Map<string, string>();
+        for (const r of historicalAllCache) {
+          const id = String(r.id_articulo || '').trim();
+          const name = String(r.articulo || '').replace(/"/g, '').trim();
+          if (id && name && !/^(Prod\s|Producto\s|ART[IÍ]CULO\s*#)/i.test(name)) {
+            extraMap.set(id, name);
+          }
+        }
+        const extraLines: string[] = [];
+        for (const [id, name] of extraMap.entries()) {
+          if (!csvText.includes(`"${id}",`) && !csvText.includes(`${id},`)) {
+            extraLines.push(`"${id}","${name}","GENERAL"`);
+          }
+        }
+        if (extraLines.length > 0) {
+          csvText = csvText.trimEnd() + '\n' + extraLines.join('\n') + '\n';
+        }
+      }
+
+      const fetchedAt = Date.now();
+      sheetCache.set(`sheet::${allowedTab}::raw`, { data: csvText, timestamp: fetchedAt, source: 'live' });
+      sheetCache.set(`sheet::${allowedTab}::std`, { data: csvText, timestamp: fetchedAt, source: 'live' });
+      persistDiskCachedSheetTab(allowedTab, csvText, sheetId);
+
+      // Invalidate derived in-memory aggregates whenever fresh Ventas or Cuotas Volumen arrive
+      if (allowedTab === 'Ventas') {
+        sellersVolumeMemoryCache = null;
+      }
+      if (allowedTab === 'Cuotas Volumen' || allowedTab === 'Ventas') {
+        skuVolumeResponseCache = null;
+      }
+
+      return { csvText, source: 'live' };
+    })();
+
+    inFlightSheetFetches.set(cacheKey, fetchPromise);
     try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 12000);
-      const response = await fetch(url, { signal: controller.signal });
-      clearTimeout(timeout);
-
-      if (!response.ok) {
-        throw new Error(`Google Sheets responded with status ${response.status}`);
-      }
-      csvText = await response.text();
-    } catch (fetchErr: any) {
-      if (cached?.data) return cached.data;
-      if (diskFallback) return diskFallback;
-      throw fetchErr;
+      return await fetchPromise;
+    } finally {
+      inFlightSheetFetches.delete(cacheKey);
     }
+  };
 
-    if (allowedTab === 'Productos' && Array.isArray(historicalAllCache) && historicalAllCache.length > 0) {
-      const extraMap = new Map<string, string>();
-      for (const r of historicalAllCache) {
-        const id = String(r.id_articulo || '').trim();
-        const name = String(r.articulo || '').replace(/"/g, '').trim();
-        if (id && name && !/^(Prod\s|Producto\s|ART[IÍ]CULO\s*#)/i.test(name)) {
-          extraMap.set(id, name);
-        }
-      }
-      const extraLines: string[] = [];
-      for (const [id, name] of extraMap.entries()) {
-        if (!csvText.includes(`"${id}",`) && !csvText.includes(`${id},`)) {
-          extraLines.push(`"${id}","${name}","GENERAL"`);
-        }
-      }
-      if (extraLines.length > 0) {
-        csvText = csvText.trimEnd() + '\n' + extraLines.join('\n') + '\n';
-      }
-    }
-
-    sheetCache.set(cacheKey, { data: csvText, timestamp: now });
-    persistDiskCachedSheetTab(allowedTab, csvText, sheetId);
-    return csvText;
+  const fetchAllowedTabCsvServerSide = async (
+    tabName: (typeof ALLOWED_GOOGLE_SHEET_TABS)[number],
+    forceRefresh = false,
+    preferRawMatrix = true
+  ): Promise<string> => {
+    const result = await fetchAllowedTabCsvServerSideDetailed(tabName, forceRefresh, preferRawMatrix);
+    return result.csvText;
   };
 
   app.get('/api/sheets', async (req, res) => {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Surrogate-Control', 'no-store');
+    res.setHeader('Pragma', 'no-cache');
+
     const rawRequested = req.query.sheet ? String(req.query.sheet).trim() : 'Ventas';
     const canonicalTab = CANONICAL_TAB_LOOKUP[rawRequested.toLowerCase()];
     if (!canonicalTab) {
@@ -7880,8 +7953,12 @@ Responde con un JSON estructurado con:
     const diskFallback = getDiskCachedSheetTab(canonicalTab);
 
     try {
-      const csvText = await fetchAllowedTabCsvServerSide(canonicalTab, forceRefresh, preferRawMatrix);
+      const { csvText, source } = await fetchAllowedTabCsvServerSideDetailed(canonicalTab, forceRefresh, preferRawMatrix);
       res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('X-Sheets-Source', source);
+      if (sheetsDiskCache.updatedAt) {
+        res.setHeader('X-Sheets-Updated-At', sheetsDiskCache.updatedAt);
+      }
       return res.send(csvText);
     } catch (err: any) {
       if (err instanceof DisallowedSheetTabError) {
@@ -7890,6 +7967,10 @@ Responde con un JSON estructurado con:
       console.warn('Warning: Google Sheet fetch issue, serving cached fallback if available:', err?.message);
       if (cached?.data || diskFallback) {
         res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+        res.setHeader('X-Sheets-Source', 'disk-fallback');
+        if (sheetsDiskCache.updatedAt) {
+          res.setHeader('X-Sheets-Updated-At', sheetsDiskCache.updatedAt);
+        }
         return res.send(cached?.data || diskFallback);
       }
       return res.status(502).json({ error: 'Failed to fetch from Google Sheets' });

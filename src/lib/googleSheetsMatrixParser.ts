@@ -450,10 +450,27 @@ export interface SheetVentasParseResult {
   rows: SheetVentasDetailRow[];
   totalRawDataRows: number;
   ignoredBeforeCutoffCount: number;
+  ignoredExcludedInternalCount?: number;
   acceptedFromCutoffCount: number;
   rejectedMalformedCount?: number;
   cutoffDate: string;
 }
+
+/**
+ * Cuentas administrativas/internas y de empleados que no forman parte de la facturación
+ * comercial (p. ej. traslados/cierres internos de GERENCIA LC u OFICINA EMPLEADOS).
+ * Se filtran defensivamente para impedir que inflen los KPIs comerciales de Noviembre.
+ */
+export const EXCLUDED_INTERNAL_VENTAS_ACCOUNTS = new Set<string>([
+  'GERENCIA LC',
+  'OFICINA - AMERICO ALFONZO',
+  'OFICINA - JUAN URDANETA',
+  'OFICINA - MARIA URDANETA',
+  'OFICINA EMPLEADOS',
+  'EMPLEADOS STZ',
+]);
+
+const SUMMARY_GARBAGE_TOKEN_REGEX = /\b(SUB\s*[-]?\s*TOTAL|TOTAL\s*GENERAL|TOTAL\s*MES|GRAN\s*TOTAL|^TOTAL$|^SUBTOTAL$)\b/i;
 
 /**
  * Parsea la pestaña `Ventas` (A1:K...) aplicando:
@@ -523,6 +540,7 @@ export function parseVentasSheetCsv(
   const rows: SheetVentasDetailRow[] = [];
   let totalRawDataRows = 0;
   let ignoredBeforeCutoffCount = 0;
+  let ignoredExcludedInternalCount = 0;
   let rejectedMalformedCount = 0;
 
   for (let r = 1; r < matrix.length; r++) {
@@ -544,7 +562,25 @@ export function parseVentasSheetCsv(
     const idCliente = normalizeCatalogKey(line[idxCliente]);
     const idArticulo = normalizeCatalogKey(line[idxArticulo]);
     const vendedorRaw = normalizeSheetSellerOrSupervisorKey(line[idxVendedor]);
+
+    if (
+      SUMMARY_GARBAGE_TOKEN_REGEX.test(idCliente) ||
+      SUMMARY_GARBAGE_TOKEN_REGEX.test(idArticulo) ||
+      SUMMARY_GARBAGE_TOKEN_REGEX.test(vendedorRaw)
+    ) {
+      rejectedMalformedCount++;
+      continue;
+    }
+
     const canonicalVendedor = normalizeSellerName(vendedorRaw) || vendedorRaw;
+    if (
+      EXCLUDED_INTERNAL_VENTAS_ACCOUNTS.has(vendedorRaw) ||
+      EXCLUDED_INTERNAL_VENTAS_ACCOUNTS.has(canonicalVendedor)
+    ) {
+      ignoredExcludedInternalCount++;
+      continue;
+    }
+
     const vendedor = vendedorRaw.startsWith('OSCAR ORTIZ-')
       ? vendedorRaw
       : canonicalVendedor;
@@ -593,6 +629,7 @@ export function parseVentasSheetCsv(
     rows,
     totalRawDataRows,
     ignoredBeforeCutoffCount,
+    ignoredExcludedInternalCount,
     acceptedFromCutoffCount: rows.length,
     rejectedMalformedCount,
     cutoffDate,

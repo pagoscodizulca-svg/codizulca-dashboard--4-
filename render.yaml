@@ -18,3 +18,5 @@ services:
         value: https://uterioexpfweghxfbvoa.supabase.co
       - key: SUPABASE_URL
         value: https://uterioexpfweghxfbvoa.supabase.co
+      - key: GOOGLE_SHEET_ID
+        sync: false
