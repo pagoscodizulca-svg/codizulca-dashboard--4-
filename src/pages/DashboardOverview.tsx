@@ -10,19 +10,16 @@ import {
 import { supabase } from '../lib/supabase';
 import {
   NOVEMBER_STRICT_CUTOFF_DATE,
-  buildGoogleSheetRawExportUrl,
   parseClientesCatalogCsv,
   parseProductosCatalogCsv,
   parseSupervisoresCatalogCsv,
   parseVentasSheetCsv,
 } from '../lib/googleSheetsMatrixParser';
 import {
-  calculateOctober2026SummaryFromRows,
   convertSheetVentasRowsToDetailRecords,
   fetchHistorialOctubre2026,
   HistorialOctubre2026Summary,
   isStrictNovember2026Date,
-  loadDetailedHistorySalesJanToOct2026,
 } from '../lib/supabaseHistoryLoader';
 import { 
   DollarSign, 
@@ -515,6 +512,7 @@ export const DashboardOverview: React.FC = () => {
 
   const fetchKpis = React.useCallback(async (forceRefresh = false) => {
     setKpiData(prev => ({ ...prev, isLoading: true }));
+    setNovemberSummary(prev => ({ ...prev, isLoading: prev.facturacionTotal === 0 }));
     setIsHistoricalLoading(true);
     try {
       if (forceRefresh) {
@@ -526,48 +524,60 @@ export const DashboardOverview: React.FC = () => {
       }
 
       const fetchSheetTabCsv = async (sheetName: 'Ventas' | 'Productos' | 'Clientes' | 'Supervisores'): Promise<string> => {
-        const qs = new URLSearchParams({ sheet: sheetName, raw: 'true' });
-        if (forceRefresh) {
-          qs.set('refresh', 'true');
-          qs.set('_t', String(Date.now()));
-        }
-        try {
-          const res = await fetch(`/api/sheets?${qs.toString()}`, {
-            cache: 'no-store',
-          });
-          if (res.ok) {
-            const txt = await res.text();
-            if (txt && !txt.trim().startsWith('<!DOCTYPE html') && !txt.trim().startsWith('<html')) {
-              if (sheetName === 'Ventas') {
-                const updatedHeader = res.headers.get('X-Sheets-Updated-At');
-                if (updatedHeader) {
-                  const dt = new Date(updatedHeader);
-                  if (!Number.isNaN(dt.getTime())) {
-                    const syncLabel = dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                    setLastSheetSync(syncLabel);
+        const maxAttempts = sheetName === 'Ventas' ? 3 : 2;
+        for (let attempt = 0; attempt < maxAttempts; attempt++) {
+          const qs = new URLSearchParams({ sheet: sheetName, raw: 'true' });
+          if (forceRefresh && attempt === 0) {
+            qs.set('refresh', 'true');
+          }
+          if (forceRefresh || attempt > 0) {
+            qs.set('_t', String(Date.now()));
+          }
+          try {
+            const controller = new AbortController();
+            const timeoutId = window.setTimeout(() => controller.abort(), 14000);
+            const res = await fetch(`/api/sheets?${qs.toString()}`, {
+              cache: 'no-store',
+              signal: controller.signal,
+            });
+            window.clearTimeout(timeoutId);
+            if (res.ok) {
+              const txt = await res.text();
+              const trimmed = txt.trim();
+              if (
+                trimmed &&
+                !trimmed.startsWith('<!DOCTYPE') &&
+                !trimmed.startsWith('<html') &&
+                trimmed.includes(',')
+              ) {
+                if (sheetName === 'Ventas') {
+                  const updatedHeader = res.headers.get('X-Sheets-Updated-At');
+                  if (updatedHeader) {
+                    const dt = new Date(updatedHeader);
+                    if (!Number.isNaN(dt.getTime())) {
+                      const syncLabel = dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                      setLastSheetSync(syncLabel);
+                    }
                   }
                 }
+                return txt;
               }
-              return txt;
             }
+          } catch {
+            // retry on transient cold-start / network error
           }
-        } catch {
-          // fallback to direct raw export URL
-        }
-        try {
-          const directRes = await fetch(buildGoogleSheetRawExportUrl(sheetName), {
-            cache: 'no-store',
-          });
-          if (directRes.ok) {
-            return await directRes.text();
+          if (attempt < maxAttempts - 1) {
+            await new Promise((r) => window.setTimeout(r, 500 * (attempt + 1)));
           }
-        } catch {
-          // ignore
         }
         return '';
       };
 
-      // 1. Fetch Google Sheets Catalogs (Productos, Clientes, Supervisores) + Ventas in parallel
+      // =========================================================================
+      // ETAPA 1 (PRIORIDAD INMEDIATA ~1-2s): Google Sheets Noviembre 2026
+      // Pinta las 5 tarjetas KPI, tendencia diaria y top productos SIN esperar
+      // a la carga histórica de Supabase.
+      // =========================================================================
       const [ventasCsvText, productosCsvText, clientesCsvText, supervisoresCsvText] = await Promise.all([
         fetchSheetTabCsv('Ventas'),
         fetchSheetTabCsv('Productos'),
@@ -586,7 +596,6 @@ export const DashboardOverview: React.FC = () => {
             Object.entries(parsedCache).forEach(([k, v]) => {
               const cleanKey = String(k || '').trim().replace(/^0+/, '') || String(k || '').trim();
               const val = String(v || '').trim();
-              // Only use cached entry if SKU is not already in the official PRODUCT_CATALOG_BY_SKU
               if (cleanKey && val && !isGenericProductLabel(val) && !PRODUCT_CATALOG_BY_SKU[cleanKey]) {
                 productMap.set(k, val);
                 productMap.set(cleanKey, val);
@@ -624,7 +633,6 @@ export const DashboardOverview: React.FC = () => {
         supervisorBySeller,
       };
 
-      // 2. Parse Google Sheet 'Ventas' with STRICT CUTOFF: ignore all rows where Fecha < '2026-11-01'
       const parsedNovemberSheet = ventasCsvText
         ? parseVentasSheetCsv(ventasCsvText, NOVEMBER_STRICT_CUTOFF_DATE)
         : { rows: [], ignoredBeforeCutoffCount: 0, totalRawDataRows: 0, acceptedFromCutoffCount: 0, cutoffDate: NOVEMBER_STRICT_CUTOFF_DATE };
@@ -634,95 +642,30 @@ export const DashboardOverview: React.FC = () => {
         catalogs
       );
 
-      // 3. Load full row-by-row history from Supabase `history_sales` (2026-01-01 .. 2026-10-31)
-      //    using 5-batch concurrent pagination (.select('*', { count: 'exact' }) + .range(from, to)) + IndexedDB cache
-      let janToOctDetailRows: Awaited<ReturnType<typeof loadDetailedHistorySalesJanToOct2026>>['rows'] = [];
-      try {
-        const historyResult = await loadDetailedHistorySalesJanToOct2026({
-          forceRefresh,
-        });
-        janToOctDetailRows = historyResult.rows;
-      } catch (histErr) {
-        console.warn('[Sync] Failed to load detailed history_sales rows:', histErr);
-      }
-
-      // Enrich productMap with any valid product name from historical ERP records not yet in catalog
-      janToOctDetailRows.forEach((r) => {
-        const cleanSku = String(r.id_articulo || '').trim().replace(/^0+/, '') || String(r.id_articulo || '').trim();
-        if (cleanSku && !productMap.has(cleanSku) && r.articulo && !isGenericProductLabel(r.articulo)) {
-          productMap.set(cleanSku, r.articulo.trim());
-        }
+      const mapDetailRecordToFacturacionRow = (r: (typeof novemberDetailRows)[number]) => ({
+        fecha: r.fecha,
+        idCliente: r.id_cliente,
+        cliente: r.cliente,
+        idArt: r.id_articulo,
+        articulo: resolveCatalogProductName(r.id_articulo, r.articulo, productMap),
+        vendedor: r.vendedor,
+        supervisor: supervisorBySeller.get(r.vendedor) || r.supervisor,
+        categoria:
+          productCategoryMap.get(r.id_articulo) ||
+          productCategoryMap.get(String(r.id_articulo || '').replace(/^0+/, '')) ||
+          'GENERAL',
+        cajas: r.cajas,
+        unidades: r.unidades,
+        kg: r.kgs_lts,
+        monto: r.monto,
+        costo: r.costo,
+        utilidad: r.utilidad,
+        source: r.source,
       });
 
-      try {
-        localStorage.setItem('app_product_map_cache', JSON.stringify(Object.fromEntries(productMap.entries())));
-      } catch {}
+      const novemberMappedRows = novemberDetailRows.map(mapDetailRecordToFacturacionRow);
 
-      // 4. Combine Jan-Oct (Supabase `history_sales`) + Nov (Google Sheets `Ventas` >= 2026-11-01)
-      const unifiedDetailRows = [...janToOctDetailRows, ...novemberDetailRows];
-      setRawFacturacionRows(
-        unifiedDetailRows.map((r) => ({
-          fecha: r.fecha,
-          idCliente: r.id_cliente,
-          cliente: r.cliente,
-          idArt: r.id_articulo,
-          articulo: resolveCatalogProductName(r.id_articulo, r.articulo, productMap),
-          vendedor: r.vendedor,
-          supervisor: supervisorBySeller.get(r.vendedor) || r.supervisor,
-          categoria: productCategoryMap.get(r.id_articulo) || productCategoryMap.get(String(r.id_articulo || '').replace(/^0+/, '')) || 'GENERAL',
-          cajas: r.cajas,
-          unidades: r.unidades,
-          kg: r.kgs_lts,
-          monto: r.monto,
-          costo: r.costo,
-          utilidad: r.utilidad,
-          source: r.source,
-        }))
-      );
-
-      // 5. Aggregate Jan-Oct detail rows by (idArt | date) for `historicalData`
-      if (janToOctDetailRows.length > 0) {
-        const histAgg = new Map<string, {
-          idArt: string;
-          baseName: string;
-          facturado: number;
-          montoFA: number;
-          montoDV: number;
-          despachado: number;
-          kgFacturado: number;
-          cajas: number;
-          date: string;
-        }>();
-
-        janToOctDetailRows.forEach((r) => {
-          const aggKey = `${r.id_articulo}|${r.fecha}`;
-          if (!histAgg.has(aggKey)) {
-            histAgg.set(aggKey, {
-              idArt: r.id_articulo,
-              baseName: resolveCatalogProductName(r.id_articulo, r.articulo, productMap),
-              facturado: 0,
-              montoFA: 0,
-              montoDV: 0,
-              despachado: 0,
-              kgFacturado: 0,
-              cajas: 0,
-              date: r.fecha,
-            });
-          }
-          const item = histAgg.get(aggKey)!;
-          item.facturado += r.monto;
-          if (r.monto < 0) item.montoDV += r.monto;
-          else item.montoFA += r.monto;
-          item.despachado += r.kgs_lts;
-          item.kgFacturado += r.kgs_lts;
-          item.cajas += r.cajas;
-        });
-
-        const aggregatedHistorical = Array.from(histAgg.values());
-        setHistoricalData(aggregatedHistorical);
-      }
-
-      // 6. Build `rawProductData` from November rows (>= 2026-11-01)
+      // Build `rawProductData` from November rows (>= 2026-11-01)
       const novProdAgg = new Map<string, {
         idArt: string;
         date: string;
@@ -734,54 +677,6 @@ export const DashboardOverview: React.FC = () => {
         kgDespachado: number;
       }>();
 
-      novemberDetailRows.forEach((r) => {
-        if (!r.id_articulo || !r.fecha) return;
-        const aggKey = `${r.id_articulo}|${r.fecha}`;
-        if (!novProdAgg.has(aggKey)) {
-          novProdAgg.set(aggKey, {
-            idArt: r.id_articulo,
-            date: r.fecha,
-            facturado: 0,
-            montoFA: 0,
-            montoDV: 0,
-            despachado: 0,
-            kgFacturado: 0,
-            kgDespachado: 0,
-          });
-        }
-        const p = novProdAgg.get(aggKey)!;
-        p.facturado += r.monto;
-        if (r.monto < 0) p.montoDV += r.monto;
-        else p.montoFA += r.monto;
-        p.kgFacturado += r.kgs_lts;
-        p.kgDespachado += r.kgs_lts;
-      });
-
-      const pArr = Array.from(novProdAgg.values()).map((p) => ({
-        idArt: p.idArt,
-        baseName: resolveCatalogProductName(p.idArt, undefined, productMap),
-        facturado: p.facturado,
-        montoFA: p.montoFA,
-        montoDV: p.montoDV,
-        despachado: p.kgDespachado,
-        kgFacturado: p.kgFacturado,
-        date: p.date,
-      }));
-      setRawProductData(pArr);
-
-      // 7. Calcular el Cierre Histórico de Octubre 2026 desde Supabase (`fetchHistorialOctubre2026`)
-      let octSummary = calculateOctober2026SummaryFromRows(janToOctDetailRows);
-      if (octSummary.rows.length === 0) {
-        try {
-          octSummary = await fetchHistorialOctubre2026({ forceRefresh });
-        } catch (octErr) {
-          console.warn('[Sync] Failed dedicated fetchHistorialOctubre2026:', octErr);
-        }
-      }
-      setHistorialOctubre2026(octSummary);
-
-      // 8. Calcular estrictamente el período activo "Noviembre 2026" (2026-11-01 a 2026-11-30)
-      //    EXCLUYENDO rotundamente cualquier registro de Octubre (2026-10-XX)
       const strictNovemberRows = novemberDetailRows.filter((r) =>
         isStrictNovember2026Date(r.fecha)
       );
@@ -798,7 +693,7 @@ export const DashboardOverview: React.FC = () => {
         novCajas += r.cajas;
         novKg += r.kgs_lts;
 
-        if (r.fecha && isStrictNovember2026Date(r.fecha)) {
+        if (r.fecha) {
           if (!novTrends.has(r.fecha)) {
             novTrends.set(r.fecha, { date: r.fecha, ventas: 0, kg: 0, kgFacturado: 0, kgDespachado: 0 });
           }
@@ -807,6 +702,28 @@ export const DashboardOverview: React.FC = () => {
           t.kg += r.kgs_lts;
           t.kgFacturado += r.kgs_lts;
           t.kgDespachado += r.kgs_lts;
+
+          if (r.id_articulo) {
+            const aggKey = `${r.id_articulo}|${r.fecha}`;
+            if (!novProdAgg.has(aggKey)) {
+              novProdAgg.set(aggKey, {
+                idArt: r.id_articulo,
+                date: r.fecha,
+                facturado: 0,
+                montoFA: 0,
+                montoDV: 0,
+                despachado: 0,
+                kgFacturado: 0,
+                kgDespachado: 0,
+              });
+            }
+            const p = novProdAgg.get(aggKey)!;
+            p.facturado += r.monto;
+            if (r.monto < 0) p.montoDV += r.monto;
+            else p.montoFA += r.monto;
+            p.kgFacturado += r.kgs_lts;
+            p.kgDespachado += r.kgs_lts;
+          }
         }
       });
 
@@ -817,27 +734,44 @@ export const DashboardOverview: React.FC = () => {
       const novPctUtilidad = novFacturacion > 0 ? (novUtilidad / novFacturacion) * 100 : 0;
       const sortedNovTrends = Array.from(novTrends.values()).sort((a, b) => a.date.localeCompare(b.date));
 
-      setNovemberSummary({
-        facturacionTotal: novFacturacion,
-        utilidadBruta: novUtilidad,
-        porcentajeUtilidad: novPctUtilidad,
-        cajasDespachadas: novCajas,
-        totalKilogramos: novKg,
-        tendenciaDiaria: sortedNovTrends,
-        isLoading: false,
-      });
+      const pArr = Array.from(novProdAgg.values()).map((p) => ({
+        idArt: p.idArt,
+        baseName: resolveCatalogProductName(p.idArt, undefined, productMap),
+        facturado: p.facturado,
+        montoFA: p.montoFA,
+        montoDV: p.montoDV,
+        despachado: p.kgDespachado,
+        kgFacturado: p.kgFacturado,
+        date: p.date,
+      }));
 
-      // Si hay 0 registros en Noviembre 2026, abre limpiamente en 0,00 sin caer jamás en datos de Octubre
-      setKpiData({
-        facturacion: novFacturacion,
-        utilidad: novUtilidad,
-        cajas: novCajas,
-        kg: novKg,
-        isLoading: false,
-      });
-      setTrendData(sortedNovTrends);
+      // Solo actualizar Noviembre si obtuvimos CSV válido (o si aún no había datos) para no pisar KPIs válidos con 0 ante un fallo transitorio
+      if (ventasCsvText || strictNovemberRows.length > 0) {
+        setRawProductData(pArr);
+        setRawFacturacionRows(novemberMappedRows);
+        setNovemberSummary({
+          facturacionTotal: novFacturacion,
+          utilidadBruta: novUtilidad,
+          porcentajeUtilidad: novPctUtilidad,
+          cajasDespachadas: novCajas,
+          totalKilogramos: novKg,
+          tendenciaDiaria: sortedNovTrends,
+          isLoading: false,
+        });
+        setKpiData({
+          facturacion: novFacturacion,
+          utilidad: novUtilidad,
+          cajas: novCajas,
+          kg: novKg,
+          isLoading: false,
+        });
+        setTrendData(sortedNovTrends);
+      } else {
+        setNovemberSummary((prev) => ({ ...prev, isLoading: false }));
+        setKpiData((prev) => ({ ...prev, isLoading: false }));
+      }
 
-      if (forceRefresh) {
+      if (forceRefresh && ventasCsvText) {
         const nowStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         setLastSheetSync(nowStr);
         try {
@@ -846,9 +780,147 @@ export const DashboardOverview: React.FC = () => {
         setSheetSyncSuccessMessage('Google Sheets y Supabase sincronizados exitosamente con el dashboard.');
         setTimeout(() => setSheetSyncSuccessMessage(null), 4000);
       }
+
+      // =========================================================================
+      // ETAPA 2 (SEGUNDO PLANO NO BLOQUEANTE): Histórico Ene-Oct + Cierre Octubre
+      // Evita el statement timeout (57014) del escaneo masivo de 325k filas en
+      // history_sales cargando el agregado Ene-Oct (~370 KB en <150ms) y el cierre
+      // exacto de Octubre 2026 (29,722 filas) en paralelo.
+      // =========================================================================
+      const MONTH_NAME_TO_MM: Record<string, string> = {
+        ENERO: '01',
+        FEBRERO: '02',
+        MARZO: '03',
+        ABRIL: '04',
+        MAYO: '05',
+        JUNIO: '06',
+        JULIO: '07',
+        AGOSTO: '08',
+        SEPTIEMBRE: '09',
+        OCTUBRE: '10',
+        NOVIEMBRE: '11',
+        DICIEMBRE: '12',
+      };
+
+      const aggregatedHistoryPromise = (async () => {
+        try {
+          const histRes = await fetch('/api/historical-sales', { cache: 'no-store' });
+          if (!histRes.ok) return [];
+          const rows = await histRes.json();
+          if (!Array.isArray(rows)) return [];
+          const mapped = rows
+            .map((r: any) => {
+              const idArt = String(r.id_articulo || '').trim();
+              const mesUpper = String(r.mes || '').trim().toUpperCase();
+              const mm = MONTH_NAME_TO_MM[mesUpper];
+              if (!idArt || !mm || mm === '11') return null;
+              const ano = Number(r.ano) || 2026;
+              const cleanSku = idArt.replace(/^0+/, '') || idArt;
+              if (cleanSku && !productMap.has(cleanSku) && r.articulo && !isGenericProductLabel(r.articulo)) {
+                productMap.set(cleanSku, String(r.articulo).trim());
+              }
+              const monto = Number(r.monto) || 0;
+              return {
+                idArt,
+                baseName: resolveCatalogProductName(idArt, r.articulo, productMap),
+                facturado: monto,
+                montoFA: r.montoFA !== undefined ? Number(r.montoFA) || 0 : monto > 0 ? monto : 0,
+                montoDV: r.montoDV !== undefined ? Number(r.montoDV) || 0 : monto < 0 ? monto : 0,
+                despachado: Number(r.kgs_lts) || 0,
+                kgFacturado: Number(r.kgs_lts) || 0,
+                cajas: Number(r.cajas) || 0,
+                date: `${ano}-${mm}-01`,
+              };
+            })
+            .filter(Boolean);
+          if (mapped.length > 0) {
+            setHistoricalData(mapped);
+          }
+          return mapped;
+        } catch (histErr) {
+          console.warn('[Sync] Failed to load /api/historical-sales:', histErr);
+          return [];
+        }
+      })();
+
+      const octoberSummaryPromise = (async () => {
+        try {
+          const octSummary = await fetchHistorialOctubre2026({ forceRefresh });
+          setHistorialOctubre2026(octSummary);
+          return octSummary;
+        } catch (octErr) {
+          console.warn('[Sync] Failed dedicated fetchHistorialOctubre2026:', octErr);
+          return null;
+        }
+      })();
+
+      const [baseAggHistory, octSummary] = await Promise.all([
+        aggregatedHistoryPromise,
+        octoberSummaryPromise,
+      ]);
+
+      if (octSummary && octSummary.rows.length > 0) {
+        octSummary.rows.forEach((r) => {
+          const cleanSku = String(r.id_articulo || '').trim().replace(/^0+/, '') || String(r.id_articulo || '').trim();
+          if (cleanSku && !productMap.has(cleanSku) && r.articulo && !isGenericProductLabel(r.articulo)) {
+            productMap.set(cleanSku, r.articulo.trim());
+          }
+        });
+
+        // Reemplazar 2026-10 agregado por detalle diario exacto de Octubre 2026
+        const octDailyAgg = new Map<string, {
+          idArt: string;
+          baseName: string;
+          facturado: number;
+          montoFA: number;
+          montoDV: number;
+          despachado: number;
+          kgFacturado: number;
+          cajas: number;
+          date: string;
+        }>();
+
+        octSummary.rows.forEach((r) => {
+          const aggKey = `${r.id_articulo}|${r.fecha}`;
+          if (!octDailyAgg.has(aggKey)) {
+            octDailyAgg.set(aggKey, {
+              idArt: r.id_articulo,
+              baseName: resolveCatalogProductName(r.id_articulo, r.articulo, productMap),
+              facturado: 0,
+              montoFA: 0,
+              montoDV: 0,
+              despachado: 0,
+              kgFacturado: 0,
+              cajas: 0,
+              date: r.fecha,
+            });
+          }
+          const item = octDailyAgg.get(aggKey)!;
+          item.facturado += r.monto;
+          if (r.monto < 0) item.montoDV += r.monto;
+          else item.montoFA += r.monto;
+          item.despachado += r.kgs_lts;
+          item.kgFacturado += r.kgs_lts;
+          item.cajas += r.cajas;
+        });
+
+        const janToSepOnly = (baseAggHistory as any[]).filter(
+          (h) => h && !String(h.date || '').startsWith('2026-10')
+        );
+        setHistoricalData([...janToSepOnly, ...Array.from(octDailyAgg.values())]);
+
+        // Unificar detalle de Octubre + Noviembre para filtros interactivos (vendedor, cliente, fecha)
+        const octMappedRows = octSummary.rows.map(mapDetailRecordToFacturacionRow);
+        setRawFacturacionRows([...octMappedRows, ...novemberMappedRows]);
+      }
+
+      try {
+        localStorage.setItem('app_product_map_cache', JSON.stringify(Object.fromEntries(productMap.entries())));
+      } catch {}
     } catch (e) {
       console.warn('Notice: Using cached KPIs data:', e);
-      setKpiData(prev => ({ ...prev, isLoading: false }));
+      setNovemberSummary((prev) => ({ ...prev, isLoading: false }));
+      setKpiData((prev) => ({ ...prev, isLoading: false }));
     } finally {
       setIsHistoricalLoading(false);
     }

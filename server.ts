@@ -431,9 +431,21 @@ async function startServer() {
   };
 
   let isBackgroundSyncingOctoberHistorySales = false;
+  let october2026PayloadCache: { payload: any; timestamp: number } | null = null;
+  const OCTOBER_2026_CACHE_TTL_MS = 10 * 60 * 1000;
 
-  app.get('/api/history-sales/october-2026', async (_req, res) => {
+  app.get('/api/history-sales/october-2026', async (req, res) => {
     try {
+      const forceRefresh = req.query.refresh === 'true';
+      const now = Date.now();
+      if (
+        !forceRefresh &&
+        october2026PayloadCache &&
+        now - october2026PayloadCache.timestamp < OCTOBER_2026_CACHE_TTL_MS
+      ) {
+        return res.json(october2026PayloadCache.payload);
+      }
+
       const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || DEFAULT_SUPABASE_URL;
       const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || DEFAULT_SUPABASE_KEY;
       const limit = 1000;
@@ -444,7 +456,7 @@ async function startServer() {
         try {
           const supabase = createClient(supabaseUrl.replace('/rest/v1/', ''), supabaseKey);
 
-          // 1. Consultar por rango de fecha 2026-10-01 .. 2026-10-31 con paginación .range(from, to)
+          // 1. Consultar por rango de fecha 2026-10-01 .. 2026-10-31 con paginación concurrente (5 lotes en paralelo)
           const { count: dateCount, error: dateCountErr } = await supabase
             .from('history_sales')
             .select('*', { count: 'exact', head: true })
@@ -453,18 +465,28 @@ async function startServer() {
 
           if (!dateCountErr && dateCount && dateCount >= 29722) {
             const totalPages = Math.ceil(dateCount / limit);
-            for (let page = 0; page < totalPages; page++) {
-              const from = page * limit;
-              const to = from + limit - 1;
-              const { data, error } = await supabase
-                .from('history_sales')
-                .select('*')
-                .gte('fecha', '2026-10-01')
-                .lte('fecha', '2026-10-31')
-                .order('id', { ascending: true })
-                .range(from, to);
-              if (!error && Array.isArray(data)) {
-                allRawRows.push(...data);
+            const BATCH = 5;
+            for (let startPage = 0; startPage < totalPages; startPage += BATCH) {
+              const pageIndices: number[] = [];
+              for (let offset = 0; offset < BATCH && startPage + offset < totalPages; offset++) {
+                pageIndices.push(startPage + offset);
+              }
+              const chunks = await Promise.all(
+                pageIndices.map(async (page) => {
+                  const from = page * limit;
+                  const to = from + limit - 1;
+                  const { data, error } = await supabase
+                    .from('history_sales')
+                    .select('*')
+                    .gte('fecha', '2026-10-01')
+                    .lte('fecha', '2026-10-31')
+                    .order('id', { ascending: true })
+                    .range(from, to);
+                  return !error && Array.isArray(data) ? data : [];
+                })
+              );
+              for (const chunk of chunks) {
+                allRawRows.push(...chunk);
               }
             }
           }
@@ -536,7 +558,7 @@ async function startServer() {
         vendedor: normalizeSellerName(String(r.vendedor || '').trim()) || String(r.vendedor || '').trim(),
       }));
 
-      return res.json({
+      const payload = {
         rows: cleanRows,
         sourceTable,
         rawRowsCount: allRawRows.length,
@@ -544,7 +566,11 @@ async function startServer() {
         garbageRowsFiltered,
         controlTotals: OCTOBER_2026_CONTROL_TOTALS,
         source: 'supabase',
-      });
+      };
+      if (cleanRows.length > 0) {
+        october2026PayloadCache = { payload, timestamp: Date.now() };
+      }
+      return res.json(payload);
     } catch (err: any) {
       console.error('Error in /api/history-sales/october-2026:', err);
       res.status(500).json({ error: err.message });
@@ -1222,10 +1248,9 @@ async function startServer() {
       if (sheetId) {
         const sheetsUrl = buildGoogleSheetRawExportUrl('Ventas', sheetId);
         const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 12000);
+        const timeout = setTimeout(() => controller.abort(), 8000);
         const sheetRes = await fetch(sheetsUrl, {
           signal: controller.signal,
-          cache: 'no-store',
           headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' },
         });
         clearTimeout(timeout);
@@ -7853,10 +7878,9 @@ Responde con un JSON estructurado con:
       let csvText = '';
       try {
         const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 14000);
+        const timeout = setTimeout(() => controller.abort(), 8000);
         const response = await fetch(url, {
           signal: controller.signal,
-          cache: 'no-store',
           headers: {
             'Cache-Control': 'no-cache, no-store',
             Pragma: 'no-cache',
