@@ -10,8 +10,11 @@ import {
 } from '../../data/productCatalog';
 import {
   fetchHistorialOctubre2026,
-  isStrictNovember2026Date,
 } from '../../lib/supabaseHistoryLoader';
+import {
+  NOVEMBER_STRICT_CUTOFF_DATE,
+  parseVentasSheetCsv,
+} from '../../lib/googleSheetsMatrixParser';
 
 const KNOWN_PRODUCT_NAMES_BY_SKU = PRODUCT_CATALOG_BY_SKU;
 const resolveBestProductName = resolveCatalogProductName;
@@ -113,7 +116,7 @@ export const GapAnalysisPanel: React.FC<GapAnalysisPanelProps> = ({
           try {
             let text = '';
             try {
-              const res = await fetch('/api/sheets?raw=true&sheet=Productos');
+              const res = await fetch('/api/sheets?raw=true&sheet=Productos', { cache: 'no-store' });
               if (res.ok) text = await res.text();
             } catch {
               // ignore network fallback
@@ -154,7 +157,7 @@ export const GapAnalysisPanel: React.FC<GapAnalysisPanelProps> = ({
 
         try {
           const [historyRes, octSummary] = await Promise.all([
-            fetch('/api/historical-sales').catch(() => null),
+            fetch('/api/historical-sales', { cache: 'no-store' }).catch(() => null),
             fetchHistorialOctubre2026().catch(() => null),
           ]);
 
@@ -264,51 +267,57 @@ export const GapAnalysisPanel: React.FC<GapAnalysisPanelProps> = ({
         const fetchNovemberData = async () => {
           try {
             let text = '';
-            try {
-              const res = await fetch(syncKey ? '/api/sheets?raw=true&sheet=Ventas&refresh=true' : '/api/sheets?raw=true&sheet=Ventas');
-              if (res.ok) text = await res.text();
-            } catch {
-              // ignore network fallback
+            for (let attempt = 0; attempt < 2; attempt++) {
+              try {
+                const url =
+                  syncKey || attempt > 0
+                    ? `/api/sheets?raw=true&sheet=Ventas&refresh=true&_t=${Date.now()}`
+                    : '/api/sheets?raw=true&sheet=Ventas';
+                const res = await fetch(url, { cache: 'no-store' });
+                if (res.ok) {
+                  const candidate = await res.text();
+                  if (candidate && !candidate.trim().startsWith('<!DOCTYPE') && !candidate.trim().startsWith('<html') && candidate.includes(',')) {
+                    text = candidate;
+                    break;
+                  }
+                }
+              } catch {
+                // retry on transient network error
+              }
             }
 
             if (text) {
-              const result = Papa.parse(text, { header: true, skipEmptyLines: true });
-              const productMap = new Map();
+              const parsedNov = parseVentasSheetCsv(text, NOVEMBER_STRICT_CUTOFF_DATE);
+              const productMap = new Map<string, any>();
 
-              result.data.forEach((row: any) => {
-                // Filtrar estrictamente registros de Noviembre 2026 (2026-11-01 a 2026-11-30)
-                if (!isStrictNovember2026Date(row['Fecha'])) return;
-
-                let rawSku = String(row['Id Articulo'] || '').replace(/^["']|["']$/g, '').trim();
-                const sku = rawSku || 'SIN-SKU';
-
-                const amountStr = String(row['Monto'] || '');
-                const boxesStr = String(row['Cajas'] || '');
-                const kgStr = String(row['Kg'] || row['Kgs'] || row['KGS'] || '');
-                const utilStr = String(row['Utilidad'] || '');
-
-                const amount = parseFloat(amountStr.replace(/["',]/g, '')) || 0;
-                const boxes = parseFloat(boxesStr.replace(/["',]/g, '')) || 0;
-                const kgs = parseFloat(kgStr.replace(/["',]/g, '')) || 0;
-                const utilidad = parseFloat(utilStr.replace(/["',]/g, '')) || 0;
+              parsedNov.rows.forEach((row) => {
+                const sku = row.idArticulo || 'SIN-SKU';
+                const amount = row.monto;
+                const boxes = row.cajas;
+                const kgs = row.kg;
+                const utilidad = row.utilidad;
 
                 if (amount !== 0 || boxes !== 0 || kgs !== 0 || utilidad !== 0) {
                   if (!productMap.has(sku)) {
                     productMap.set(sku, {
                       period: '2026-11',
                       product_id: sku,
-                      product_name: resolveBestProductName(sku, row['Articulo'] || row['Producto'], skuToName),
+                      product_name: resolveBestProductName(sku, undefined, skuToName),
                       total_boxes_sold: 0,
                       total_revenue: 0,
                       total_kgs: 0,
                       total_utilidad: 0,
+                      total_fa: 0,
+                      total_dv: 0,
                     });
                   }
-                  const p = productMap.get(sku);
+                  const p = productMap.get(sku)!;
                   p.total_revenue += amount;
                   p.total_boxes_sold += boxes;
                   p.total_kgs += kgs;
                   p.total_utilidad += utilidad;
+                  if (amount < 0) p.total_dv += amount;
+                  else p.total_fa += amount;
                 }
               });
 

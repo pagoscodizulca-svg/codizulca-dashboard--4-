@@ -50,6 +50,7 @@ export const Ventas: React.FC = () => {
   const [serverSummary, setServerSummary] = useState<SalesSummaryKPIs | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [months, setMonths] = useState<string[]>([
+    'NOVIEMBRE',
     'OCTUBRE',
     'SEPTIEMBRE',
     'AGOSTO',
@@ -81,7 +82,7 @@ export const Ventas: React.FC = () => {
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState<string>('');
   const [selectedSupervisor, setSelectedSupervisor] = useState<string>('ALL');
   const [selectedSeller, setSelectedSeller] = useState<string>('ALL');
-  const [selectedMonths, setSelectedMonths] = useState<string[]>(['OCTUBRE']);
+  const [selectedMonths, setSelectedMonths] = useState<string[]>(['NOVIEMBRE']);
   const [page, setPage] = useState<number>(1);
   const [isExporting, setIsExporting] = useState<boolean>(false);
 

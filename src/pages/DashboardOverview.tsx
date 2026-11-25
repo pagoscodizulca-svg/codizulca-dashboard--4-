@@ -21,6 +21,7 @@ import {
   HistorialOctubre2026Summary,
   isStrictNovember2026Date,
 } from '../lib/supabaseHistoryLoader';
+import { getSellerMetadata } from '../components/cuotas/sellerSupervisorMap';
 import { 
   DollarSign, 
   TrendingUp,
@@ -267,6 +268,12 @@ export const DashboardOverview: React.FC = () => {
   const [sheetSyncSuccessMessage, setSheetSyncSuccessMessage] = useState<string | null>(null);
   
   const [isHistoricalLoading, setIsHistoricalLoading] = useState(false);
+  const [exactMonthlyTotals, setExactMonthlyTotals] = useState<
+    Record<string, { totalNeto: number; totalUtilidad?: number; totalCajas: number; totalKgs: number; totalRows?: number }>
+  >({});
+  const [sellerMonthlyHistory, setSellerMonthlyHistory] = useState<
+    Array<{ monthKey: string; vendedor: string; supervisor: string; montoNeto: number; cajas: number; kgs: number; facturasCount: number }>
+  >([]);
   const [historicalData, setHistoricalData] = useState<any[]>(() => {
     try {
       localStorage.removeItem('app_historical_sales_cache'); // Purge stale un-ordered cache
@@ -854,9 +861,65 @@ export const DashboardOverview: React.FC = () => {
         }
       })();
 
+      const monthlyTotalsPromise = (async () => {
+        try {
+          const [totalsRes, sellerVolRes] = await Promise.all([
+            fetch('/api/historical-monthly-totals', { cache: 'no-store' }).catch(() => null),
+            fetch('/api/sellers-monthly-volume', { cache: 'no-store' }).catch(() => null),
+          ]);
+          if (totalsRes && totalsRes.ok) {
+            const rawTotals = await totalsRes.json();
+            if (rawTotals && typeof rawTotals === 'object') {
+              const byYm: Record<string, { totalNeto: number; totalUtilidad?: number; totalCajas: number; totalKgs: number; totalRows?: number }> = {};
+              for (const val of Object.values(rawTotals as Record<string, any>)) {
+                const mesU = String(val?.mes || '').trim().toUpperCase();
+                const mm = MONTH_NAME_TO_MM[mesU];
+                const yr = Number(val?.ano) || 2026;
+                if (!mm) continue;
+                byYm[`${yr}-${mm}`] = {
+                  totalNeto: Number(val?.totalNeto) || 0,
+                  totalUtilidad: val?.totalUtilidad !== undefined ? Number(val.totalUtilidad) || 0 : undefined,
+                  totalCajas: Number(val?.totalCajas) || 0,
+                  totalKgs: Number(val?.totalKgs) || 0,
+                  totalRows: Number(val?.totalRows ?? val?.validRows) || 0,
+                };
+              }
+              setExactMonthlyTotals(byYm);
+            }
+          }
+          if (sellerVolRes && sellerVolRes.ok) {
+            const volJson = await sellerVolRes.json();
+            if (volJson && Array.isArray(volJson.sellerMonthlyData)) {
+              const mappedSellers = volJson.sellerMonthlyData
+                .map((s: any) => {
+                  const mesU = String(s?.mes || '').trim().toUpperCase();
+                  const mm = MONTH_NAME_TO_MM[mesU];
+                  const yr = Number(s?.ano) || 2026;
+                  if (!mm) return null;
+                  const vend = String(s?.vendedor || '').trim().toUpperCase();
+                  return {
+                    monthKey: `${yr}-${mm}`,
+                    vendedor: vend,
+                    supervisor: supervisorBySeller.get(vend) || getSellerMetadata(vend).supervisor,
+                    montoNeto: Number(s?.montoNeto) || 0,
+                    cajas: Number(s?.cajas) || 0,
+                    kgs: Number(s?.kgs) || 0,
+                    facturasCount: Number(s?.facturasCount) || 0,
+                  };
+                })
+                .filter(Boolean);
+              setSellerMonthlyHistory(mappedSellers);
+            }
+          }
+        } catch (err) {
+          console.warn('[Sync] Failed loading historical monthly totals/sellers:', err);
+        }
+      })();
+
       const [baseAggHistory, octSummary] = await Promise.all([
         aggregatedHistoryPromise,
         octoberSummaryPromise,
+        monthlyTotalsPromise,
       ]);
 
       if (octSummary && octSummary.rows.length > 0) {
@@ -1395,6 +1458,7 @@ export const DashboardOverview: React.FC = () => {
     let utilidad = 0;
     let cajas = 0;
     let kg = 0;
+    let count = filtered.length;
 
     filtered.forEach(r => {
       facturacion += r.monto;
@@ -1403,16 +1467,73 @@ export const DashboardOverview: React.FC = () => {
       kg += r.kg;
     });
 
+    // Completar KPIs de meses históricos (Enero–Septiembre 2026 de Supabase) cuando el usuario
+    // filtra por rango de fechas o meses anteriores en el selector sin filtro por cliente/texto libre.
+    if (!hasClient && !hasSearch && (hasDateRange || (hasTimeGroups && timeView === 'month'))) {
+      const targetPreOctMonths = new Set<string>();
+      const PRE_OCT_MONTHS = ['2026-01', '2026-02', '2026-03', '2026-04', '2026-05', '2026-06', '2026-07', '2026-08', '2026-09'];
+      if (hasTimeGroups && timeView === 'month') {
+        selectedTimeGroups.forEach((m) => {
+          if (PRE_OCT_MONTHS.includes(m)) targetPreOctMonths.add(m);
+        });
+      } else if (hasDateRange) {
+        const startYm = appliedFilters.startDate ? appliedFilters.startDate.slice(0, 7) : '2026-01';
+        const endYm = appliedFilters.endDate ? appliedFilters.endDate.slice(0, 7) : '2026-11';
+        PRE_OCT_MONTHS.forEach((m) => {
+          if (m >= startYm && m <= endYm) targetPreOctMonths.add(m);
+        });
+      }
+
+      if (targetPreOctMonths.size > 0) {
+        // Solo agregar los meses pre-Octubre que no estén ya presentes en `filtered`
+        const monthsAlreadyInDetail = new Set(filtered.map((r) => String(r.fecha || '').slice(0, 7)));
+        const missingMonths = Array.from(targetPreOctMonths).filter((m) => !monthsAlreadyInDetail.has(m));
+
+        if (missingMonths.length > 0) {
+          if (hasVendor || hasZoneOrSupervisor) {
+            const targetZone = (appliedFilters.zone || '').toUpperCase();
+            sellerMonthlyHistory.forEach((s) => {
+              if (!missingMonths.includes(s.monthKey)) return;
+              if (hasVendor && s.vendedor !== appliedFilters.vendor) return;
+              if (
+                hasZoneOrSupervisor &&
+                s.supervisor.toUpperCase() !== targetZone &&
+                !s.vendedor.toUpperCase().includes(targetZone)
+              ) {
+                return;
+              }
+              facturacion += s.montoNeto;
+              utilidad += s.montoNeto * 0.23;
+              cajas += s.cajas;
+              kg += s.kgs;
+              count += s.facturasCount;
+            });
+          } else {
+            missingMonths.forEach((m) => {
+              const tot = exactMonthlyTotals[m];
+              if (tot) {
+                facturacion += tot.totalNeto;
+                utilidad += tot.totalUtilidad !== undefined ? tot.totalUtilidad : tot.totalNeto * 0.23;
+                cajas += tot.totalCajas;
+                kg += tot.totalKgs;
+                count += tot.totalRows || 0;
+              }
+            });
+          }
+        }
+      }
+    }
+
     return {
-      facturacion,
-      utilidad,
-      cajas,
-      kg,
+      facturacion: Math.round(facturacion * 100) / 100,
+      utilidad: Math.round(utilidad * 100) / 100,
+      cajas: Math.round(cajas * 100) / 100,
+      kg: Math.round(kg * 100) / 100,
       isFiltered: true,
-      count: filtered.length,
+      count,
       isLoading: novemberSummary.isLoading
     };
-  }, [rawFacturacionRows, appliedFilters, selectedTimeGroups, timeView, periodoActivo, novemberSummary, historialOctubre2026, isHistoricalLoading]);
+  }, [rawFacturacionRows, appliedFilters, selectedTimeGroups, timeView, periodoActivo, novemberSummary, historialOctubre2026, isHistoricalLoading, exactMonthlyTotals, sellerMonthlyHistory]);
 
   // Dynamically filtered trend chart data strictly isolated by periodoActivo
   const activeTrendData = React.useMemo(() => {

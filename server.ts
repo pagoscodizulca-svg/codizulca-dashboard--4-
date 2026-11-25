@@ -96,6 +96,8 @@ import {
   buildGoogleSheetRawExportUrl,
   calculateNovember2026CommercialMetrics,
   getConfiguredGoogleSheetId,
+  parseClientesCatalogCsv,
+  parseProductosCatalogCsv,
   parseVentasSheetCsv,
 } from './src/lib/googleSheetsMatrixParser';
 
@@ -1239,6 +1241,64 @@ async function startServer() {
         cur.cajasDV += Number(s.cajasDV) || 0;
         cur.facturasCount += Number(s.facturasCount) || 0;
       });
+    }
+
+    // Garantizar que OCTUBRE 2026 refleje el cierre completo auditado de Supabase (29,722 filas / 29,255 FDV)
+    // en lugar de un snapshot parcial de mitad de mes (~15,055 filas).
+    let cachedOctFacturas = 0;
+    for (const v of mergedMap.values()) {
+      if (v.mes === 'OCTUBRE') cachedOctFacturas += Number(v.facturasCount) || 0;
+    }
+    if (cachedOctFacturas < 25000) {
+      const octFilePath = path.join(process.cwd(), 'october_sales_rows.json');
+      if (fs.existsSync(octFilePath)) {
+        try {
+          const octRows: any[] = JSON.parse(fs.readFileSync(octFilePath, 'utf8'));
+          if (Array.isArray(octRows) && octRows.length >= 25000) {
+            for (const [k, v] of Array.from(mergedMap.entries())) {
+              if (v.mes === 'OCTUBRE') mergedMap.delete(k);
+            }
+            for (const r of octRows) {
+              const normVendedor = normalizeSellerName(r.vendedor || '');
+              if (!isValidVolumeSeller(normVendedor)) continue;
+              const key = `${normVendedor}|||OCTUBRE`;
+              if (!mergedMap.has(key)) {
+                mergedMap.set(key, {
+                  vendedor: normVendedor,
+                  mes: 'OCTUBRE',
+                  ano: 2026,
+                  cajas: 0,
+                  kgs: 0,
+                  montoNeto: 0,
+                  montoFA: 0,
+                  montoDV: 0,
+                  cajasFA: 0,
+                  cajasDV: 0,
+                  facturasCount: 0,
+                });
+              }
+              const sObj = mergedMap.get(key);
+              const c = Number(r.cajas) || 0;
+              const k = Number(r.kgs_lts) || 0;
+              const m = Number(r.monto) || 0;
+              const isDV = r.tipo_doc === 'DV' || m < 0;
+              sObj.cajas += c;
+              sObj.kgs += k;
+              sObj.montoNeto += m;
+              if (isDV) {
+                sObj.montoDV += m;
+                sObj.cajasDV += c;
+              } else {
+                sObj.montoFA += m;
+                sObj.cajasFA += c;
+              }
+              sObj.facturasCount++;
+            }
+          }
+        } catch (octErr: any) {
+          console.warn('[Volume Revalidate] Could not reconcile full October rows:', octErr?.message);
+        }
+      }
     }
 
     // Revalidar Noviembre 2026 en vivo desde Google Sheets (vía process.env.GOOGLE_SHEET_ID o snapshot en disco)
@@ -2751,16 +2811,118 @@ Responde EXCLUSIVAMENTE con un objeto JSON válido con la siguiente estructura (
     return docs;
   };
 
-  app.get('/api/sales/meta', (req, res) => {
+  let novemberSalesDocsCache: { docs: any[]; timestamp: number } | null = null;
+  const NOVEMBER_SALES_DOCS_TTL_MS = 45_000;
+
+  const buildNovemberSalesDocumentsFromSheet = async (): Promise<any[]> => {
+    const now = Date.now();
+    if (novemberSalesDocsCache && now - novemberSalesDocsCache.timestamp < NOVEMBER_SALES_DOCS_TTL_MS) {
+      return novemberSalesDocsCache.docs;
+    }
+
+    const [ventasCsv, productosCsv, clientesCsv] = await Promise.all([
+      fetchAllowedTabCsvServerSide('Ventas', false, true).catch(() => getDiskCachedSheetTab('Ventas')),
+      fetchAllowedTabCsvServerSide('Productos', false, true).catch(() => getDiskCachedSheetTab('Productos')),
+      fetchAllowedTabCsvServerSide('Clientes', false, true).catch(() => getDiskCachedSheetTab('Clientes')),
+    ]);
+
+    if (!ventasCsv) return [];
+    const parsedVentas = parseVentasSheetCsv(ventasCsv, NOVEMBER_STRICT_CUTOFF_DATE);
+    const prodByCode = productosCsv ? parseProductosCatalogCsv(productosCsv).byCode : new Map();
+    const cliByCode = clientesCsv ? parseClientesCatalogCsv(clientesCsv).byCode : new Map();
+    const { catalog } = ensureSalesSkuCatalog();
+    const nameById = new Map<number, string>();
+    for (const item of catalog) {
+      nameById.set(item.id_articulo, item.articulo);
+    }
+
+    const docMap = new Map<string, any>();
+    let seq = 1;
+    for (const r of parsedVentas.rows) {
+      const cleanClient = r.idCliente.replace(/^0+/, '') || r.idCliente;
+      const cleanArt = r.idArticulo.replace(/^0+/, '') || r.idArticulo;
+      const clientName =
+        cliByCode.get(r.idCliente)?.cliente ||
+        cliByCode.get(cleanClient)?.cliente ||
+        (r.idCliente ? `CLIENTE #${r.idCliente}` : 'CLIENTE GENERAL');
+      const artName =
+        prodByCode.get(r.idArticulo)?.producto ||
+        prodByCode.get(cleanArt)?.producto ||
+        nameById.get(Number(cleanArt)) ||
+        `ARTICULO #${r.idArticulo}`;
+      const seller = normalizeSellerName(r.vendedor || '') || r.vendedor;
+      const docKey = `${r.tipoDoc}-NOV-${r.fecha}-${cleanClient}-${seller}`;
+
+      if (!docMap.has(docKey)) {
+        const docNum = 900000 + seq++;
+        docMap.set(docKey, {
+          invoice: `${r.tipoDoc}-${docNum}`,
+          numero: docNum,
+          tipo_doc: r.tipoDoc,
+          fecha: r.fecha,
+          mes: 'NOVIEMBRE',
+          ano: 2026,
+          date: `${r.fecha} (NOV 2026)`,
+          seller,
+          client: clientName,
+          boxes: 0,
+          total: 0,
+          kgs_lts: 0,
+          itemsCount: 0,
+          topProduct: artName,
+          topProductSku: cleanArt ? `SKU-${cleanArt}` : undefined,
+          topProductMonto: 0,
+          items: [],
+        });
+      }
+      const d = docMap.get(docKey)!;
+      const absM = Math.abs(r.monto);
+      if (absM > d.topProductMonto) {
+        d.topProductMonto = absM;
+        d.topProduct = artName;
+        d.topProductSku = cleanArt ? `SKU-${cleanArt}` : undefined;
+      }
+      d.total = Math.round((d.total + r.monto) * 100) / 100;
+      d.boxes = Math.round((d.boxes + r.cajas) * 100) / 100;
+      d.kgs_lts = Math.round((d.kgs_lts + r.kg) * 100) / 100;
+      d.itemsCount += 1;
+      d.items.push({
+        id_articulo: Number(cleanArt) || undefined,
+        sku: cleanArt ? `SKU-${cleanArt}` : undefined,
+        articulo: artName,
+        cajas: r.cajas,
+        monto: r.monto,
+        kgs_lts: r.kg,
+      });
+    }
+
+    const docs = Array.from(docMap.values())
+      .map((d) => ({
+        ...d,
+        status:
+          d.tipo_doc === 'DV'
+            ? 'DEVOLUCION'
+            : d.total > 0 && (d.boxes > 0 || d.kgs_lts > 0)
+            ? 'EMITIDA'
+            : 'ANULADA',
+      }))
+      .sort((a, b) => String(b.fecha || '').localeCompare(String(a.fecha || '')) || b.total - a.total);
+
+    novemberSalesDocsCache = { docs, timestamp: Date.now() };
+    return docs;
+  };
+
+  app.get('/api/sales/meta', (_req, res) => {
     try {
-      const months = ['OCTUBRE', 'SEPTIEMBRE', 'AGOSTO', 'JULIO', 'JUNIO', 'MAYO', 'ABRIL', 'MARZO', 'FEBRERO', 'ENERO'];
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+      const months = ['NOVIEMBRE', 'OCTUBRE', 'SEPTIEMBRE', 'AGOSTO', 'JULIO', 'JUNIO', 'MAYO', 'ABRIL', 'MARZO', 'FEBRERO', 'ENERO'];
       const sellers = [...OFFICIAL_SELLERS_LIST];
       const { catalog } = ensureSalesSkuCatalog();
       res.json({
         months,
         sellers,
         skus: catalog,
-        latestMonth: 'OCTUBRE',
+        latestMonth: 'NOVIEMBRE',
         monthlyTotals: monthlyTotalsCache || {}
       });
     } catch (err: any) {
@@ -2770,6 +2932,7 @@ Responde EXCLUSIVAMENTE con un objeto JSON válido con la siguiente estructura (
 
   app.get('/api/sales/transactions', async (req, res) => {
     try {
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
       const rawMes = req.query.mes || req.query.meses;
       let selectedMonths: string[] = [];
       if (Array.isArray(rawMes)) {
@@ -2778,7 +2941,7 @@ Responde EXCLUSIVAMENTE con un objeto JSON válido con la siguiente estructura (
         selectedMonths = rawMes.split(',').map((m) => m.trim().toUpperCase()).filter((m) => m && m !== 'ALL');
       }
 
-      const ALL_MONTHS_ORDER = ['OCTUBRE', 'SEPTIEMBRE', 'AGOSTO', 'JULIO', 'JUNIO', 'MAYO', 'ABRIL', 'MARZO', 'FEBRERO', 'ENERO'];
+      const ALL_MONTHS_ORDER = ['NOVIEMBRE', 'OCTUBRE', 'SEPTIEMBRE', 'AGOSTO', 'JULIO', 'JUNIO', 'MAYO', 'ABRIL', 'MARZO', 'FEBRERO', 'ENERO'];
       const targetMonths = selectedMonths.length > 0 ? selectedMonths : ALL_MONTHS_ORDER;
 
       const tipo_doc = ((req.query.tipo_doc as string) || 'ALL').toUpperCase();
@@ -2799,8 +2962,13 @@ Responde EXCLUSIVAMENTE con un objeto JSON válido con la siguiente estructura (
       // Reunir todos los documentos completos con sus renglones íntegros para los meses solicitados
       const allPeriodDocs: any[] = [];
       for (const m of targetMonths) {
-        const monthDocs = buildGroupedSalesDocumentsForMonth(m, ano);
-        allPeriodDocs.push(...monthDocs);
+        if (m === 'NOVIEMBRE') {
+          const novDocs = await buildNovemberSalesDocumentsFromSheet();
+          allPeriodDocs.push(...novDocs);
+        } else {
+          const monthDocs = buildGroupedSalesDocumentsForMonth(m, ano);
+          allPeriodDocs.push(...monthDocs);
+        }
       }
 
       const normSku = String(skuQuery || '').trim();
@@ -7931,6 +8099,7 @@ Responde con un JSON estructurado con:
       // Invalidate derived in-memory aggregates whenever fresh Ventas or Cuotas Volumen arrive
       if (allowedTab === 'Ventas') {
         sellersVolumeMemoryCache = null;
+        novemberSalesDocsCache = null;
       }
       if (allowedTab === 'Cuotas Volumen' || allowedTab === 'Ventas') {
         skuVolumeResponseCache = null;
@@ -8043,6 +8212,7 @@ Responde con un JSON estructurado con:
       sheetCache.clear();
       sellersVolumeMemoryCache = null;
       skuVolumeResponseCache = null;
+      novemberSalesDocsCache = null;
       console.log('[Sheets Sync] Cache limpiado. Sincronizando las 6 pestañas autorizadas desde Google Sheets...');
       const [ventasCsv] = await Promise.all([
         fetchAllowedTabCsvServerSide('Ventas', true, true),
