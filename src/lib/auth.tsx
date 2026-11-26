@@ -2,7 +2,6 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from './supabase';
 import { Database } from '../types/database';
-import { campoService } from './campoService';
 
 type Profile = Database['public']['Tables']['profiles']['Row'];
 
@@ -36,8 +35,6 @@ const GERENCIA_ALL_MODULES = [
   'Inventario & Stock',
   'Clientes & Geocercas',
   'Catálogo de Productos',
-  'Trade Marketing (IA)',
-  'Portal Móvil PWA',
   'Trazabilidad (Exclusivo)',
 ];
 
@@ -48,8 +45,6 @@ const ALL_MODULES_EXCEPT_TRAZABILIDAD = [
   'Inventario & Stock',
   'Clientes & Geocercas',
   'Catálogo de Productos',
-  'Trade Marketing (IA)',
-  'Portal Móvil PWA',
 ];
 
 const ANALISTA_MODULES = ALL_MODULES_EXCEPT_TRAZABILIDAD;
@@ -151,7 +146,7 @@ export const DASHBOARD_CORPORATE_PROFILES: DashboardCorporateProfile[] = [
     roleLabel: 'Trade Marketing',
     zone: 'Trade Marketing / Zulia & Falcón',
     canViewTrazabilidad: false,
-    modules: ['Trade Marketing (IA)'],
+    modules: [],
   },
   {
     id: 'CORP-NELSON01',
@@ -446,7 +441,6 @@ const ROUTE_MODULE_RULES: Array<{ prefix: string; module: string }> = [
   { prefix: '/dashboard/geofence-review', module: 'Clientes & Geocercas' },
   { prefix: '/dashboard/productos', module: 'Catálogo de Productos' },
   { prefix: '/dashboard/inventario', module: 'Inventario & Stock' },
-  { prefix: '/dashboard/trade', module: 'Trade Marketing (IA)' },
 ];
 
 export function canAccessModule(profile: Pick<DashboardCorporateProfile, 'modules'>, moduleName: string): boolean {
@@ -479,11 +473,8 @@ export function getDefaultDashboardRoute(profile: Pick<DashboardCorporateProfile
   if (canAccessModule(profile, 'Resumen Ejecutivo')) {
     return '/dashboard';
   }
-  if (canAccessModule(profile, 'Trade Marketing (IA)')) {
-    return '/dashboard/trade';
-  }
   const firstRule = ROUTE_MODULE_RULES.find((r) => canAccessModule(profile, r.module));
-  return firstRule ? firstRule.prefix : '/dashboard';
+  return firstRule ? firstRule.prefix : '/portal';
 }
 
 interface AuthContextType {
@@ -633,9 +624,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch {
       // ignore
     }
-    // Cerrar también la sesión de Codizulca Campo para no dejar perfiles activos al salir
+    // Limpiar también cualquier clave heredada del antiguo portal móvil sin importar campoService
     try {
-      campoService.logoutPromoter();
+      localStorage.removeItem('portal_auth_token');
+      localStorage.removeItem('portal_authenticated_user_id');
+      window.dispatchEvent(new Event('codizulca_promoter_logout'));
     } catch {
       // ignore
     }

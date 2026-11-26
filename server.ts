@@ -4505,8 +4505,7 @@ Responde EXCLUSIVAMENTE con un objeto JSON válido con la siguiente estructura (
         'Ventas & Facturación: Consulta transaccional de Facturas (FA) y Devoluciones (DV) con más de 280.000 registros.',
         'Clientes & Geocercas: Cartera de 2.514 clientes activos (Octubre 2026) con mapa Leaflet, ficha técnica oficial con Código #ID, RIF copiable y Sector.',
         'Inventario & Stock: Análisis 360°, rotación de inventario y diferenciación pesables vs cajas.',
-        'Trade Marketing (IA): Auditoría fotográfica con visión artificial para supervisión de planogramas y exhibiciones.',
-        'Portal Móvil PWA: App móvil offline para fuerza de ventas con check-in geolocalizado de 50m.',
+        'Trazabilidad: Auditoría y control gerencial de actividad.',
         'Centro de Ingesta & Gobernanza: Integración con Supabase y sincronización bidireccional en tiempo real con Google Sheets.'
       ]
     };
@@ -4607,17 +4606,15 @@ Codizulca gestiona una base activa de **2.947 clientes en cartera** y un censo d
 💡 *Puedes visualizar todos los clientes en el mapa satelital interactivo en el módulo de **[Clientes & Geocercas](/dashboard/clientes)**.*`;
     }
 
-    // 5. Trade Marketing & Degustaciones
+    // 5. Trade Marketing (ahora en aplicación independiente)
     if (q.includes('trade') || q.includes('marketing') || q.includes('degustacion') || q.includes('promotora') || q.includes('precio') || q.includes('gondola') || q.includes('anaquel')) {
-      return `### 🛍️ Módulo de Trade Marketing & Ejecución en Punto de Venta — CODIZULCA
+      return `### 🛍️ Trade Marketing — Aplicación Independiente CODIZULCA
 
-El módulo de **Trade Marketing** opera en tiempo real conectado a las promotoras y asesores en campo:
+El módulo de **Trade Marketing** (asistencia de promotoras, degustaciones, merchandising, precios e informes) fue trasladado fuera del Dashboard de Gerencia y ahora opera en su aplicación dedicada:
 
-#### 🎯 Pilares del Módulo:
-1. **Relevamiento de Precios en Góndola**: Registro comparativo entre productos Codizulca vs competidores de la plaza con cálculo automático de brechas de precio (Price Gaps).
-2. **Cronograma de Degustaciones**: Planificación y auditoría de actividades de activación con promotoras, registro de asistencia, entrega de muestras y rendimiento por PDV.
-3. **Control de Inventarios en PDV**: Monitoreo de quiebres de stock en anaquel, frentes de exhibición y rotación de material POP.
-4. **Historial Consolidado**: Archivo automatizado los domingos a las 23:59 para evaluar la efectividad semanal de las campañas.`;
+- **Aplicación oficial:** https://trade-marketing-qi6j.onrender.com
+
+Aquí en el **Dashboard de Gerencia** puedes consultar **Resumen Ejecutivo, Cuotas & Metas, Ventas & Facturación, Inventario & Stock, Clientes & Geocercas, Catálogo de Productos y Trazabilidad**.`;
     }
 
     // 5. Devoluciones o notas de crédito
@@ -4654,7 +4651,7 @@ Estoy aquí para responder cualquier pregunta, generar análisis estratégicos o
 3. **🥩 Productos & Inventario**: Catálogo de 180+ SKUs, distinción de productos pesables (kg) vs empacados (cajas) y análisis Pareto 80/20.
 4. **📍 Cartera de Clientes**: Ubicación de los 2.947 clientes, sectores comerciales, códigos oficiales (#ID) y geocercas activas.
 5. **🎯 Metas y Cuotas**: Cumplimiento por vendedor, supervisor y producto.
-6. **📱 Módulos del Sistema**: Trade Marketing con IA, Portal PWA offline y Centro de Ingesta.
+6. **🛡️ Gobernanza y Trazabilidad**: Sincronización en tiempo real con Google Sheets, Supabase y trazabilidad gerencial.
 
 *Pídeme lo que necesites, por ejemplo: "¿Cuáles son los 5 vendedores con mayor facturación?", "¿Cómo van las ventas de Septiembre?", o "¿Cuál es el producto más vendido?".*`;
   }
@@ -5980,24 +5977,30 @@ Responde con un JSON estructurado con:
     }
   });
 
-  // Submódulo de Merchandising (Informes y Certificación de Visita en PDV)
+  // Submódulo heredado de Merchandising (carga diferida bajo demanda — módulo movido a app Trade Marketing)
   const merchFilePath = path.join(process.cwd(), 'data_merchandising.json');
   let memoryMerch: any[] = [];
+  let memoryMerchLoaded = false;
   const deletedMerchIds = new Set<string>();
   let merchCache: { payload: any[]; timestamp: number } | null = null;
-  try {
-    if (fs.existsSync(merchFilePath)) {
-      const rawDisk = JSON.parse(fs.readFileSync(merchFilePath, 'utf8'));
-      if (Array.isArray(rawDisk)) {
-        memoryMerch = rawDisk.map(mapSupabaseMerchRowToReport);
+  const ensureMemoryMerchLoaded = () => {
+    if (memoryMerchLoaded) return;
+    memoryMerchLoaded = true;
+    try {
+      if (fs.existsSync(merchFilePath)) {
+        const rawDisk = JSON.parse(fs.readFileSync(merchFilePath, 'utf8'));
+        if (Array.isArray(rawDisk)) {
+          memoryMerch = rawDisk.map(mapSupabaseMerchRowToReport);
+        }
       }
+    } catch (e) {
+      console.warn('[Merchandising] Error leyendo archivo de reportes:', e);
     }
-  } catch (e) {
-    console.warn('[Merchandising] Error leyendo archivo de reportes:', e);
-  }
+  };
 
   app.get('/api/merchandising', async (req, res) => {
     try {
+      ensureMemoryMerchLoaded();
       const now = Date.now();
       if (req.query.refresh !== 'true' && merchCache && now - merchCache.timestamp < 5000) {
         return res.json(merchCache.payload);
@@ -6046,6 +6049,7 @@ Responde con un JSON estructurado con:
 
   app.post('/api/merchandising', async (req, res) => {
     try {
+      ensureMemoryMerchLoaded();
       const rawRecord = req.body;
       if (!rawRecord || !rawRecord.store || !rawRecord.promoter) {
         return res.status(400).json({ error: 'Datos de merchandising incompletos' });
@@ -6120,6 +6124,7 @@ Responde con un JSON estructurado con:
 
   app.delete('/api/merchandising/:id', async (req, res) => {
     try {
+      ensureMemoryMerchLoaded();
       const { id } = req.params;
       deletedMerchIds.add(id);
       memoryMerch = memoryMerch.filter(m => m.id !== id);
@@ -6143,20 +6148,25 @@ Responde con un JSON estructurado con:
     }
   });
 
-  // Submódulo de Personal de Campo (Trade Marketing & RRHH)
+  // Submódulo heredado de Personal de Campo (carga diferida bajo demanda — módulo movido a app Trade Marketing)
   const staffFilePath = path.join(process.cwd(), 'data_staff.json');
   let memoryStaff: any[] = [];
+  let memoryStaffLoaded = false;
   const normalizeStaffRecord = (s: any) => ({
     ...s,
     password: (!s?.password || s.password === 'codi123' || s.password === 'codi.123') ? 'Codi.123' : s.password,
   });
-  try {
-    if (fs.existsSync(staffFilePath)) {
-      memoryStaff = JSON.parse(fs.readFileSync(staffFilePath, 'utf8')).map(normalizeStaffRecord);
+  const ensureMemoryStaffLoaded = () => {
+    if (memoryStaffLoaded) return;
+    memoryStaffLoaded = true;
+    try {
+      if (fs.existsSync(staffFilePath)) {
+        memoryStaff = JSON.parse(fs.readFileSync(staffFilePath, 'utf8')).map(normalizeStaffRecord);
+      }
+    } catch (e) {
+      console.warn('[Staff] Error leyendo archivo de personal:', e);
     }
-  } catch (e) {
-    console.warn('[Staff] Error leyendo archivo de personal:', e);
-  }
+  };
 
   app.get('/api/staff', (req, res) => {
     try {
@@ -6171,6 +6181,7 @@ Responde con un JSON estructurado con:
 
   app.post('/api/staff', (req, res) => {
     try {
+      ensureMemoryStaffLoaded();
       const member = req.body;
       if (!member || !member.name) {
         return res.status(400).json({ error: 'Datos de personal incompletos' });
@@ -6189,6 +6200,7 @@ Responde con un JSON estructurado con:
 
   app.put('/api/staff/:id', (req, res) => {
     try {
+      ensureMemoryStaffLoaded();
       const { id } = req.params;
       const member = req.body;
       memoryStaff = memoryStaff.map(s => s.id === id ? { ...s, ...member } : s);
@@ -6205,6 +6217,7 @@ Responde con un JSON estructurado con:
 
   app.delete('/api/staff/:id', (req, res) => {
     try {
+      ensureMemoryStaffLoaded();
       const { id } = req.params;
       memoryStaff = memoryStaff.filter(s => s.id !== id);
       try {
@@ -6519,21 +6532,27 @@ Responde con un JSON estructurado con:
     }
   });
 
-  // Endpoints para Codizulca Campo (Escaneo de Góndolas, Precios, Inventario, Encuestas, Sync Batch)
+  // Endpoints heredados de Codizulca Campo (carga diferida bajo demanda — módulo movido a app Trade Marketing)
   const campoScansPath = path.join(process.cwd(), 'data_shelf_scans.json');
   let memoryShelfScans: any[] = [];
-  try {
-    if (fs.existsSync(campoScansPath)) {
-      memoryShelfScans = JSON.parse(fs.readFileSync(campoScansPath, 'utf8'));
+  let memoryShelfScansLoaded = false;
+  const ensureMemoryShelfScansLoaded = () => {
+    if (memoryShelfScansLoaded) return;
+    memoryShelfScansLoaded = true;
+    try {
+      if (fs.existsSync(campoScansPath)) {
+        memoryShelfScans = JSON.parse(fs.readFileSync(campoScansPath, 'utf8'));
+      }
+    } catch (e) {
+      console.warn('[Campo] Error leyendo shelf scans:', e);
     }
-  } catch (e) {
-    console.warn('[Campo] Error leyendo shelf scans:', e);
-  }
+  };
 
   const deletedShelfScanIds = new Set<string>();
 
   app.get('/api/shelf-scans', async (req, res) => {
     try {
+      ensureMemoryShelfScansLoaded();
       let remoteScans: any[] = [];
       const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || DEFAULT_SUPABASE_URL;
       const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || DEFAULT_SUPABASE_KEY;
@@ -6595,6 +6614,7 @@ Responde con un JSON estructurado con:
 
   app.post('/api/shelf-scans', async (req, res) => {
     try {
+      ensureMemoryShelfScansLoaded();
       const rawScan = req.body;
       if (!rawScan || !rawScan.store) return res.status(400).json({ error: 'Datos de escaneo incompletos' });
       const isTestScan = /^SCAN-TEST-/i.test(String(rawScan.id || ''));
@@ -6676,6 +6696,8 @@ Responde con un JSON estructurado con:
 
   app.delete('/api/shelf-scans/:id', async (req, res) => {
     try {
+      ensureMemoryShelfScansLoaded();
+      ensureMemoryMerchLoaded();
       const { id } = req.params;
       deletedShelfScanIds.add(id);
       deletedMerchIds.add(id);
@@ -7228,23 +7250,28 @@ Responde con un JSON estructurado con:
   };
 
   let memoryDegustaciones: any[] = [];
+  let memoryDegustacionesLoaded = false;
   const deletedDegustacionIds = new Set<string>();
   let lastSupabaseDegustacionSync = 0;
 
-  try {
-    if (fs.existsSync(degustacionesPath)) {
-      const rawDisk = JSON.parse(fs.readFileSync(degustacionesPath, 'utf8'));
-      if (Array.isArray(rawDisk)) {
-        const cleaned = rawDisk.filter((d) => !isTestOrFakeDegustacion(d));
-        memoryDegustaciones = cleaned;
-        if (cleaned.length !== rawDisk.length) {
-          fs.writeFileSync(degustacionesPath, JSON.stringify(cleaned, null, 2), 'utf8');
+  const ensureMemoryDegustacionesLoaded = () => {
+    if (memoryDegustacionesLoaded) return;
+    memoryDegustacionesLoaded = true;
+    try {
+      if (fs.existsSync(degustacionesPath)) {
+        const rawDisk = JSON.parse(fs.readFileSync(degustacionesPath, 'utf8'));
+        if (Array.isArray(rawDisk)) {
+          const cleaned = rawDisk.filter((d) => !isTestOrFakeDegustacion(d));
+          memoryDegustaciones = cleaned;
+          if (cleaned.length !== rawDisk.length) {
+            fs.writeFileSync(degustacionesPath, JSON.stringify(cleaned, null, 2), 'utf8');
+          }
         }
       }
+    } catch (e) {
+      console.warn('[Degustaciones] Error leyendo data_degustaciones.json:', e);
     }
-  } catch (e) {
-    console.warn('[Degustaciones] Error leyendo data_degustaciones.json:', e);
-  }
+  };
 
   const parseServerDateSortable = (dateStr: string): string => {
     if (!dateStr) return '0000-00-00';
@@ -7807,6 +7834,7 @@ Responde con un JSON estructurado con:
   // POST /api/degustaciones: Recepción en vivo de solicitud de degustación desde la App de Vendedores o Coordinación
   app.post('/api/degustaciones', async (req, res) => {
     try {
+      ensureMemoryDegustacionesLoaded();
       const item = req.body || {};
       const rawDate = item.date || item.fecha;
       const rawClient = item.client || item.cliente || item.cliente_nombre || item.clienteNombre || item.store || item.pdv;
@@ -8040,6 +8068,7 @@ Responde con un JSON estructurado con:
   // PUT /api/degustaciones/:id: Asignar promotora (con correo e ID), actualizar estado o resultado y sincronizar en ambas BDs de Supabase
   app.put('/api/degustaciones/:id', async (req, res) => {
     try {
+      ensureMemoryDegustacionesLoaded();
       const { id } = req.params;
       const updates = req.body || {};
       if (updates.date) {
@@ -8160,6 +8189,7 @@ Responde con un JSON estructurado con:
   // DELETE /api/degustaciones/:id: Eliminar degustación
   app.delete('/api/degustaciones/:id', (req, res) => {
     try {
+      ensureMemoryDegustacionesLoaded();
       const { id } = req.params;
       deletedDegustacionIds.add(id);
       memoryDegustaciones = memoryDegustaciones.filter((d: any) => d.id !== id);

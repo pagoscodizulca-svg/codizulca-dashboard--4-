@@ -78,17 +78,14 @@ describe('Perfiles corporativos asignados del Dashboard de Gerencia', () => {
     }
   });
 
-  it('Grecia01 (Trade Marketing) SOLO puede ver el módulo de Trade Marketing', () => {
+  it('Grecia01 (Trade Marketing) redirige a /portal tras retirar Trade Marketing del Dashboard de Gerencia y no accede a módulos gerenciales', () => {
     const grecia = resolveCorporateProfile('Grecia01');
     expect(grecia.name).toBe('Grecia');
     expect(grecia.roleLabel).toBe('Trade Marketing');
-    expect(grecia.modules).toEqual(['Trade Marketing (IA)']);
-    expect(getDefaultDashboardRoute(grecia)).toBe('/dashboard/trade');
+    expect(grecia.modules).toEqual([]);
+    expect(getDefaultDashboardRoute(grecia)).toBe('/portal');
 
-    // Solo accede a /dashboard/trade
-    expect(canAccessDashboardRoute(grecia, '/dashboard/trade')).toBe(true);
-
-    // No accede a ningún otro módulo del dashboard
+    // No accede a ningún módulo del Dashboard de Gerencia
     expect(canAccessDashboardRoute(grecia, '/dashboard')).toBe(false);
     expect(canAccessDashboardRoute(grecia, '/dashboard/cuotas')).toBe(false);
     expect(canAccessDashboardRoute(grecia, '/dashboard/ventas')).toBe(false);
@@ -96,19 +93,21 @@ describe('Perfiles corporativos asignados del Dashboard de Gerencia', () => {
     expect(canAccessDashboardRoute(grecia, '/dashboard/productos')).toBe(false);
     expect(canAccessDashboardRoute(grecia, '/dashboard/inventario')).toBe(false);
     expect(canAccessDashboardRoute(grecia, '/dashboard/trazabilidad')).toBe(false);
+    expect(canAccessModule(grecia, 'Trade Marketing (IA)')).toBe(false);
     expect(canAccessModule(grecia, 'Portal Móvil PWA')).toBe(false);
   });
 
-  it('las Analistas (Gisbell01 y Mari01) y Supervisores (Nelson01, Jose01, Johnatan01, Ali01) tienen acceso a TODOS los módulos menos a Trazabilidad', () => {
+  it('las Analistas (Gisbell01 y Mari01) y Supervisores (Nelson01, Jose01, Johnatan01, Ali01) tienen acceso a TODOS los módulos activos menos a Trazabilidad', () => {
     for (const u of ['Gisbell01', 'Mari01', 'Nelson01', 'Jose01', 'Johnatan01', 'Ali01']) {
       const profile = resolveCorporateProfile(u);
       expect(profile.canViewTrazabilidad).toBe(false);
       expect(canAccessDashboardRoute(profile, '/dashboard/trazabilidad')).toBe(false);
       expect(canAccessDashboardRoute(profile, '/dashboard')).toBe(true);
-      for (const route of ['cuotas', 'ventas', 'clientes', 'productos', 'inventario', 'trade', 'geofence-review']) {
+      for (const route of ['cuotas', 'ventas', 'clientes', 'productos', 'inventario', 'geofence-review']) {
         expect(canAccessDashboardRoute(profile, `/dashboard/${route}`)).toBe(true);
       }
-      expect(canAccessModule(profile, 'Portal Móvil PWA')).toBe(true);
+      expect(canAccessModule(profile, 'Trade Marketing (IA)')).toBe(false);
+      expect(canAccessModule(profile, 'Portal Móvil PWA')).toBe(false);
     }
   });
 });

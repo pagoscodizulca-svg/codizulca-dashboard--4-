@@ -116,7 +116,7 @@ describe('Restricción de Acceso a Trazabilidad y Sincronización App Promotoras
       expect(resolveCorporateProfile('trademarketing@codizulca.com').canViewTrazabilidad).toBe(false);
       expect(resolveCorporateProfile('Grecia01@codizulca.com').roleKey).toBe('trade_marketing');
       expect(resolveCorporateProfile('Grecia01@codizulca.com').roleLabel).toBe('Trade Marketing');
-      expect(resolveCorporateProfile('Grecia01@codizulca.com').modules).toEqual(['Trade Marketing (IA)']);
+      expect(resolveCorporateProfile('Grecia01@codizulca.com').modules).toEqual([]);
       expect(resolveCorporateProfile('Grecia01@codizulca.com').canViewTrazabilidad).toBe(false);
       expect(resolveCorporateProfile('Gisbell01@codizulca.com').roleKey).toBe('analista');
       expect(resolveCorporateProfile('Gisbell01@codizulca.com').roleLabel).toBe('Analista');

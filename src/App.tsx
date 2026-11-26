@@ -10,7 +10,6 @@ import { startBuildVersionWatcher } from './lib/buildVersionWatcher';
 import { AuthGuard } from './components/layout/AuthGuard';
 import { MainLayout } from './components/layout/MainLayout';
 import { Login } from './pages/Login';
-import { SHOW_LEGACY_PORTAL_LINK } from './lib/portalMigrationConfig';
 import { PortalMigrationRedirect } from './components/layout/PortalMigrationRedirect';
 import { prefetchDashboardOverviewBootstrap } from './lib/dashboardOverviewBootstrap';
 
@@ -70,20 +69,8 @@ const Ventas = lazyWithRetry(() => import('./pages/Ventas').then(m => ({ default
 const Clientes = lazyWithRetry(() => import('./pages/Clientes').then(m => ({ default: m.Clientes })));
 const Productos = lazyWithRetry(() => import('./pages/Productos').then(m => ({ default: m.Productos })));
 const Inventario = lazyWithRetry(() => import('./pages/Inventario').then(m => ({ default: m.Inventario })));
-const TradeMarketing = lazyWithRetry(() => import('./pages/TradeMarketing').then(m => ({ default: m.TradeMarketing })));
 const GeofenceReview = lazyWithRetry(() => import('./pages/GeofenceReview').then(m => ({ default: m.GeofenceReview })));
 const Trazabilidad = lazyWithRetry(() => import('./pages/Trazabilidad').then(m => ({ default: m.Trazabilidad })));
-
-// Lazy-load de rutas móviles /portal/* para no inflar el bundle inicial del Dashboard de Gerencia
-const CampoLayout = lazyWithRetry(() => import('./components/layout/CampoLayout').then(m => ({ default: m.CampoLayout })));
-const PortalLogin = lazyWithRetry(() => import('./pages/mobile/PortalLogin').then(m => ({ default: m.PortalLogin })));
-const CampoRuta = lazyWithRetry(() => import('./pages/mobile/CampoRuta').then(m => ({ default: m.CampoRuta })));
-const CampoAsistencia = lazyWithRetry(() => import('./pages/mobile/CampoAsistencia').then(m => ({ default: m.CampoAsistencia })));
-const CampoEncuestas = lazyWithRetry(() => import('./pages/mobile/CampoEncuestas').then(m => ({ default: m.CampoEncuestas })));
-const CampoInventario = lazyWithRetry(() => import('./pages/mobile/CampoInventario').then(m => ({ default: m.CampoInventario })));
-const CampoPrecios = lazyWithRetry(() => import('./pages/mobile/CampoPrecios').then(m => ({ default: m.CampoPrecios })));
-const CampoMerchandising = lazyWithRetry(() => import('./pages/mobile/CampoMerchandising').then(m => ({ default: m.CampoMerchandising })));
-const PortalPerfil = lazyWithRetry(() => import('./pages/mobile/PortalPerfil').then(m => ({ default: m.PortalPerfil })));
 
 const PageLoader = () => (
   <div className="flex items-center justify-center min-h-[60vh] bg-black/95 text-zinc-400 text-sm">
@@ -168,7 +155,8 @@ export default function App() {
                   <Route path="clientes" element={<Clientes />} />
                   <Route path="productos" element={<Productos />} />
                   <Route path="inventario" element={<Inventario />} />
-                  <Route path="trade" element={<TradeMarketing />} />
+                  <Route path="trade" element={<Navigate to="/dashboard" replace />} />
+                  <Route path="trade/*" element={<Navigate to="/dashboard" replace />} />
                   <Route path="geofence-review" element={<GeofenceReview />} />
                   <Route path="trazabilidad" element={<Trazabilidad />} />
                   <Route path="admin" element={<Trazabilidad />} />
@@ -176,27 +164,8 @@ export default function App() {
               </Route>
 
               {/* Rutas de /portal y /portal/* (Redirección Segura hacia Programa de Trade Marketing) */}
-              {SHOW_LEGACY_PORTAL_LINK ? (
-                <>
-                  <Route path="/portal/login" element={<PortalLogin />} />
-                  <Route path="/portal" element={<CampoLayout />}>
-                    <Route index element={<Navigate to="/portal/ruta" replace />} />
-                    <Route path="ruta" element={<CampoRuta />} />
-                    <Route path="checkin" element={<CampoAsistencia />} />
-                    <Route path="asistencia" element={<CampoAsistencia />} />
-                    <Route path="encuestas" element={<CampoEncuestas />} />
-                    <Route path="precios" element={<CampoPrecios />} />
-                    <Route path="inventario" element={<CampoInventario />} />
-                    <Route path="merchandising" element={<CampoMerchandising />} />
-                    <Route path="perfil" element={<PortalPerfil />} />
-                  </Route>
-                </>
-              ) : (
-                <>
-                  <Route path="/portal" element={<PortalMigrationRedirect />} />
-                  <Route path="/portal/*" element={<PortalMigrationRedirect />} />
-                </>
-              )}
+              <Route path="/portal" element={<PortalMigrationRedirect />} />
+              <Route path="/portal/*" element={<PortalMigrationRedirect />} />
 
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
               <Route path="*" element={<Navigate to="/dashboard" replace />} />

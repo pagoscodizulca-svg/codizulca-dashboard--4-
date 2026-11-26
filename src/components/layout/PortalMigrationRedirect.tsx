@@ -43,11 +43,11 @@ export const PortalMigrationRedirect: React.FC = () => {
           </span>
 
           <h1 className="text-xl font-black text-white tracking-tight">
-            Portal de Promotoras Trasladado
+            Módulo de Trade Marketing Trasladado
           </h1>
 
           <p className="text-xs text-zinc-400 leading-relaxed">
-            El módulo móvil <strong className="text-white font-mono">/portal/</strong> ahora se aloja directamente dentro de la aplicación oficial{' '}
+            El módulo de <strong className="text-white">Trade Marketing</strong> y el portal móvil <strong className="text-white font-mono">/portal/</strong> ahora operan exclusivamente en la aplicación independiente{' '}
             <strong className="text-red-400">Programa de Trade Marketing</strong>.
           </p>
         </div>
@@ -77,18 +77,26 @@ export const PortalMigrationRedirect: React.FC = () => {
             </a>
           </div>
         ) : (
-          <div className="p-4 rounded-2xl bg-zinc-900/90 border border-white/10 space-y-2.5 text-xs">
-            <div className="flex items-center gap-2 text-amber-400 font-bold">
-              <Info className="w-4 h-4 shrink-0" />
-              <span>Enlace en transición</span>
+          <div className="space-y-4">
+            <div className="p-4 rounded-2xl bg-zinc-900/90 border border-white/10 space-y-2.5 text-xs">
+              <div className="flex items-center gap-2 text-amber-400 font-bold">
+                <Info className="w-4 h-4 shrink-0" />
+                <span>Aplicación Independiente Activa</span>
+              </div>
+              <p className="text-zinc-300 leading-relaxed">
+                Trade Marketing fue retirado del Dashboard de Gerencia para optimizar el rendimiento. Ingresa directamente al{' '}
+                <strong className="text-white">Programa de Trade Marketing</strong> para gestionar asistencia, degustaciones, merchandising, precios e informes.
+              </p>
             </div>
-            <p className="text-zinc-300 leading-relaxed">
-              Solicita a tu <strong className="text-white">Coordinación de Trade Marketing</strong> el enlace actualizado de la aplicación{' '}
-              <strong className="text-white">Programa de Trade Marketing</strong> para registrar tu asistencia, degustaciones, aforos y precios.
-            </p>
-            <p className="text-[11px] text-zinc-500 font-mono">
-              Nota técnica: Define <code className="text-zinc-300">VITE_NEW_TRADE_PORTAL_URL</code> (con <code className="text-emerald-400">https://</code>) para activar la redirección automática.
-            </p>
+
+            <a
+              href="https://trade-marketing-qi6j.onrender.com"
+              rel="noopener noreferrer"
+              className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-red-600 to-rose-700 hover:from-red-500 hover:to-rose-600 text-white font-bold text-xs uppercase tracking-wider shadow-lg shadow-red-600/30 flex items-center justify-center gap-2 transition-all cursor-pointer"
+            >
+              <span>Abrir Programa de Trade Marketing</span>
+              <ExternalLink className="w-4 h-4" />
+            </a>
           </div>
         )}
 

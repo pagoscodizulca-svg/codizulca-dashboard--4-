@@ -6,13 +6,10 @@ import {
   Users, 
   Target, 
   ShoppingCart,
-  MapPin,
   Smartphone,
-  ShieldAlert,
   Hexagon,
   Box,
   LogOut,
-  Sparkles,
   Activity
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
@@ -29,7 +26,6 @@ export const Sidebar: React.FC = () => {
     { to: '/dashboard/inventario', icon: Hexagon, label: 'Inventario & Stock', badge: { text: '2 RISK', color: 'text-yellow-500', bg: 'bg-yellow-950/50 border-yellow-900/50' } },
     { to: '/dashboard/clientes', icon: Users, label: 'Clientes & Geocercas' },
     { to: '/dashboard/productos', icon: Box, label: 'Catálogo de Productos' },
-    { to: '/dashboard/trade', icon: MapPin, label: 'Trade Marketing (IA)' },
     ...(SHOW_LEGACY_PORTAL_LINK
       ? [{ to: '/portal', icon: Smartphone, label: 'Portal Móvil PWA', badge: { text: 'OFFLINE', color: 'text-zinc-300', bg: 'bg-zinc-800/80 border-zinc-700' } }]
       : []),
