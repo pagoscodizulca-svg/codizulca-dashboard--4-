@@ -5523,7 +5523,7 @@ Responde con un JSON estructurado con:
     }
   });
 
-  // Submódulo de Asistencia en Punto de Venta (PDV / Check-in)
+  // Submódulo de Asistencia en Punto de Venta (PDV / Check-in) — carga diferida (lazy) para ahorrar RAM en Render
   const checkinsFilePath = path.join(process.cwd(), 'data_checkins.json');
   const privateAttendanceStorageDir = path.join(process.cwd(), 'private_storage');
   const ATTENDANCE_SIGNING_SECRET =
@@ -5531,13 +5531,6 @@ Responde con un JSON estructurado con:
     process.env.SUPABASE_SERVICE_ROLE_KEY ||
     'codizulca-attendance-signed-url-ephemeral-key';
   let memoryCheckins: any[] = [];
-  try {
-    if (fs.existsSync(checkinsFilePath)) {
-      memoryCheckins = JSON.parse(fs.readFileSync(checkinsFilePath, 'utf8'));
-    }
-  } catch (e) {
-    console.warn('[CheckIns] No se pudo leer el archivo local de asistencias:', e);
-  }
 
   // Columnas reales de la tabla `checkins` de Supabase (se excluye la foto, que pesa ~80 KB por registro)
   const CHECKIN_TABLE_COLUMNS = ['id', 'date', 'store', 'type', 'location', 'creatorId', 'promoter', 'created_at'];
@@ -6710,21 +6703,28 @@ Responde con un JSON estructurado con:
 
   const campoPricesPath = path.join(process.cwd(), 'data_price_surveys.json');
   let memoryPriceSurveys: any[] = [];
+  let priceSurveysDiskLoaded = false;
+  const ensureMemoryPriceSurveysLoaded = () => {
+    if (priceSurveysDiskLoaded) return memoryPriceSurveys;
+    priceSurveysDiskLoaded = true;
+    try {
+      if (fs.existsSync(campoPricesPath)) {
+        const rawDisk = JSON.parse(fs.readFileSync(campoPricesPath, 'utf8'));
+        if (Array.isArray(rawDisk)) {
+          memoryPriceSurveys = rawDisk
+            .filter((r) => !isSyntheticPriceOrInventoryRow(r))
+            .map(mapSupabasePriceRowToPayload);
+        }
+      }
+    } catch (e) {}
+    return memoryPriceSurveys;
+  };
   const deletedPriceSurveyIds = new Set<string>();
   let priceSurveysCache: { payload: any[]; timestamp: number } | null = null;
-  try {
-    if (fs.existsSync(campoPricesPath)) {
-      const rawDisk = JSON.parse(fs.readFileSync(campoPricesPath, 'utf8'));
-      if (Array.isArray(rawDisk)) {
-        memoryPriceSurveys = rawDisk
-          .filter((r) => !isSyntheticPriceOrInventoryRow(r))
-          .map(mapSupabasePriceRowToPayload);
-      }
-    }
-  } catch (e) {}
 
   app.get('/api/price-surveys', async (req, res) => {
     try {
+      ensureMemoryPriceSurveysLoaded();
       const now = Date.now();
       if (req.query.refresh !== 'true' && priceSurveysCache && now - priceSurveysCache.timestamp < 4000) {
         return res.json(priceSurveysCache.payload);
@@ -6798,6 +6798,7 @@ Responde con un JSON estructurado con:
         created_at: rawBody.created_at || new Date().toISOString(),
       });
 
+      ensureMemoryPriceSurveysLoaded();
       deletedPriceSurveyIds.delete(survey.id);
       memoryPriceSurveys = [survey, ...memoryPriceSurveys.filter((s) => s.id !== survey.id)];
       priceSurveysCache = null;
@@ -6843,6 +6844,7 @@ Responde con un JSON estructurado con:
   app.delete('/api/price-surveys/:id', async (req, res) => {
     try {
       const { id } = req.params;
+      ensureMemoryPriceSurveysLoaded();
       deletedPriceSurveyIds.add(id);
       memoryPriceSurveys = memoryPriceSurveys.filter((s) => s.id !== id);
       priceSurveysCache = null;
@@ -6867,21 +6869,28 @@ Responde con un JSON estructurado con:
 
   const campoInvPath = path.join(process.cwd(), 'data_inventory_logs.json');
   let memoryInvLogs: any[] = [];
+  let invLogsDiskLoaded = false;
+  const ensureMemoryInvLogsLoaded = () => {
+    if (invLogsDiskLoaded) return memoryInvLogs;
+    invLogsDiskLoaded = true;
+    try {
+      if (fs.existsSync(campoInvPath)) {
+        const rawDisk = JSON.parse(fs.readFileSync(campoInvPath, 'utf8'));
+        if (Array.isArray(rawDisk)) {
+          memoryInvLogs = rawDisk
+            .filter((r) => !isSyntheticPriceOrInventoryRow(r))
+            .map(mapSupabaseInventoryRowToPayload);
+        }
+      }
+    } catch (e) {}
+    return memoryInvLogs;
+  };
   const deletedInvLogIds = new Set<string>();
   let inventoryLogsCache: { payload: any[]; timestamp: number } | null = null;
-  try {
-    if (fs.existsSync(campoInvPath)) {
-      const rawDisk = JSON.parse(fs.readFileSync(campoInvPath, 'utf8'));
-      if (Array.isArray(rawDisk)) {
-        memoryInvLogs = rawDisk
-          .filter((r) => !isSyntheticPriceOrInventoryRow(r))
-          .map(mapSupabaseInventoryRowToPayload);
-      }
-    }
-  } catch (e) {}
 
   app.get('/api/inventory-logs', async (req, res) => {
     try {
+      ensureMemoryInvLogsLoaded();
       const now = Date.now();
       if (req.query.refresh !== 'true' && inventoryLogsCache && now - inventoryLogsCache.timestamp < 4000) {
         return res.json(inventoryLogsCache.payload);
@@ -6955,6 +6964,7 @@ Responde con un JSON estructurado con:
         created_at: rawBody.created_at || new Date().toISOString(),
       });
 
+      ensureMemoryInvLogsLoaded();
       deletedInvLogIds.delete(log.id);
       memoryInvLogs = [log, ...memoryInvLogs.filter((s) => s.id !== log.id)];
       inventoryLogsCache = null;
@@ -6993,6 +7003,7 @@ Responde con un JSON estructurado con:
   app.delete('/api/inventory-logs/:id', async (req, res) => {
     try {
       const { id } = req.params;
+      ensureMemoryInvLogsLoaded();
       deletedInvLogIds.add(id);
       memoryInvLogs = memoryInvLogs.filter((s) => s.id !== id);
       inventoryLogsCache = null;
@@ -7017,21 +7028,28 @@ Responde con un JSON estructurado con:
 
   const campoTastingPath = path.join(process.cwd(), 'data_tasting_surveys.json');
   let memoryTastingSurveys: any[] = [];
+  let tastingSurveysDiskLoaded = false;
+  const ensureMemoryTastingSurveysLoaded = () => {
+    if (tastingSurveysDiskLoaded) return memoryTastingSurveys;
+    tastingSurveysDiskLoaded = true;
+    try {
+      if (fs.existsSync(campoTastingPath)) {
+        const rawDisk = JSON.parse(fs.readFileSync(campoTastingPath, 'utf8'));
+        if (Array.isArray(rawDisk)) {
+          memoryTastingSurveys = rawDisk
+            .filter((r) => !isSyntheticTastingSurveyRow(r))
+            .map(mapSupabaseTastingSurveyRowToPayload);
+        }
+      }
+    } catch (e) {}
+    return memoryTastingSurveys;
+  };
   const deletedTastingSurveyIds = new Set<string>();
   let tastingSurveysCache: { payload: any[]; timestamp: number } | null = null;
-  try {
-    if (fs.existsSync(campoTastingPath)) {
-      const rawDisk = JSON.parse(fs.readFileSync(campoTastingPath, 'utf8'));
-      if (Array.isArray(rawDisk)) {
-        memoryTastingSurveys = rawDisk
-          .filter((r) => !isSyntheticTastingSurveyRow(r))
-          .map(mapSupabaseTastingSurveyRowToPayload);
-      }
-    }
-  } catch (e) {}
 
   app.get('/api/tasting-surveys', async (req, res) => {
     try {
+      ensureMemoryTastingSurveysLoaded();
       const now = Date.now();
       if (req.query.refresh !== 'true' && tastingSurveysCache && now - tastingSurveysCache.timestamp < 4000) {
         return res.json(tastingSurveysCache.payload);
@@ -7100,6 +7118,7 @@ Responde con un JSON estructurado con:
         created_at: rawBody.created_at || new Date().toISOString(),
       });
 
+      ensureMemoryTastingSurveysLoaded();
       deletedTastingSurveyIds.delete(survey.id);
       memoryTastingSurveys = [survey, ...memoryTastingSurveys.filter(s => s.id !== survey.id && s.id !== rawBody.id)];
       tastingSurveysCache = null;
@@ -7149,6 +7168,7 @@ Responde con un JSON estructurado con:
   app.delete('/api/tasting-surveys/:id', async (req, res) => {
     try {
       const { id } = req.params;
+      ensureMemoryTastingSurveysLoaded();
       deletedTastingSurveyIds.add(id);
       memoryTastingSurveys = memoryTastingSurveys.filter(s => s.id !== id);
       tastingSurveysCache = null;
